@@ -1,0 +1,31 @@
+{
+  "subject": "Operating Systems",
+  "prerequisite_map": {
+    "Process Concepts": [],
+    "CPU Scheduling": [
+      "Process Concepts"
+    ],
+    "FCFS": [
+      "CPU Scheduling"
+    ],
+    "SJF": [
+      "CPU Scheduling",
+      "FCFS"
+    ],
+    "Round Robin": [
+      "CPU Scheduling",
+      "FCFS"
+    ],
+    "Process Synchronization": [
+      "Process Concepts",
+      "CPU Scheduling"
+    ],
+    "Deadlock Detection": [
+      "Process Synchronization"
+    ],
+    "Memory Management": [],
+    "Paging": [
+      "Memory Management"
+    ]
+  }
+}

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from backend.models.db_models import MasteryLevel, QuizStatus, UserRole
+from backend.models.db import MasteryLevel, QuizStatus, UserRole
 
 # ── Shared config ─────────────────────────────────────────────────────────────
 

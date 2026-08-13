@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import decode_access_token
-from backend.models.db_models import User, UserRole
+from backend.models.db import User, UserRole
 from backend.models.schemas import TokenData
 
 # ── Bearer token extractor ────────────────────────────────────────────────────

@@ -1,9 +1,11 @@
+import enum
 import uuid
 from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
     Column,
+    Date,
     DateTime,
     Enum,
     Float,
@@ -18,8 +20,6 @@ from sqlalchemy.orm import relationship
 from backend.core.database import Base
 
 # ── Enums ─────────────────────────────────────────────────────────────────────
-
-import enum
 
 
 class UserRole(str, enum.Enum):
@@ -59,10 +59,32 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    engagement = relationship("Engagement", back_populates="student", uselist=False, cascade="all, delete-orphan")
     learning_states = relationship("LearningState", back_populates="student", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="student", cascade="all, delete-orphan")
     quiz_attempts = relationship("QuizAttempt", back_populates="student", cascade="all, delete-orphan")
     uploaded_documents = relationship("Document", back_populates="uploaded_by", cascade="all, delete-orphan")
+
+
+class Engagement(Base):
+    """
+    Per-student engagement and streak tracking record.
+    Created automatically when a student registers.
+    """
+
+    __tablename__ = "engagements"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    streak = Column(Integer, default=0, nullable=False)
+    longest_streak = Column(Integer, default=0, nullable=False)
+    last_active_date = Column(Date, nullable=True)
+    total_sessions = Column(Integer, default=0, nullable=False)
+    total_messages = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True, nullable=False)
+    student = relationship("User", back_populates="engagement")
 
 
 class Document(Base):

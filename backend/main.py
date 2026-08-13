@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.auth import router as auth_router
 from backend.core.config import get_settings
 from backend.core.database import Base, engine
 
@@ -48,12 +49,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Routers (registered once the sub-modules are implemented) ─────────────────
-# from backend.api.routes import auth_router, chat_router, quiz_router, upload_router
-# app.include_router(auth_router,   prefix="/api/v1/auth",    tags=["auth"])
-# app.include_router(chat_router,   prefix="/api/v1/chat",    tags=["chat"])
-# app.include_router(quiz_router,   prefix="/api/v1/quiz",    tags=["quiz"])
-# app.include_router(upload_router, prefix="/api/v1/upload",  tags=["upload"])
+# ── Routers ───────────────────────────────────────────────────────────────────
+app.include_router(auth_router, prefix="/api/v1")
+# Future routers (uncomment as implemented):
+# app.include_router(chat_router,   prefix="/api/v1")
+# app.include_router(quiz_router,   prefix="/api/v1")
+# app.include_router(upload_router, prefix="/api/v1")
+# app.include_router(progress_router, prefix="/api/v1")
+# app.include_router(insights_router, prefix="/api/v1")
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
