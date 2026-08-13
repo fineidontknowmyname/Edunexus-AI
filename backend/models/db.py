@@ -41,6 +41,13 @@ class QuizStatus(str, enum.Enum):
     archived = "archived"
 
 
+class DocumentStatus(str, enum.Enum):
+    pending = "pending"    # Uploaded, awaiting ingestion
+    processing = "processing"  # Ingestion pipeline running
+    ready = "ready"        # Chunks stored and indexed
+    failed = "failed"      # Ingestion failed
+
+
 # ── Models ────────────────────────────────────────────────────────────────────
 
 
@@ -97,12 +104,21 @@ class Document(Base):
     filename = Column(String(500), nullable=False)
     file_path = Column(String(1000), nullable=False)
     subject = Column(String(255), nullable=True)
+    # Syllabus positioning metadata
+    unit = Column(Integer, nullable=True)            # Module/unit number
+    chapter = Column(Integer, nullable=True)         # Chapter number within unit
+    chapter_name = Column(String(500), nullable=True)  # Descriptive chapter title
+    class_id = Column(String(255), nullable=True)    # Educator's class/cohort ID
+    # Ingestion pipeline state
+    status = Column(Enum(DocumentStatus), default=DocumentStatus.pending, nullable=False)
     is_indexed = Column(Boolean, default=False, nullable=False)
     chunk_count = Column(Integer, default=0)
+    deleted = Column(Boolean, default=False, nullable=False)  # Soft-delete flag
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     uploaded_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     uploaded_by = relationship("User", back_populates="uploaded_documents")
+    chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan")
 
 
 class LearningState(Base):
@@ -189,3 +205,49 @@ class QuizAttempt(Base):
     quiz_id = Column(UUID(as_uuid=True), ForeignKey("quizzes.id"), nullable=False)
     student = relationship("User", back_populates="quiz_attempts")
     quiz = relationship("Quiz", back_populates="attempts")
+
+
+class Chunk(Base):
+    """
+    A single processed text chunk derived from a Document.
+
+    Stores the raw text, contextual prefix, embedding vector (serialized as JSON),
+    and metadata for RAG retrieval.
+    """
+
+    __tablename__ = "chunks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    text = Column(Text, nullable=False)                  # Raw extracted chunk text
+    contextual_prefix = Column(Text, nullable=False)     # Subject/unit/chapter metadata header
+    full_text = Column(Text, nullable=False)             # prefix + "\n" + text (embedded)
+    embedding = Column(Text, nullable=False)             # JSON-serialized float vector
+    subject = Column(String(255), nullable=True)
+    chapter = Column(Integer, nullable=True)
+    chunk_index = Column(Integer, nullable=False)        # 0-based position in document
+    token_count = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
+    document = relationship("Document", back_populates="chunks")
+
+
+class ClassContext(Base):
+    """
+    Educator-defined class/cohort context, including a JSON syllabus map
+    tracking chapter teach status for auto-progression.
+    """
+
+    __tablename__ = "class_contexts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    class_id = Column(String(255), unique=True, nullable=False, index=True)
+    class_name = Column(String(500), nullable=True)
+    subject = Column(String(255), nullable=True)
+    # JSON structure: {"1": "taught", "2": "not_taught", ...}
+    syllabus_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    educator_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    educator = relationship("User")

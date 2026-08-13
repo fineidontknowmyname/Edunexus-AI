@@ -1,0 +1,268 @@
+"""
+backend/api/documents.py
+
+REST API router for educator document management and the ingestion pipeline.
+
+Endpoints:
+  POST /documents/upload   — Upload a file and trigger background ingestion
+  GET  /documents/status/{job_id} — Poll the status of an ingestion job
+  GET  /documents/         — List active documents for a class
+  DELETE /documents/{document_id} — Soft-delete a document
+
+Structured print() statements are emitted on every file reception,
+background task dispatch, and status poll request.
+"""
+
+import os
+import tempfile
+import uuid
+from typing import Annotated
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
+from backend.api.dependencies import CurrentUser, RequireEducator
+from backend.core.database import get_db
+from backend.models.db import Document, DocumentStatus
+from backend.services.ingestion_service import process_document
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/documents", tags=["documents"])
+
+# ── In-memory job status store ────────────────────────────────────────────────
+# Maps job_id → {"document_id": str, "status": str, "detail": str | None}
+job_status: dict[str, dict] = {}
+
+SUPPORTED_EXTENSIONS = (".pdf", ".pptx", ".docx", ".txt")
+
+DbDep = Annotated[Session, Depends(get_db)]
+
+
+# ── POST /documents/upload ────────────────────────────────────────────────────
+
+@router.post(
+    "/upload",
+    status_code=202,
+    summary="Upload a document and trigger the ingestion pipeline",
+)
+def upload_document(
+    background_tasks: BackgroundTasks,
+    db: DbDep,
+    current_user: CurrentUser,
+    _educator: Annotated[None, RequireEducator],
+    file: UploadFile = File(...),
+    class_id: str = Form(...),
+    title: str = Form(...),
+    subject: str = Form(""),
+    unit: int = Form(1),
+    chapter: int = Form(1),
+    chapter_name: str = Form(""),
+):
+    """
+    Upload a document file and immediately dispatch an async ingestion job.
+
+    Returns a ``job_id`` which can be polled at ``GET /documents/status/{job_id}``.
+    """
+    print(f"[API UPLOAD] Received file '{file.filename}' for Class ID: {class_id} "
+          f"| Title: '{title}' | Subject: '{subject}' | Unit: {unit} | Chapter: {chapter}")
+
+    # ── Validate file extension ───────────────────────────────────────────────
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in SUPPORTED_EXTENSIONS:
+        print(f"[API UPLOAD ERROR] Rejected unsupported file extension '{ext}' for file '{filename}'")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(SUPPORTED_EXTENSIONS)}",
+        )
+
+    # ── Save uploaded file to a named temp file ───────────────────────────────
+    try:
+        suffix = ext
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        content = file.file.read()
+        tmp.write(content)
+        tmp.flush()
+        tmp.close()
+        file_path = tmp.name
+        print(f"[API UPLOAD] Saved '{filename}' to temp path: {file_path} ({len(content):,} bytes)")
+    except Exception as e:
+        print(f"[API UPLOAD ERROR] Failed to save uploaded file: {e}")
+        logger.exception("Failed to write uploaded file to temp path")
+        raise HTTPException(status_code=500, detail="Failed to store uploaded file.")
+
+    # ── Create Document DB record ─────────────────────────────────────────────
+    doc = Document(
+        title=title,
+        filename=filename,
+        file_path=file_path,
+        subject=subject or None,
+        unit=unit,
+        chapter=chapter,
+        chapter_name=chapter_name or None,
+        class_id=class_id,
+        status=DocumentStatus.processing,
+        uploaded_by_id=current_user.id,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    document_id = str(doc.id)
+
+    print(f"[API UPLOAD] Document record created: ID={document_id}")
+
+    # ── Register ingestion job ────────────────────────────────────────────────
+    job_id = str(uuid.uuid4())
+    job_status[job_id] = {
+        "document_id": document_id,
+        "status": "processing",
+        "detail": None,
+    }
+
+    # ── Define background worker ──────────────────────────────────────────────
+    def run_ingestion() -> None:
+        """Runs the full ingestion pipeline in the background."""
+        print(f"[BACKGROUND TASK] Dispatching ingestion for Job ID: {job_id} | Document: {document_id}")
+        from backend.core.database import SessionLocal  # avoid import cycle
+
+        ingestion_db = SessionLocal()
+        try:
+            # Fetch the embedding model from the application lifespan state
+            # (injected via app.state.embedding_model at startup)
+            from backend.main import app
+            embedding_model = getattr(app.state, "embedding_model", None)
+            if embedding_model is None:
+                raise RuntimeError("Embedding model not loaded in app.state. Check startup lifespan.")
+
+            result = process_document(
+                db=ingestion_db,
+                document_id=document_id,
+                file_path=file_path,
+                filename=filename,
+                embedding_model=embedding_model,
+            )
+            job_status[job_id]["status"] = "ready"
+            job_status[job_id]["chunk_count"] = result.get("chunk_count", 0)
+            print(f"[BACKGROUND TASK SUCCESS] Job {job_id} completed. "
+                  f"Chunks: {result.get('chunk_count', 0)}")
+        except Exception as e:
+            job_status[job_id]["status"] = "failed"
+            job_status[job_id]["detail"] = str(e)
+            print(f"[BACKGROUND TASK FAILED] Job {job_id} failed: {e}")
+            logger.exception("Background ingestion job %s failed", job_id)
+        finally:
+            ingestion_db.close()
+
+    # ── Dispatch background task ──────────────────────────────────────────────
+    background_tasks.add_task(run_ingestion)
+    print(f"[API UPLOAD] Ingestion job queued. Job ID: {job_id}")
+
+    return {
+        "document_id": document_id,
+        "job_id": job_id,
+        "status": "processing",
+    }
+
+
+# ── GET /documents/status/{job_id} ───────────────────────────────────────────
+
+@router.get(
+    "/status/{job_id}",
+    summary="Poll the status of a document ingestion job",
+)
+def get_job_status(job_id: str, _educator: Annotated[None, RequireEducator]):
+    """
+    Poll the in-memory job tracker to check ingestion progress.
+
+    Returns one of: ``processing``, ``ready``, or ``failed``.
+    """
+    print(f"[API POLL] Status requested for Job ID: {job_id}")
+
+    if job_id not in job_status:
+        print(f"[API POLL ERROR] Job ID '{job_id}' not found in job registry.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job ID '{job_id}' not found. It may have expired or never existed.",
+        )
+
+    result = job_status[job_id]
+    print(f"[API POLL] Job {job_id} → status='{result['status']}'")
+    return result
+
+
+# ── GET /documents/ ───────────────────────────────────────────────────────────
+
+@router.get(
+    "/",
+    summary="List all active documents for a class",
+)
+def list_documents(
+    class_id: str,
+    db: DbDep,
+    _educator: Annotated[None, RequireEducator],
+):
+    """
+    Return all non-deleted documents belonging to the specified class.
+
+    :param class_id: The class/cohort identifier to filter by.
+    """
+    print(f"[API LIST] Listing documents for class_id='{class_id}'")
+    docs = (
+        db.query(Document)
+        .filter(Document.class_id == class_id, Document.deleted == False)  # noqa: E712
+        .order_by(Document.created_at.desc())
+        .all()
+    )
+    print(f"[API LIST] Found {len(docs)} document(s) for class_id='{class_id}'")
+    return [
+        {
+            "id": str(doc.id),
+            "title": doc.title,
+            "filename": doc.filename,
+            "subject": doc.subject,
+            "unit": doc.unit,
+            "chapter": doc.chapter,
+            "chapter_name": doc.chapter_name,
+            "status": doc.status.value,
+            "chunk_count": doc.chunk_count,
+            "created_at": doc.created_at.isoformat(),
+        }
+        for doc in docs
+    ]
+
+
+# ── DELETE /documents/{document_id} ──────────────────────────────────────────
+
+@router.delete(
+    "/{document_id}",
+    status_code=200,
+    summary="Soft-delete a document",
+)
+def delete_document(
+    document_id: str,
+    db: DbDep,
+    _educator: Annotated[None, RequireEducator],
+):
+    """
+    Soft-delete a document by setting ``deleted = True``.
+
+    The document and its chunks remain in the database but will be excluded
+    from queries and RAG retrieval.
+    """
+    print(f"[API DELETE] Soft-delete requested for Document ID: {document_id}")
+
+    doc = db.get(Document, document_id)
+    if doc is None or doc.deleted:
+        print(f"[API DELETE ERROR] Document '{document_id}' not found or already deleted.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document '{document_id}' not found.",
+        )
+
+    doc.deleted = True
+    db.commit()
+    print(f"[API DELETE SUCCESS] Document '{document_id}' soft-deleted.")
+    return {"message": f"Document '{document_id}' deleted successfully."}

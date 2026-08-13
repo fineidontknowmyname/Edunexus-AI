@@ -8,8 +8,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.auth import router as auth_router
+from backend.api.documents import router as documents_router
 from backend.core.config import get_settings
 from backend.core.database import Base, engine
+from backend.pipeline.embedder import get_embedding_model
 
 settings = get_settings()
 
@@ -19,12 +21,20 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Startup: create all tables (idempotent — skipped if they already exist).
-    Use Alembic migrations in production; this covers local dev / testing.
+    Startup:
+      1. Create all DB tables (idempotent — skipped if they already exist).
+         Use Alembic migrations in production; this covers local dev / testing.
+      2. Pre-load the SentenceTransformer embedding model into app.state so that
+         background ingestion workers can access it without reloading on every job.
     """
+    print("[STARTUP] Creating database tables...")
     Base.metadata.create_all(bind=engine)
+    print("[STARTUP] Loading embedding model into app.state...")
+    app.state.embedding_model = get_embedding_model()
+    print("[STARTUP] EduNexus AI ready.")
     yield
     # Shutdown: nothing to tear down for now.
+    print("[SHUTDOWN] EduNexus AI shutting down.")
 
 
 # ── App factory ───────────────────────────────────────────────────────────────
@@ -50,13 +60,13 @@ app.add_middleware(
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(auth_router, prefix="/api/v1")
+app.include_router(auth_router,      prefix="/api/v1")
+app.include_router(documents_router, prefix="/api/v1")
 # Future routers (uncomment as implemented):
-# app.include_router(chat_router,   prefix="/api/v1")
-# app.include_router(quiz_router,   prefix="/api/v1")
-# app.include_router(upload_router, prefix="/api/v1")
-# app.include_router(progress_router, prefix="/api/v1")
-# app.include_router(insights_router, prefix="/api/v1")
+# app.include_router(chat_router,      prefix="/api/v1")
+# app.include_router(quiz_router,      prefix="/api/v1")
+# app.include_router(progress_router,  prefix="/api/v1")
+# app.include_router(insights_router,  prefix="/api/v1")
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

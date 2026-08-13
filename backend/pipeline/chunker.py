@@ -1,24 +1,6 @@
-"""
-backend/pipeline/chunker.py
-
-Converts raw extracted text into structured, contextually-enriched chunks
-ready for embedding and vector-store indexing.
-
-Design decisions:
-  - Uses ``langchain_text_splitters.RecursiveCharacterTextSplitter`` when
-    available; falls back to a built-in implementation so the module works
-    even without langchain installed.
-  - Each chunk carries a deterministic ``contextual_prefix`` (subject / unit /
-    chapter metadata) so the embedding captures *where* the content comes from,
-    not just *what* it says.
-  - Token count is approximated as ``len(full_text.split())`` — cheap, language
-    agnostic, and accurate enough for 512-token budget tracking.
-"""
-
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -71,10 +53,12 @@ def generate_prefix(
     :param document_title: Source document filename or title.
     :return:               Single-line metadata prefix string.
     """
-    return (
+    prefix = (
         f"From {subject}, Unit {unit}, Chapter {chapter} - {chapter_name}. "
         f"Source: {document_title}."
     )
+    print(f"[CHUNKER PREFIX] Generated prefix: {prefix}")
+    return prefix
 
 
 # ── Fallback splitter ─────────────────────────────────────────────────────────
@@ -102,6 +86,7 @@ class _RecursiveCharacterTextSplitter:
         self.separators = separators or self._DEFAULT_SEPARATORS
 
     def split_text(self, text: str) -> list[str]:
+        print("[CHUNKER SPLITTER] Using built-in RecursiveCharacterTextSplitter (langchain not available).")
         return list(self._split(text, self.separators))
 
     def _split(self, text: str, separators: list[str]) -> list[str]:
@@ -109,13 +94,12 @@ class _RecursiveCharacterTextSplitter:
         if not text.strip():
             return []
 
-        # Find the first separator that actually appears in the text
         separator = ""
         remaining_separators: list[str] = []
         for i, sep in enumerate(separators):
             if sep == "" or sep in text:
                 separator = sep
-                remaining_separators = separators[i + 1 :]
+                remaining_separators = separators[i + 1:]
                 break
 
         splits = text.split(separator) if separator else list(text)
@@ -129,7 +113,6 @@ class _RecursiveCharacterTextSplitter:
 
             if current_len + split_len > self.chunk_size and current:
                 chunks.append(separator.join(current).strip())
-                # Keep the overlap portion
                 overlap: list[str] = []
                 overlap_len = 0
                 for part in reversed(current):
@@ -142,7 +125,6 @@ class _RecursiveCharacterTextSplitter:
                 current = overlap
                 current_len = overlap_len
 
-            # Recursively re-split splits that are still too large
             if split_len > self.chunk_size and remaining_separators:
                 sub_chunks = self._split(split, remaining_separators)
                 for sub in sub_chunks:
@@ -174,8 +156,7 @@ def _get_splitter(chunk_size: int, chunk_overlap: int) -> _RecursiveCharacterTex
         from langchain_text_splitters import (  # type: ignore[import-untyped]
             RecursiveCharacterTextSplitter,
         )
-
-        logger.debug("Using langchain_text_splitters.RecursiveCharacterTextSplitter.")
+        print("[CHUNKER SPLITTER] Using langchain_text_splitters.RecursiveCharacterTextSplitter.")
         return RecursiveCharacterTextSplitter(  # type: ignore[return-value]
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
@@ -183,7 +164,7 @@ def _get_splitter(chunk_size: int, chunk_overlap: int) -> _RecursiveCharacterTex
             length_function=lambda t: len(t.split()),  # word-token budget
         )
     except ImportError:
-        logger.debug("langchain_text_splitters not available; using built-in splitter.")
+        print("[CHUNKER SPLITTER] langchain_text_splitters not found. Falling back to built-in splitter.")
         return _RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
@@ -216,7 +197,10 @@ def chunk_text(
     :param chunk_overlap:   Number of words of overlap between consecutive chunks.
     :return:                Ordered list of :class:`ChunkData` objects.
     """
+    print(f"[CHUNKER] Starting text chunking. Input length: {len(text):,} chars | Target chunk size: {chunk_size}")
+
     if not text or not text.strip():
+        print("[CHUNKER WARNING] Received empty text input — returning empty list.")
         logger.warning("chunk_text received empty text — returning empty list.")
         return []
 
@@ -229,9 +213,19 @@ def chunk_text(
         document_title=document_title,
     )
 
-    # 2 — Split text into raw blocks
+    # 2 — Acquire splitter and split text into raw blocks
+    print(f"[CHUNKER] Acquiring text splitter (chunk_size={chunk_size}, overlap={chunk_overlap})...")
     splitter = _get_splitter(chunk_size, chunk_overlap)
-    raw_chunks: list[str] = splitter.split_text(text)
+
+    print("[CHUNKER] Splitting text into raw blocks...")
+    try:
+        raw_chunks: list[str] = splitter.split_text(text)
+    except Exception as e:
+        print(f"[CHUNKER ERROR] Text splitting failed: {e}")
+        logger.exception("Error during text splitting")
+        raise
+
+    print(f"[CHUNKER] Raw split produced {len(raw_chunks)} blocks.")
 
     # 3 — Build ChunkData objects
     results: list[ChunkData] = []
@@ -250,6 +244,7 @@ def chunk_text(
             )
         )
 
+    print(f"[CHUNKER SUCCESS] Successfully created {len(results)} chunks from source text.")
     logger.info(
         "chunk_text produced %d chunks from %d input characters "
         "(chunk_size=%d, overlap=%d).",
