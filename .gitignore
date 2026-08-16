@@ -144,3 +144,5 @@ $RECYCLE.BIN/
 scratch/
 tmp/
 *.log
+AI project context/
+.vscode/
