@@ -1,20 +1,9 @@
-"""
-backend/pipeline/embedder.py
-
-Vector embedding utility for generating dense vector representations of text chunks and search queries.
-Uses SentenceTransformers (default: "all-MiniLM-L6-v2" yielding 384-dimensional normalized vectors).
-
-Includes clear, structured print() diagnostics at every key processing step
-to make debugging and error detection trivial during execution.
-"""
-
 import logging
 import sys
 import time
 from functools import lru_cache
 from typing import Any
 
-# Try top-level import for IDE autocompletion & static analysis (Pyright/Pylance)
 try:
     from sentence_transformers import SentenceTransformer  # type: ignore[import-untyped, import-not-found]
 except ImportError:
@@ -27,16 +16,9 @@ DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
 
 @lru_cache(maxsize=1)
 def get_embedding_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
-    """
-    Lazy-load and cache the SentenceTransformer embedding model singleton.
-
-    :param model_name: Name of the SentenceTransformer model to load.
-    :return: Loaded SentenceTransformer model instance.
-    """
     print(f"[EMBEDDER MODEL] Loading SentenceTransformer model '{model_name}'...")
     try:
         import site
-        # Resolve site-packages directories (both venv and user site)
         site_dirs = []
         try:
             site_dirs.extend(site.getsitepackages())
@@ -70,14 +52,6 @@ def get_embedding_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
 
 
 def embed_texts(texts: list[str], model: Any = None) -> list[list[float]]:
-    """
-    Batch generate normalized vector embeddings for a list of text strings.
-
-    :param texts: List of text strings to embed.
-    :param model: Optional pre-loaded SentenceTransformer model instance.
-                  If None, the default cached model will be used.
-    :return: List of 384-dimensional float vector lists (empty list if input is empty).
-    """
     if not texts:
         print("[EMBEDDER WARNING] Received empty text list for embedding. Returning empty list.")
         return []
@@ -97,7 +71,6 @@ def embed_texts(texts: list[str], model: Any = None) -> list[list[float]]:
         )
         elapsed = time.time() - t0
 
-        # Convert numpy ndarray to Python list of lists of floats
         if hasattr(embeddings, "tolist"):
             vectors = embeddings.tolist()
         else:
@@ -114,14 +87,6 @@ def embed_texts(texts: list[str], model: Any = None) -> list[list[float]]:
 
 
 def embed_single(text: str, model: Any = None) -> list[float]:
-    """
-    Generate a normalized vector embedding for a single text query string.
-
-    :param text: Query string to embed.
-    :param model: Optional pre-loaded SentenceTransformer model instance.
-                  If None, the default cached model will be used.
-    :return: 384-dimensional float vector list.
-    """
     if not text or not text.strip():
         print("[EMBEDDER WARNING] Received empty query string for embedding. Returning empty list.")
         return []

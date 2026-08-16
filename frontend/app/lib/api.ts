@@ -13,15 +13,10 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
-  body?: unknown; // JSON-serializable, or a FormData instance (sent as-is)
-  auth?: boolean; // attach Authorization header — default true
+  body?: unknown;
+  auth?: boolean;
 }
 
-/**
- * Thin fetch wrapper: prefixes API_URL, attaches the JWT, JSON-encodes plain
- * object bodies (FormData passes through untouched), and normalizes FastAPI's
- * `{"detail": "..."}` error shape into a thrown ApiError.
- */
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, auth = true, headers, ...rest } = options;
 
@@ -48,9 +43,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     try {
       const errBody = await response.json();
       detail = errBody.detail ?? detail;
-    } catch {
-      // response wasn't JSON — keep statusText
-    }
+    } catch {}
     throw new ApiError(response.status, detail);
   }
 

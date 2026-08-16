@@ -12,11 +12,6 @@ except ImportError:
 
 
 def test_pdf(file_path: str) -> None:
-    """
-    Test PDF readability and text extraction using PyMuPDF (fitz).
-
-    :param file_path: Path to the target PDF file.
-    """
     path = Path(file_path)
     if not path.exists():
         print(f"Error: File '{file_path}' does not exist.")

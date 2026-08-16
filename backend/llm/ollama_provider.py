@@ -8,20 +8,12 @@ from backend.llm.base import LLMProvider
 
 
 class OllamaProvider(LLMProvider):
-    """
-    Ollama LLM Provider for local model inference.
-    Connects via HTTP REST API to an Ollama server instance.
-    """
-
     def __init__(self, model_name: str = "llama3.1:8b", base_url: str | None = None):
         settings = get_settings()
         self.model_name = model_name
         self.base_url = (base_url or settings.ollama_base_url).rstrip("/")
 
     async def generate(self, prompt: str, max_tokens: int = 1024) -> str:
-        """
-        Send non-streaming completion request to Ollama /api/generate.
-        """
         url = f"{self.base_url}/api/generate"
         payload = {
             "model": self.model_name,
@@ -39,9 +31,6 @@ class OllamaProvider(LLMProvider):
             return data.get("response", "")
 
     async def stream(self, prompt: str, max_tokens: int = 1024) -> AsyncGenerator[str, None]:
-        """
-        Send streaming completion request to Ollama /api/generate and yield response chunks.
-        """
         url = f"{self.base_url}/api/generate"
         payload = {
             "model": self.model_name,

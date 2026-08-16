@@ -5,38 +5,26 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# ── Append backend root directory to sys.path ────────────────────────────────
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, "..", ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# ── Import application configuration and SQLAlchemy metadata ──────────────────
 from backend.core.config import get_settings
 from backend.models.db import Base
 
-# Alembic Config object, providing access to values in alembic.ini
 config = context.config
 
-# Setup Python logging formatters
 if config.config_file_name:
     fileConfig(config.config_file_name)
 
-# Set target metadata for 'autogenerate' support across all models in Base
 target_metadata = Base.metadata
 
-# Override sqlalchemy.url dynamically using environment settings
 settings = get_settings()
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 
 def run_migrations_offline() -> None:
-    """
-    Run migrations in 'offline' mode.
-
-    Configures the context with just a URL and not an Engine.
-    Calls to context.execute() emit SQL statements to the script output.
-    """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -50,11 +38,6 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """
-    Run migrations in 'online' mode.
-
-    Creates an Engine and associates a connection with the context.
-    """
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

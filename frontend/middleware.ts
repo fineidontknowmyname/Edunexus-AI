@@ -11,13 +11,6 @@ function homeFor(role: string | undefined) {
   return role === "educator" ? "/upload" : "/chat";
 }
 
-/**
- * Route gating only — this cookie is not httpOnly and its value is never
- * cryptographically verified here. It exists so unauthenticated/wrong-role
- * navigations redirect immediately instead of rendering a page that will
- * just 401 on its first API call. The backend JWT check on every request is
- * the actual authorization boundary.
- */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(TOKEN_COOKIE)?.value;

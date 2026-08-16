@@ -39,7 +39,6 @@ export default function UploadPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // ── Load classes the educator teaches ─────────────────────────────────────
   const loadClasses = useCallback(async () => {
     setClassesLoading(true);
     try {
@@ -73,7 +72,6 @@ export default function UploadPage() {
     }
   }
 
-  // ── Document list for the selected class ──────────────────────────────────
   const loadDocuments = useCallback(async () => {
     if (!classId) return;
     setDocsLoading(true);
@@ -89,7 +87,6 @@ export default function UploadPage() {
     loadDocuments();
   }, [loadDocuments]);
 
-  // ── Poll ingestion status once a job is dispatched ────────────────────────
   const { data: jobStatus } = usePoll<JobStatus>(
     () => apiFetch<JobStatus>(`/documents/status/${jobId}`),
     {
@@ -154,7 +151,6 @@ export default function UploadPage() {
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
       <h1 className="text-2xl font-bold text-gray-900">Curriculum Upload</h1>
 
-      {/* ── Class selection ────────────────────────────────────────────── */}
       <Card>
         <h2 className="font-semibold text-gray-900 mb-3">Class</h2>
         {classesLoading ? (
@@ -190,7 +186,6 @@ export default function UploadPage() {
         </form>
       </Card>
 
-      {/* ── Upload form ─────────────────────────────────────────────────── */}
       <Card>
         <h2 className="font-semibold text-gray-900 mb-3">Upload document</h2>
         <form onSubmit={handleUpload} className="flex flex-col gap-4">
@@ -278,7 +273,6 @@ export default function UploadPage() {
         )}
       </Card>
 
-      {/* ── Document list ───────────────────────────────────────────────── */}
       <Card>
         <h2 className="font-semibold text-gray-900 mb-3">Documents</h2>
         {docsLoading ? (

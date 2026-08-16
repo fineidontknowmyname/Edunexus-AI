@@ -12,11 +12,6 @@ from backend.llm.base import LLMProvider
 
 
 class GroqProvider(LLMProvider):
-    """
-    Groq LLM Provider for cloud inference via Groq API.
-    Decorated with retry logic to handle rate limits and transient errors gracefully.
-    """
-
     def __init__(self, api_key: str | None = None, model_name: str | None = None):
         settings = get_settings()
         self.api_key = api_key or settings.groq_api_key
@@ -32,9 +27,6 @@ class GroqProvider(LLMProvider):
         reraise=True,
     )
     async def generate(self, prompt: str, max_tokens: int = 1024) -> str:
-        """
-        Generate a complete response using Groq Chat Completions API with exponential backoff retry.
-        """
         if self.client is None:
             raise RuntimeError("groq package is not installed. Please install 'groq'.")
 
@@ -49,9 +41,6 @@ class GroqProvider(LLMProvider):
         return response.choices[0].message.content or ""
 
     async def stream(self, prompt: str, max_tokens: int = 1024) -> AsyncGenerator[str, None]:
-        """
-        Stream response chunks from Groq Chat Completions API.
-        """
         if self.client is None:
             raise RuntimeError("groq package is not installed. Please install 'groq'.")
 

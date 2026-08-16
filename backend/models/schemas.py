@@ -6,16 +6,10 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from backend.models.db import MasteryTrend, ReviewStatus, SessionMode, UserRole
 
-# ── Shared config ─────────────────────────────────────────────────────────────
 
 class _OrmBase(BaseModel):
-    """All response schemas inherit from this to enable ORM mode."""
     model_config = ConfigDict(from_attributes=True)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Auth
-# ─────────────────────────────────────────────────────────────────────────────
 
 class Token(BaseModel):
     access_token: str
@@ -26,10 +20,6 @@ class TokenData(BaseModel):
     user_id: UUID | None = None
     role: UserRole | None = None
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# User
-# ─────────────────────────────────────────────────────────────────────────────
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -57,10 +47,6 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Classes
-# ─────────────────────────────────────────────────────────────────────────────
-
 class ClassCreate(BaseModel):
     name: str
     subject: str | None = None
@@ -75,10 +61,6 @@ class ClassRead(_OrmBase):
     created_at: datetime
     educator_id: UUID
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Document
-# ─────────────────────────────────────────────────────────────────────────────
 
 class DocumentRead(_OrmBase):
     id: UUID
@@ -100,10 +82,6 @@ class DocumentCreate(BaseModel):
     subject: str | None = None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Topic Mastery
-# ─────────────────────────────────────────────────────────────────────────────
-
 class TopicMasteryRead(_OrmBase):
     id: UUID
     topic: str
@@ -116,15 +94,10 @@ class TopicMasteryRead(_OrmBase):
 
 
 class TopicMasterySummary(BaseModel):
-    """Lightweight snapshot used in student progress views."""
     topic: str
     mastery_score: float
     trend: MasteryTrend
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Chat
-# ─────────────────────────────────────────────────────────────────────────────
 
 class ChatMessageRead(_OrmBase):
     id: UUID
@@ -146,8 +119,7 @@ class ChatSessionDetail(ChatSessionRead):
 
 
 class ChatRequest(BaseModel):
-    """Payload the client sends for each tutoring message."""
-    session_id: UUID | None = None     # omit to start a new session
+    session_id: UUID | None = None
     message: str = Field(min_length=1)
     subject: str | None = None
 
@@ -159,10 +131,6 @@ class ChatResponse(BaseModel):
     evidence: list[dict[str, Any]] = []
     concepts_detected: list[str] = []
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Quiz
-# ─────────────────────────────────────────────────────────────────────────────
 
 class QuizRead(_OrmBase):
     id: UUID
@@ -182,7 +150,7 @@ class QuizCreate(BaseModel):
 
 
 class QuizAttemptCreate(BaseModel):
-    answers: dict[str, Any]  # {question_index: chosen_answer}
+    answers: dict[str, Any]
 
 
 class QuizAttemptRead(_OrmBase):
@@ -195,15 +163,11 @@ class QuizAttemptRead(_OrmBase):
     quiz_id: UUID
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Insights (educator-facing aggregates)
-# ─────────────────────────────────────────────────────────────────────────────
-
 class ConceptInsight(BaseModel):
     concept: str
     average_mastery: float
     student_count: int
-    struggling_count: int   # students with mastery_score < 0.4
+    struggling_count: int
 
 
 class StudentInsightSummary(BaseModel):
@@ -213,10 +177,6 @@ class StudentInsightSummary(BaseModel):
     average_mastery: float
     concepts_tracked: int
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Generic responses
-# ─────────────────────────────────────────────────────────────────────────────
 
 class MessageResponse(BaseModel):
     message: str

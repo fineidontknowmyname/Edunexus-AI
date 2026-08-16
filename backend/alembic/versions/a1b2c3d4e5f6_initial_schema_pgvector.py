@@ -1,15 +1,4 @@
-"""initial_schema_pgvector
-
-Revision ID: a1b2c3d4e5f6
-Revises: None
-Create Date: 2026-08-17 00:00:00.000000
-
-Baseline schema for Neon PostgreSQL + pgvector — all 18 tables from the
-reference design, migrated once per the Shared Foundation Rule (see
-EduNexus_AI_CONTEXT.md §13). Replaces an earlier SQLite-era migration that
-had drifted out of sync with models/db.py and was never applied to any
-real database.
-"""
+"""initial_schema_pgvector"""
 from typing import Sequence, Union
 
 from alembic import op
@@ -17,7 +6,6 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from pgvector.sqlalchemy import Vector
 
-# revision identifiers, used by Alembic.
 revision: str = 'a1b2c3d4e5f6'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
@@ -25,10 +13,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # ── Enable pgvector extension (Neon has it pre-installed, just needs enabling) ──
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
-    # ── users ──────────────────────────────────────────────────────────────────
     op.create_table(
         'users',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -43,7 +29,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
 
-    # ── classes ────────────────────────────────────────────────────────────────
     op.create_table(
         'classes',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -56,7 +41,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── class_enrollments ─────────────────────────────────────────────────────
     op.create_table(
         'class_enrollments',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -68,7 +52,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── documents ──────────────────────────────────────────────────────────────
     op.create_table(
         'documents',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -91,7 +74,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── chunks ─────────────────────────────────────────────────────────────────
     op.create_table(
         'chunks',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -109,14 +91,11 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['document_id'], ['documents.id']),
         sa.PrimaryKeyConstraint('id'),
     )
-    # HNSW index for cosine-similarity ANN search — created via raw SQL since
-    # Alembic's op.create_index doesn't support the `vector_cosine_ops` operator class.
     op.execute(
         "CREATE INDEX ix_chunks_embedding_hnsw ON chunks "
         "USING hnsw (embedding vector_cosine_ops)"
     )
 
-    # ── response_cache ─────────────────────────────────────────────────────────
     op.create_table(
         'response_cache',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -135,7 +114,6 @@ def upgrade() -> None:
         "USING hnsw (query_embedding vector_cosine_ops)"
     )
 
-    # ── class_context ──────────────────────────────────────────────────────────
     op.create_table(
         'class_context',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -150,7 +128,6 @@ def upgrade() -> None:
         sa.UniqueConstraint('class_id'),
     )
 
-    # ── topic_mastery ──────────────────────────────────────────────────────────
     op.create_table(
         'topic_mastery',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -169,7 +146,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_topic_mastery_topic'), 'topic_mastery', ['topic'], unique=False)
 
-    # ── quizzes (created before misconceptions/quiz_attempts due to FK order) ──
     op.create_table(
         'quizzes',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -190,7 +166,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── quiz_questions ─────────────────────────────────────────────────────────
     op.create_table(
         'quiz_questions',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -206,7 +181,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── quiz_attempts ──────────────────────────────────────────────────────────
     op.create_table(
         'quiz_attempts',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -223,7 +197,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── misconceptions ─────────────────────────────────────────────────────────
     op.create_table(
         'misconceptions',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -240,7 +213,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── interaction_patterns ───────────────────────────────────────────────────
     op.create_table(
         'interaction_patterns',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -252,7 +224,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── engagement ─────────────────────────────────────────────────────────────
     op.create_table(
         'engagement',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -270,7 +241,6 @@ def upgrade() -> None:
         sa.UniqueConstraint('student_id'),
     )
 
-    # ── chat_sessions ──────────────────────────────────────────────────────────
     op.create_table(
         'chat_sessions',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -284,7 +254,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── chat_messages ──────────────────────────────────────────────────────────
     op.create_table(
         'chat_messages',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -299,7 +268,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── educator_notes ─────────────────────────────────────────────────────────
     op.create_table(
         'educator_notes',
         sa.Column('id', sa.UUID(), nullable=False),
@@ -314,9 +282,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    # ── prerequisite_map ───────────────────────────────────────────────────────
-    # Schema parity only — application code currently reads prerequisites from
-    # backend/data/prerequisites_os.json, not this table. See CONTEXT doc log.
     op.create_table(
         'prerequisite_map',
         sa.Column('id', sa.UUID(), nullable=False),

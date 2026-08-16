@@ -14,19 +14,6 @@ def register_user(
     full_name: str,
     role: UserRole = UserRole.student,
 ) -> dict:
-    """
-    Register a new platform user.
-
-    Steps:
-    1. Guard against duplicate emails.
-    2. Hash the plain-text password.
-    3. Persist the User record.
-    4. For student accounts, create a linked Engagement record (streak=0).
-    5. Commit and return a plain dict describing the new user.
-
-    :raises HTTPException 400: if the email is already registered.
-    """
-    # 1 — Duplicate email guard
     existing = db.query(User).filter(User.email == email.lower()).first()
     if existing:
         raise HTTPException(
@@ -34,10 +21,8 @@ def register_user(
             detail="An account with that email already exists.",
         )
 
-    # 2 — Hash password
     hashed = hash_password(password)
 
-    # 3 — Create and persist user
     user = User(
         email=email.lower(),
         hashed_password=hashed,
@@ -45,9 +30,8 @@ def register_user(
         role=role,
     )
     db.add(user)
-    db.flush()  # flush to get user.id without committing yet
+    db.flush()
 
-    # 4 — Bootstrap Engagement record for student accounts
     if role == UserRole.student:
         engagement = Engagement(
             student_id=user.id,
@@ -56,7 +40,6 @@ def register_user(
         )
         db.add(engagement)
 
-    # 5 — Commit and return
     db.commit()
     db.refresh(user)
 
@@ -71,20 +54,8 @@ def register_user(
 
 
 def login_user(db: Session, email: str, password: str) -> dict:
-    """
-    Authenticate a user and return a signed JWT.
-
-    Steps:
-    1. Look up the user by email.
-    2. Verify the submitted password against the stored hash.
-    3. Generate and return a JWT access token.
-
-    :raises HTTPException 401: if credentials are invalid or account is inactive.
-    """
-    # 1 — Fetch user
     user: User | None = db.query(User).filter(User.email == email.lower()).first()
 
-    # 2 — Validate credentials
     if user is None or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -98,7 +69,6 @@ def login_user(db: Session, email: str, password: str) -> dict:
             detail="Account is deactivated. Contact support.",
         )
 
-    # 3 — Issue JWT
     token = create_access_token(user_id=user.id, role=user.role.value)
 
     return {
@@ -108,11 +78,6 @@ def login_user(db: Session, email: str, password: str) -> dict:
 
 
 def get_user_by_id(db: Session, user_id: UUID) -> User:
-    """
-    Fetch a user by their UUID primary key.
-
-    :raises HTTPException 404: if not found.
-    """
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(

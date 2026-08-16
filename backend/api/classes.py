@@ -1,11 +1,3 @@
-"""
-backend/api/classes.py
-
-Minimal class management — educators create classes, both roles can list them.
-Enrollment (class_enrollments) is schema-ready but has no endpoint yet; adding
-students to a class is deferred until the student-facing chunks need it.
-"""
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -21,12 +13,7 @@ router = APIRouter(prefix="/classes", tags=["classes"])
 DbDep = Annotated[Session, Depends(get_db)]
 
 
-@router.post(
-    "/",
-    response_model=schemas.ClassRead,
-    status_code=201,
-    summary="Create a class (educator only)",
-)
+@router.post("/", response_model=schemas.ClassRead, status_code=201)
 def create_class(
     payload: schemas.ClassCreate,
     db: DbDep,
@@ -40,10 +27,8 @@ def create_class(
         educator_id=current_user.id,
     )
     db.add(class_row)
-    db.flush()  # get class_row.id without committing yet
+    db.flush()
 
-    # Bootstrap an empty ClassContext so ingestion's auto-mark-taught and the
-    # future syllabus/assessment endpoints have a row to write to immediately.
     db.add(ClassContext(class_id=class_row.id))
 
     db.commit()
@@ -51,16 +36,8 @@ def create_class(
     return class_row
 
 
-@router.get(
-    "/",
-    response_model=list[schemas.ClassRead],
-    summary="List classes visible to the current user",
-)
+@router.get("/", response_model=list[schemas.ClassRead])
 def list_classes(db: DbDep, current_user: CurrentUser):
-    """
-    Educators see classes they teach. Students see classes they're enrolled in
-    (via class_enrollments — returns empty until enrollment endpoints exist).
-    """
     from backend.models.db import ClassEnrollment, UserRole
 
     if current_user.role == UserRole.educator:

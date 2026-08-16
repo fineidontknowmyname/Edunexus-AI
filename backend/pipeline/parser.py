@@ -6,22 +6,9 @@ logger = logging.getLogger(__name__)
 SUPPORTED_EXTENSIONS = (".pdf", ".pptx", ".docx", ".txt")
 
 
-# ── Public router ─────────────────────────────────────────────────────────────
-
 def extract_text(file_path: str, filename: str) -> str:
-    """
-    Route a document file to the appropriate format handler and return
-    its full extracted text.
-
-    :param file_path: Absolute or relative path to the file on disk.
-    :param filename:  Original filename (used to determine file extension).
-    :return:          Clean, concatenated text string from the document.
-    :raises ValueError: If the file type is unsupported or the PDF is image-based.
-    :raises FileNotFoundError: If the file does not exist at ``file_path``.
-    """
     print(f"[PARSER] Starting extraction for file: {filename} at path: {file_path}")
 
-    # Validate extension first — fail fast before touching the filesystem
     extension = Path(filename).suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
         print(f"[PARSER ERROR] Unsupported file extension '{extension}' for file '{filename}'")
@@ -44,10 +31,10 @@ def extract_text(file_path: str, filename: str) -> str:
             text = _parse_pptx(path)
         elif extension == ".docx":
             text = _parse_docx(path)
-        else:  # .txt
+        else:
             text = _parse_txt(path)
     except ValueError:
-        raise  # Re-raise domain errors (e.g. scanned PDF) without wrapping
+        raise
     except Exception as e:
         print(f"[PARSER ERROR] Unexpected exception while parsing '{filename}': {e}")
         logger.exception("Unexpected error in extract_text for '%s'", filename)
@@ -57,18 +44,7 @@ def extract_text(file_path: str, filename: str) -> str:
     return text
 
 
-# ── Format handlers ───────────────────────────────────────────────────────────
-
 def _parse_pdf(path: Path) -> str:
-    """
-    Extract text from a digital PDF using PyMuPDF.
-
-    Each page is prefixed with a ``[Page N]`` header to preserve structural
-    context for downstream chunking.
-
-    :raises ValueError: If the extracted text is too short — indicating a
-                        scanned / image-based PDF that cannot be parsed.
-    """
     print(f"[PDF PARSER] Opening PDF with PyMuPDF: {path}")
 
     try:
@@ -106,12 +82,6 @@ def _parse_pdf(path: Path) -> str:
 
 
 def _parse_pptx(path: Path) -> str:
-    """
-    Extract text from a PowerPoint presentation (.pptx).
-
-    Each slide is prefixed with a ``[Slide N]`` header. Only shapes that
-    contain a text frame are included.
-    """
     print(f"[PPTX PARSER] Parsing presentation: {path}")
 
     try:
@@ -147,11 +117,6 @@ def _parse_pptx(path: Path) -> str:
 
 
 def _parse_docx(path: Path) -> str:
-    """
-    Extract text from a Word document (.docx).
-
-    Paragraphs are joined with newlines; empty paragraphs are skipped.
-    """
     print(f"[DOCX PARSER] Parsing Word document: {path}")
 
     try:
@@ -173,10 +138,6 @@ def _parse_docx(path: Path) -> str:
 
 
 def _parse_txt(path: Path) -> str:
-    """
-    Read a plain text file (.txt) with UTF-8 encoding.
-    Falls back to latin-1 if UTF-8 decoding fails.
-    """
     print(f"[TXT PARSER] Reading plain text file: {path}")
 
     try:

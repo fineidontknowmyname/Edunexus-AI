@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 interface UsePollOptions<T> {
   intervalMs?: number;
-  /** Stop polling once this returns true for the latest result. */
   until?: (data: T) => boolean;
   enabled?: boolean;
 }
@@ -15,12 +14,6 @@ interface UsePollState<T> {
   isPolling: boolean;
 }
 
-/**
- * Repeatedly calls `fetcher` on an interval until `until(data)` returns true
- * (or the component unmounts / `enabled` goes false). Used for job status
- * polling (e.g. GET /documents/status/{job_id}) per the plan's "poll every 3s"
- * upload UX — SSE is reserved for the chat stream in Chunk 2.
- */
 export function usePoll<T>(
   fetcher: () => Promise<T>,
   { intervalMs = 3000, until, enabled = true }: UsePollOptions<T> = {}

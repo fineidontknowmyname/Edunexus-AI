@@ -5,30 +5,14 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-# ── Data class ────────────────────────────────────────────────────────────────
-
 
 @dataclass(frozen=True)
 class ChunkData:
-    """
-    Immutable container for a single text chunk and its metadata.
-
-    Attributes:
-        text:               Raw chunk content extracted from the document.
-        contextual_prefix:  Deterministic metadata header (subject/unit/chapter).
-        full_text:          ``contextual_prefix + "\\n" + text`` — fed to the embedder.
-        chunk_index:        0-based position of this chunk in the source document.
-        token_count:        Approximate word-token count of ``full_text``.
-    """
-
     text: str
     contextual_prefix: str
     full_text: str
     chunk_index: int
     token_count: int
-
-
-# ── Prefix generator ──────────────────────────────────────────────────────────
 
 
 def generate_prefix(
@@ -38,21 +22,6 @@ def generate_prefix(
     chapter_name: str,
     document_title: str,
 ) -> str:
-    """
-    Build a deterministic, human-readable metadata header for a chunk.
-
-    Example output::
-
-        "From Operating Systems, Unit 2, Chapter 4 - CPU Scheduling.
-         Source: OS All Modules Notes."
-
-    :param subject:        Academic subject (e.g. "Operating Systems").
-    :param unit:           Module / unit number.
-    :param chapter:        Chapter number within the unit.
-    :param chapter_name:   Descriptive chapter title.
-    :param document_title: Source document filename or title.
-    :return:               Single-line metadata prefix string.
-    """
     prefix = (
         f"From {subject}, Unit {unit}, Chapter {chapter} - {chapter_name}. "
         f"Source: {document_title}."
@@ -61,18 +30,7 @@ def generate_prefix(
     return prefix
 
 
-# ── Fallback splitter ─────────────────────────────────────────────────────────
-
-
 class _RecursiveCharacterTextSplitter:
-    """
-    Minimal pure-Python implementation of a recursive character splitter.
-
-    Mirrors the behaviour of ``langchain_text_splitters.RecursiveCharacterTextSplitter``:
-    tries separators in order, splitting at the widest meaningful boundary
-    first, then narrower ones until chunks fit within ``chunk_size``.
-    """
-
     _DEFAULT_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
     def __init__(
@@ -90,7 +48,6 @@ class _RecursiveCharacterTextSplitter:
         return list(self._split(text, self.separators))
 
     def _split(self, text: str, separators: list[str]) -> list[str]:
-        """Recursively split *text* using the first applicable separator."""
         if not text.strip():
             return []
 
@@ -146,12 +103,6 @@ class _RecursiveCharacterTextSplitter:
 
 
 def _get_splitter(chunk_size: int, chunk_overlap: int) -> _RecursiveCharacterTextSplitter:
-    """
-    Return a text splitter instance.
-
-    Prefers ``langchain_text_splitters.RecursiveCharacterTextSplitter`` when
-    available; falls back to the built-in implementation transparently.
-    """
     try:
         from langchain_text_splitters import (  # type: ignore[import-untyped]
             RecursiveCharacterTextSplitter,
@@ -161,7 +112,7 @@ def _get_splitter(chunk_size: int, chunk_overlap: int) -> _RecursiveCharacterTex
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=["\n\n", "\n", ". ", " ", ""],
-            length_function=lambda t: len(t.split()),  # word-token budget
+            length_function=lambda t: len(t.split()),
         )
     except ImportError:
         print("[CHUNKER SPLITTER] langchain_text_splitters not found. Falling back to built-in splitter.")
@@ -169,9 +120,6 @@ def _get_splitter(chunk_size: int, chunk_overlap: int) -> _RecursiveCharacterTex
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
-
-
-# ── Main chunking function ────────────────────────────────────────────────────
 
 
 def chunk_text(
@@ -184,19 +132,6 @@ def chunk_text(
     chunk_size: int = 512,
     chunk_overlap: int = 64,
 ) -> list[ChunkData]:
-    """
-    Split raw document text into contextually-enriched chunks for embedding.
-
-    :param text:            Full extracted document text (from ``parser.extract_text``).
-    :param subject:         Academic subject (e.g. "Operating Systems").
-    :param unit:            Module / unit number.
-    :param chapter:         Chapter number within the unit.
-    :param chapter_name:    Descriptive chapter title.
-    :param document_title:  Source document filename or title.
-    :param chunk_size:      Maximum approximate word-token budget per chunk.
-    :param chunk_overlap:   Number of words of overlap between consecutive chunks.
-    :return:                Ordered list of :class:`ChunkData` objects.
-    """
     print(f"[CHUNKER] Starting text chunking. Input length: {len(text):,} chars | Target chunk size: {chunk_size}")
 
     if not text or not text.strip():
@@ -204,7 +139,6 @@ def chunk_text(
         logger.warning("chunk_text received empty text — returning empty list.")
         return []
 
-    # 1 — Generate the deterministic metadata prefix
     prefix = generate_prefix(
         subject=subject,
         unit=unit,
@@ -213,7 +147,6 @@ def chunk_text(
         document_title=document_title,
     )
 
-    # 2 — Acquire splitter and split text into raw blocks
     print(f"[CHUNKER] Acquiring text splitter (chunk_size={chunk_size}, overlap={chunk_overlap})...")
     splitter = _get_splitter(chunk_size, chunk_overlap)
 
@@ -227,7 +160,6 @@ def chunk_text(
 
     print(f"[CHUNKER] Raw split produced {len(raw_chunks)} blocks.")
 
-    # 3 — Build ChunkData objects
     results: list[ChunkData] = []
     for idx, raw in enumerate(raw_chunks):
         if not raw.strip():

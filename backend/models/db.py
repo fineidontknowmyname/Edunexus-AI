@@ -20,9 +20,7 @@ from sqlalchemy.orm import relationship
 
 from backend.core.database import Base
 
-EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 output dimension
-
-# ── Enums ─────────────────────────────────────────────────────────────────────
+EMBEDDING_DIM = 384
 
 
 class UserRole(str, enum.Enum):
@@ -32,14 +30,13 @@ class UserRole(str, enum.Enum):
 
 
 class DocumentStatus(str, enum.Enum):
-    pending = "pending"        # Uploaded, awaiting ingestion
-    processing = "processing"  # Ingestion pipeline running
-    ready = "ready"             # Chunks stored and indexed
-    failed = "failed"           # Ingestion failed
+    pending = "pending"
+    processing = "processing"
+    ready = "ready"
+    failed = "failed"
 
 
 class ReviewStatus(str, enum.Enum):
-    """Shared by quizzes and quiz_questions — the educator review workflow."""
     pending_review = "pending_review"
     approved = "approved"
     rejected = "rejected"
@@ -75,12 +72,7 @@ class ContextTier(str, enum.Enum):
     significant_gaps = "significant_gaps"
 
 
-# ── Core: Users & Classes ────────────────────────────────────────────────────
-
-
 class User(Base):
-    """Platform user — can be a student or educator."""
-
     __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -101,8 +93,6 @@ class User(Base):
 
 
 class Class(Base):
-    """A single class/cohort taught by one educator (e.g. 'OS Sem 5 - Section A')."""
-
     __tablename__ = "classes"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -119,8 +109,6 @@ class Class(Base):
 
 
 class ClassEnrollment(Base):
-    """Student-class membership."""
-
     __tablename__ = "class_enrollments"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -132,12 +120,7 @@ class ClassEnrollment(Base):
     student = relationship("User")
 
 
-# ── Curriculum content ───────────────────────────────────────────────────────
-
-
 class Document(Base):
-    """Educator-uploaded course material (PDF, DOCX, PPTX)."""
-
     __tablename__ = "documents"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -151,7 +134,7 @@ class Document(Base):
     status = Column(Enum(DocumentStatus), default=DocumentStatus.pending, nullable=False)
     is_indexed = Column(Boolean, default=False, nullable=False)
     chunk_count = Column(Integer, default=0)
-    deleted = Column(Boolean, default=False, nullable=False)  # Soft-delete flag
+    deleted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=False)
@@ -162,19 +145,17 @@ class Document(Base):
 
 
 class Chunk(Base):
-    """A single processed + embedded text segment derived from a Document."""
-
     __tablename__ = "chunks"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    text = Column(Text, nullable=False)                        # Raw extracted chunk text
-    contextual_prefix = Column(Text, nullable=False)           # Subject/unit/chapter metadata header
-    full_text = Column(Text, nullable=False)                   # prefix + "\n" + text (embedded)
-    embedding = Column(Vector(EMBEDDING_DIM), nullable=False)  # pgvector — cosine similarity via HNSW
+    text = Column(Text, nullable=False)
+    contextual_prefix = Column(Text, nullable=False)
+    full_text = Column(Text, nullable=False)
+    embedding = Column(Vector(EMBEDDING_DIM), nullable=False)
     subject = Column(String(255), nullable=True)
     unit = Column(Integer, nullable=True)
     chapter = Column(Integer, nullable=True)
-    chunk_index = Column(Integer, nullable=False)               # 0-based position in document
+    chunk_index = Column(Integer, nullable=False)
     token_count = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -183,8 +164,6 @@ class Chunk(Base):
 
 
 class ResponseCache(Base):
-    """Semantic cache of AI chat responses, keyed by query embedding + context tier."""
-
     __tablename__ = "response_cache"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -195,21 +174,16 @@ class ResponseCache(Base):
     response_text = Column(Text, nullable=False)
     chunk_ids_used = Column(ARRAY(UUID(as_uuid=True)), nullable=True)
     source_type = Column(Enum(SourceType), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)  # TTL checked on read
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class ClassContext(Base):
-    """
-    Educator-defined teaching state for a class: syllabus progress, upcoming
-    assessments, and free-text emphasis notes. One row per Class.
-    """
-
     __tablename__ = "class_context"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), unique=True, nullable=False)
-    syllabus_json = Column(Text, nullable=True)       # {"1": "taught", "2": "not_taught", ...}
-    assessments_json = Column(Text, nullable=True)    # [{"name", "date", "covers": [...]}]
+    syllabus_json = Column(Text, nullable=True)
+    assessments_json = Column(Text, nullable=True)
     teacher_emphasis = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -217,18 +191,13 @@ class ClassContext(Base):
     class_ = relationship("Class", back_populates="context")
 
 
-# ── Student learning state ───────────────────────────────────────────────────
-
-
 class TopicMastery(Base):
-    """Per-student, per-topic mastery estimate — the core evidence-based state."""
-
     __tablename__ = "topic_mastery"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     topic = Column(String(500), nullable=False, index=True)
     unit = Column(Integer, nullable=True)
-    mastery_score = Column(Float, default=0.0, nullable=False)   # 0.0 – 1.0
+    mastery_score = Column(Float, default=0.0, nullable=False)
     attempt_count = Column(Integer, default=0, nullable=False)
     last_attempt_at = Column(DateTime, nullable=True)
     trend = Column(Enum(MasteryTrend), default=MasteryTrend.not_started, nullable=False)
@@ -240,8 +209,6 @@ class TopicMastery(Base):
 
 
 class Misconception(Base):
-    """A specific, named error pattern detected for a student on a topic."""
-
     __tablename__ = "misconceptions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -256,8 +223,6 @@ class Misconception(Base):
 
 
 class InteractionPattern(Base):
-    """Tracks how many times a student has asked about a topic (Rule 5 input)."""
-
     __tablename__ = "interaction_patterns"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -269,8 +234,6 @@ class InteractionPattern(Base):
 
 
 class Engagement(Base):
-    """Per-student engagement and streak tracking record."""
-
     __tablename__ = "engagement"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -287,12 +250,7 @@ class Engagement(Base):
     student = relationship("User", back_populates="engagement")
 
 
-# ── Chat ──────────────────────────────────────────────────────────────────────
-
-
 class ChatSession(Base):
-    """A single tutoring conversation thread between a student and the AI."""
-
     __tablename__ = "chat_sessions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -307,12 +265,10 @@ class ChatSession(Base):
 
 
 class ChatMessage(Base):
-    """Individual message within a ChatSession."""
-
     __tablename__ = "chat_messages"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    role = Column(String(20), nullable=False)       # "user" | "assistant"
+    role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
     source_type = Column(Enum(SourceType), nullable=True)
     chunk_ids_used = Column(ARRAY(UUID(as_uuid=True)), nullable=True)
@@ -323,19 +279,14 @@ class ChatMessage(Base):
     session = relationship("ChatSession", back_populates="messages")
 
 
-# ── Quizzes ───────────────────────────────────────────────────────────────────
-
-
 class Quiz(Base):
-    """AI-generated quiz, subject to educator review before publishing."""
-
     __tablename__ = "quizzes"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(500), nullable=False)
     unit = Column(Integer, nullable=True)
     chapter = Column(Integer, nullable=True)
-    generation_type = Column(String(50), default="standard", nullable=False)  # standard | misconception_targeted
+    generation_type = Column(String(50), default="standard", nullable=False)
     status = Column(Enum(ReviewStatus), default=ReviewStatus.pending_review, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -349,13 +300,11 @@ class Quiz(Base):
 
 
 class QuizQuestion(Base):
-    """A single MCQ within a Quiz, individually approved/rejected by the educator."""
-
     __tablename__ = "quiz_questions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     question_text = Column(Text, nullable=False)
-    options = Column(Text, nullable=False)              # JSON array of option strings
+    options = Column(Text, nullable=False)
     correct_answer = Column(Text, nullable=False)
     difficulty = Column(Enum(QuestionDifficulty), default=QuestionDifficulty.medium, nullable=False)
     status = Column(Enum(ReviewStatus), default=ReviewStatus.pending_review, nullable=False)
@@ -366,14 +315,12 @@ class QuizQuestion(Base):
 
 
 class QuizAttempt(Base):
-    """A student's single attempt at a Quiz."""
-
     __tablename__ = "quiz_attempts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    score = Column(Float, nullable=True)            # percentage 0–100
-    answers = Column(Text, nullable=True)            # JSON: {question_id: chosen_answer}
-    topic_scores = Column(Text, nullable=True)        # JSON: {topic: score}
+    score = Column(Float, nullable=True)
+    answers = Column(Text, nullable=True)
+    topic_scores = Column(Text, nullable=True)
     completed = Column(Boolean, default=False)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     completed_at = Column(DateTime, nullable=True)
@@ -384,12 +331,7 @@ class QuizAttempt(Base):
     quiz = relationship("Quiz", back_populates="attempts")
 
 
-# ── Educator tools ────────────────────────────────────────────────────────────
-
-
 class EducatorNote(Base):
-    """A teacher's free-text note on a specific student — feeds future AI context."""
-
     __tablename__ = "educator_notes"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -402,13 +344,6 @@ class EducatorNote(Base):
 
 
 class PrerequisiteMap(Base):
-    """
-    Static topic-dependency config, kept in schema for parity with the reference
-    design. NOT currently populated or read by application code — the runtime
-    prerequisite check (backend/core/prerequisites.py) loads from
-    backend/data/prerequisites_os.json instead. See CONTEXT doc change log.
-    """
-
     __tablename__ = "prerequisite_map"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

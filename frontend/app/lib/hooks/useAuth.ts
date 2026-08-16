@@ -12,7 +12,6 @@ interface UseAuthState {
   error: string | null;
 }
 
-/** Fetches the current user from /auth/me using the stored JWT, if any. */
 export function useAuth(): UseAuthState {
   const [state, setState] = useState<UseAuthState>({ user: null, loading: true, error: null });
 
@@ -47,7 +46,6 @@ export function useAuth(): UseAuthState {
   return state;
 }
 
-/** Returns login/register/logout actions that update the session cookie and redirect by role. */
 export function useAuthActions() {
   const router = useRouter();
 
@@ -57,8 +55,6 @@ export function useAuthActions() {
       body: { email, password },
       auth: false,
     });
-    // Decode the role out of the JWT payload so we know where to redirect
-    // without a second round trip.
     const role = decodeRoleFromJwt(access_token);
     storeSession(access_token, role);
     router.push(role === "educator" ? "/upload" : "/chat");
