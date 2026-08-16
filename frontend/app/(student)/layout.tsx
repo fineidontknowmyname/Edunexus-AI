@@ -1,3 +1,14 @@
+import { Navbar } from "../components/layout/Navbar";
+import { StudentSidebar } from "../components/layout/StudentSidebar";
+
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
-  return <div className="student-layout">{children}</div>;
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navbar />
+      <div className="flex flex-1">
+        <StudentSidebar />
+        <main className="flex-1 p-6 bg-gray-50">{children}</main>
+      </div>
+    </div>
+  );
 }

@@ -51,7 +51,7 @@ def register_user(
     if role == UserRole.student:
         engagement = Engagement(
             student_id=user.id,
-            streak=0,
+            current_streak=0,
             longest_streak=0,
         )
         db.add(engagement)

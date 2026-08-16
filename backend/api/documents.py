@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from backend.api.dependencies import CurrentUser, RequireEducator
 from backend.core.database import get_db
-from backend.models.db import Document, DocumentStatus
+from backend.models.db import Class, Document, DocumentStatus
 from backend.services.ingestion_service import process_document
 
 import logging
@@ -68,6 +68,15 @@ def upload_document(
     """
     print(f"[API UPLOAD] Received file '{file.filename}' for Class ID: {class_id} "
           f"| Title: '{title}' | Subject: '{subject}' | Unit: {unit} | Chapter: {chapter}")
+
+    # ── Validate class exists ─────────────────────────────────────────────────
+    class_row = db.get(Class, class_id)
+    if class_row is None:
+        print(f"[API UPLOAD ERROR] Class ID '{class_id}' does not exist.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Class '{class_id}' not found. Create it via POST /classes/ first.",
+        )
 
     # ── Validate file extension ───────────────────────────────────────────────
     filename = file.filename or ""

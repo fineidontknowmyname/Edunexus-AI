@@ -96,8 +96,9 @@ def process_document(
                 text=chunk_data.text,
                 contextual_prefix=chunk_data.contextual_prefix,
                 full_text=chunk_data.full_text,
-                embedding=json.dumps(vector),   # serialized as JSON text
+                embedding=vector,   # pgvector column — stored as a native vector, not JSON
                 subject=doc.subject,
+                unit=doc.unit,
                 chapter=doc.chapter,
                 chunk_index=chunk_data.chunk_index,
                 token_count=chunk_data.token_count,

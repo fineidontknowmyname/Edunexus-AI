@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from backend.models.db import MasteryLevel, QuizStatus, UserRole
+from backend.models.db import MasteryTrend, ReviewStatus, SessionMode, UserRole
 
 # ── Shared config ─────────────────────────────────────────────────────────────
 
@@ -58,6 +58,25 @@ class UserUpdate(BaseModel):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Classes
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ClassCreate(BaseModel):
+    name: str
+    subject: str | None = None
+    semester: int | None = None
+
+
+class ClassRead(_OrmBase):
+    id: UUID
+    name: str
+    subject: str | None
+    semester: int | None
+    created_at: datetime
+    educator_id: UUID
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Document
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -66,10 +85,14 @@ class DocumentRead(_OrmBase):
     title: str
     filename: str
     subject: str | None
+    unit: int | None
+    chapter: int | None
+    chapter_name: str | None
     is_indexed: bool
     chunk_count: int
     created_at: datetime
     uploaded_by_id: UUID
+    class_id: UUID
 
 
 class DocumentCreate(BaseModel):
@@ -78,25 +101,25 @@ class DocumentCreate(BaseModel):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Learning State
+# Topic Mastery
 # ─────────────────────────────────────────────────────────────────────────────
 
-class LearningStateRead(_OrmBase):
+class TopicMasteryRead(_OrmBase):
     id: UUID
-    concept: str
-    subject: str | None
-    mastery_level: MasteryLevel
+    topic: str
+    unit: int | None
     mastery_score: float
-    evidence_count: int
-    last_interaction: datetime | None
+    attempt_count: int
+    trend: MasteryTrend
+    last_attempt_at: datetime | None
     student_id: UUID
 
 
-class LearningStateSummary(BaseModel):
+class TopicMasterySummary(BaseModel):
     """Lightweight snapshot used in student progress views."""
-    concept: str
-    mastery_level: MasteryLevel
+    topic: str
     mastery_score: float
+    trend: MasteryTrend
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +136,7 @@ class ChatMessageRead(_OrmBase):
 class ChatSessionRead(_OrmBase):
     id: UUID
     subject: str | None
+    mode: SessionMode
     created_at: datetime
     student_id: UUID
 
@@ -143,17 +167,18 @@ class ChatResponse(BaseModel):
 class QuizRead(_OrmBase):
     id: UUID
     title: str
-    subject: str | None
-    concept: str | None
-    status: QuizStatus
+    unit: int | None
+    chapter: int | None
+    status: ReviewStatus
     created_at: datetime
+    class_id: UUID
 
 
 class QuizCreate(BaseModel):
     title: str
-    subject: str | None = None
-    concept: str | None = None
-    questions: list[dict[str, Any]]
+    unit: int | None = None
+    chapter: int | None = None
+    class_id: UUID
 
 
 class QuizAttemptCreate(BaseModel):
