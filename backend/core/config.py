@@ -13,9 +13,9 @@ class Settings(BaseSettings):
     llm_provider: str = "groq"
     ollama_base_url: str = "http://localhost:11434"
 
-    groq_primary_model: str = "llama3-70b-8192"
-    groq_secondary_model: str = "llama3-8b-8192"
-    embedding_model: str = "nomic-embed-text"
+    groq_primary_model: str = "llama-3.1-8b-instant"
+    groq_secondary_model: str = "gemma2-9b-it"
+    embedding_model: str = "all-MiniLM-L6-v2"
 
     jwt_secret: str = "change-me-in-production"
     jwt_expire_hours: int = 24

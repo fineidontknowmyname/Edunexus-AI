@@ -50,3 +50,39 @@ export interface JobStatus {
   detail?: string | null;
   chunk_count?: number;
 }
+
+export type SessionMode = "study" | "revision" | "exam_focus";
+export type SourceType = "curriculum" | "general_knowledge";
+
+export interface ChatMessageUI {
+  id: string | null;
+  role: "user" | "assistant";
+  content: string;
+  sourceType?: SourceType;
+  citationCount?: number;
+  flagged?: boolean;
+  streaming?: boolean;
+}
+
+export interface ChatHistoryMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  source_type: SourceType | null;
+  flagged_by_student: boolean;
+  created_at: string;
+}
+
+export interface ChatHistoryResponse {
+  session_id: string;
+  mode: SessionMode;
+  messages: ChatHistoryMessage[];
+}
+
+export interface ChatSessionSummary {
+  session_id: string;
+  subject: string | null;
+  mode: SessionMode;
+  created_at: string;
+  preview: string;
+}

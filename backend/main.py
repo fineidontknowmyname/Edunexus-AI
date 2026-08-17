@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from backend.api.auth import router as auth_router
+from backend.api.chat import router as chat_router
 from backend.api.classes import router as classes_router
 from backend.api.documents import router as documents_router
 from backend.core.config import get_settings
@@ -43,6 +44,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router,      prefix="/api/v1")
+app.include_router(chat_router,      prefix="/api/v1")
 app.include_router(classes_router,   prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 

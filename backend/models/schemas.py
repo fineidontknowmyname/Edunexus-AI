@@ -120,16 +120,13 @@ class ChatSessionDetail(ChatSessionRead):
 
 class ChatRequest(BaseModel):
     session_id: UUID | None = None
+    class_id: UUID | None = None
     message: str = Field(min_length=1)
-    subject: str | None = None
+    mode: SessionMode = SessionMode.study
 
 
-class ChatResponse(BaseModel):
-    session_id: UUID
-    message_id: UUID
-    answer: str
-    evidence: list[dict[str, Any]] = []
-    concepts_detected: list[str] = []
+class ChatMessageFlag(BaseModel):
+    flagged: bool = True
 
 
 class QuizRead(_OrmBase):

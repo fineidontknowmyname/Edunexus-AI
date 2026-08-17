@@ -16,20 +16,26 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get(TOKEN_COOKIE)?.value;
   const role = request.cookies.get(ROLE_COOKIE)?.value;
 
+  console.log(`[MIDDLEWARE] ${pathname} | token=${token ? "present" : "absent"} role=${role ?? "none"}`);
+
   if (pathname === "/") {
-    return NextResponse.redirect(new URL(token ? homeFor(role) : "/login", request.url));
+    const dest = token ? homeFor(role) : "/login";
+    console.log(`[MIDDLEWARE] Root path -> redirecting to ${dest}`);
+    return NextResponse.redirect(new URL(dest, request.url));
   }
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   if (isPublic) {
     if (token) {
+      console.log(`[MIDDLEWARE] Already authenticated -> redirecting away from public path ${pathname} to ${homeFor(role)}`);
       return NextResponse.redirect(new URL(homeFor(role), request.url));
     }
     return NextResponse.next();
   }
 
   if (!token) {
+    console.log(`[MIDDLEWARE] No token for protected path ${pathname} -> redirecting to /login`);
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -37,9 +43,11 @@ export function middleware(request: NextRequest) {
   const isStudentPath = STUDENT_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (isEducatorPath && role !== "educator") {
+    console.log(`[MIDDLEWARE] role=${role} blocked from educator path ${pathname} -> redirecting to ${homeFor(role)}`);
     return NextResponse.redirect(new URL(homeFor(role), request.url));
   }
   if (isStudentPath && role !== "student") {
+    console.log(`[MIDDLEWARE] role=${role} blocked from student path ${pathname} -> redirecting to ${homeFor(role)}`);
     return NextResponse.redirect(new URL(homeFor(role), request.url));
   }
 
