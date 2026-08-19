@@ -150,7 +150,7 @@ def get_job_status(job_id: str, _educator: Annotated[None, RequireEducator]):
         )
 
     result = job_status[job_id]
-    print(f"[API POLL] Job {job_id} → status='{result['status']}'")
+    print(f"[API POLL] Job {job_id} -> status='{result['status']}'")
     return result
 
 

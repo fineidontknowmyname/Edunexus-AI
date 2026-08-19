@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     llm_provider: str = "groq"
     ollama_base_url: str = "http://localhost:11434"
 
-    groq_primary_model: str = "llama-3.1-8b-instant"
-    groq_secondary_model: str = "gemma2-9b-it"
+    groq_primary_model: str = "openai/gpt-oss-20b"
+    groq_secondary_model: str = "openai/gpt-oss-120b"
     embedding_model: str = "all-MiniLM-L6-v2"
 
     jwt_secret: str = "change-me-in-production"

@@ -121,8 +121,9 @@ def chat_query(
                 student_context, query_topic, top_similarity, payload.mode.value, prerequisite_gaps
             )
             history = _recent_history(db, session.id)
+            prompt_chunks = chunks_with_sim if source_type == "curriculum" else []
             prompt = rag_service.build_prompt(
-                class_context, student_context, rules, chunks_with_sim, history, payload.message,
+                class_context, student_context, rules, prompt_chunks, history, payload.message,
                 payload.mode.value, query_topic,
             )
 
@@ -140,7 +141,7 @@ def chat_query(
             model_pool.record_usage(model_idx, tokens_used)
             print(f"[CHAT] Recorded ~{tokens_used} tokens against model_idx={model_idx}")
 
-            chunk_ids = [chunk.id for chunk, _sim in chunks_with_sim]
+            chunk_ids = [chunk.id for chunk, _sim in chunks_with_sim] if source_type == "curriculum" else []
             cache_service.store_cache(
                 db, query_vector, class_context["subject"], context_tier, answer_text, chunk_ids, source_type
             )
