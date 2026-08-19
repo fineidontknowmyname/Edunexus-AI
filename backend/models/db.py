@@ -306,6 +306,7 @@ class QuizQuestion(Base):
     question_text = Column(Text, nullable=False)
     options = Column(Text, nullable=False)
     correct_answer = Column(Text, nullable=False)
+    topic = Column(String(500), nullable=True)
     difficulty = Column(Enum(QuestionDifficulty), default=QuestionDifficulty.medium, nullable=False)
     status = Column(Enum(ReviewStatus), default=ReviewStatus.pending_review, nullable=False)
 

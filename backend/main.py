@@ -14,6 +14,7 @@ from backend.api.auth import router as auth_router
 from backend.api.chat import router as chat_router
 from backend.api.classes import router as classes_router
 from backend.api.documents import router as documents_router
+from backend.api.quizzes import router as quizzes_router
 from backend.core.config import get_settings
 from backend.core.database import engine
 from backend.pipeline.embedder import get_embedding_model
@@ -53,6 +54,7 @@ app.include_router(auth_router,      prefix="/api/v1")
 app.include_router(chat_router,      prefix="/api/v1")
 app.include_router(classes_router,   prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
+app.include_router(quizzes_router,   prefix="/api/v1")
 
 
 @app.get("/api/health", tags=["health"])

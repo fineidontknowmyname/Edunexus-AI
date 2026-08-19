@@ -146,6 +146,19 @@ class QuizCreate(BaseModel):
     class_id: UUID
 
 
+class QuizGenerateRequest(BaseModel):
+    class_id: UUID
+    document_id: UUID | None = None
+    title: str
+    unit: int = 1
+    chapter: int = 1
+    num_questions: int = Field(default=10, ge=1, le=20)
+
+
+class QuestionStatusUpdate(BaseModel):
+    status: ReviewStatus
+
+
 class QuizAttemptCreate(BaseModel):
     answers: dict[str, Any]
 

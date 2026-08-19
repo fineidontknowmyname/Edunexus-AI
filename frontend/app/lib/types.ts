@@ -86,3 +86,56 @@ export interface ChatSessionSummary {
   created_at: string;
   preview: string;
 }
+
+export type ReviewStatus = "pending_review" | "approved" | "rejected";
+export type Difficulty = "easy" | "medium" | "hard";
+
+export interface QuizQuestionReview {
+  id: string;
+  question_text: string;
+  options: string[];
+  correct_answer: string;
+  topic: string | null;
+  difficulty: Difficulty;
+  status: ReviewStatus;
+}
+
+export interface QuizQuestionStudent {
+  id: string;
+  question_text: string;
+  options: string[];
+  topic: string | null;
+  difficulty: Difficulty;
+}
+
+export interface PendingQuiz {
+  id: string;
+  title: string;
+  unit: number | null;
+  chapter: number | null;
+  status: ReviewStatus;
+  created_at: string;
+  questions: QuizQuestionReview[];
+}
+
+export interface AvailableQuiz {
+  id: string;
+  title: string;
+  unit: number | null;
+  chapter: number | null;
+  question_count: number;
+}
+
+export interface QuizDetail {
+  id: string;
+  title: string;
+  questions: QuizQuestionStudent[];
+}
+
+export interface QuizAttemptResult {
+  attempt_id: string;
+  score: number;
+  topic_scores: Record<string, number>;
+  results: { question_id: string; correct: boolean; correct_answer: string; chosen: string | null }[];
+  updated_mastery: Record<string, { mastery_score: number; trend: string; attempt_count: number }>;
+}
