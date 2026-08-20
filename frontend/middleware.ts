@@ -11,6 +11,10 @@ function homeFor(role: string | undefined) {
   return role === "educator" ? "/upload" : "/chat";
 }
 
+function matchesPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(TOKEN_COOKIE)?.value;
@@ -24,7 +28,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(dest, request.url));
   }
 
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  const isPublic = PUBLIC_PATHS.some((p) => matchesPrefix(pathname, p));
 
   if (isPublic) {
     if (token) {
@@ -39,8 +43,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  const isEducatorPath = EDUCATOR_PREFIXES.some((p) => pathname.startsWith(p));
-  const isStudentPath = STUDENT_PREFIXES.some((p) => pathname.startsWith(p));
+  const isEducatorPath = EDUCATOR_PREFIXES.some((p) => matchesPrefix(pathname, p));
+  const isStudentPath = STUDENT_PREFIXES.some((p) => matchesPrefix(pathname, p));
 
   if (isEducatorPath && role !== "educator") {
     console.log(`[MIDDLEWARE] role=${role} blocked from educator path ${pathname} -> redirecting to ${homeFor(role)}`);

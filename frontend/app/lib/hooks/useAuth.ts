@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "../api";
 import { clearSession, getToken, storeSession } from "../auth";
 import type { Token, User, UserRole } from "../types";
@@ -28,11 +27,10 @@ export function useAuth(): UseAuthState {
         if (!cancelled) setState({ user, loading: false, error: null });
       } catch (err) {
         if (cancelled) return;
-        clearSession();
         setState({
           user: null,
           loading: false,
-          error: err instanceof ApiError ? err.message : "Session expired",
+          error: err instanceof ApiError ? err.message : "Could not load profile",
         });
       }
     }
@@ -47,8 +45,6 @@ export function useAuth(): UseAuthState {
 }
 
 export function useAuthActions() {
-  const router = useRouter();
-
   async function login(email: string, password: string) {
     const { access_token } = await apiFetch<Token>("/auth/login", {
       method: "POST",
@@ -57,7 +53,7 @@ export function useAuthActions() {
     });
     const role = decodeRoleFromJwt(access_token);
     storeSession(access_token, role);
-    router.push(role === "educator" ? "/upload" : "/chat");
+    window.location.href = role === "educator" ? "/upload" : "/chat";
   }
 
   async function register(email: string, password: string, full_name: string, role: UserRole) {
@@ -71,7 +67,7 @@ export function useAuthActions() {
 
   function logout() {
     clearSession();
-    router.push("/login");
+    window.location.href = "/login";
   }
 
   return { login, register, logout };

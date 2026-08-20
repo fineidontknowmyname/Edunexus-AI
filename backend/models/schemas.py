@@ -62,6 +62,28 @@ class ClassRead(_OrmBase):
     educator_id: UUID
 
 
+class AssessmentEntry(BaseModel):
+    name: str
+    date: str
+    covers: list[str] = []
+
+
+class ClassContextRead(BaseModel):
+    class_id: UUID
+    syllabus: dict[str, str]
+    assessments: list[AssessmentEntry]
+    teacher_emphasis: str | None
+
+
+class SyllabusUpdate(BaseModel):
+    chapter: int
+    status: str = Field(pattern="^(taught|not_taught)$")
+
+
+class AssessmentsUpdate(BaseModel):
+    assessments: list[AssessmentEntry]
+
+
 class DocumentRead(_OrmBase):
     id: UUID
     title: str

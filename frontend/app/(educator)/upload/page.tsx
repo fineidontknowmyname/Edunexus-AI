@@ -8,6 +8,7 @@ import { Card } from "../../components/ui/Card";
 import { Input } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
+import { SyllabusChecklist } from "../../components/progress/SyllabusChecklist";
 
 const STATUS_TONE: Record<DocumentRow["status"], "gray" | "blue" | "green" | "red"> = {
   pending: "gray",
@@ -315,6 +316,8 @@ export default function UploadPage() {
           </table>
         )}
       </Card>
+
+      {classId && <SyllabusChecklist classId={classId} documents={documents} />}
     </div>
   );
 }

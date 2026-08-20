@@ -38,6 +38,13 @@ export interface DocumentRow {
   created_at: string;
 }
 
+export interface ClassContextResponse {
+  class_id: string;
+  syllabus: Record<string, "taught" | "not_taught">;
+  assessments: { name: string; date: string; covers: string[] }[];
+  teacher_emphasis: string | null;
+}
+
 export interface UploadJobResponse {
   document_id: string;
   job_id: string;

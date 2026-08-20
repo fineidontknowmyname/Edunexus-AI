@@ -1,0 +1,85 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { apiFetch } from "../../lib/api";
+import type { ClassContextResponse, DocumentRow } from "../../lib/types";
+import { Card } from "../ui/Card";
+
+interface ChapterEntry {
+  chapter: number;
+  chapterName: string;
+  taught: boolean;
+}
+
+export function SyllabusChecklist({ classId, documents }: { classId: string; documents: DocumentRow[] }) {
+  const [syllabus, setSyllabus] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!classId) return;
+    setLoading(true);
+    apiFetch<ClassContextResponse>(`/context/class/${classId}`)
+      .then((ctx) => setSyllabus(ctx.syllabus))
+      .finally(() => setLoading(false));
+  }, [classId]);
+
+  const chapterMap = new Map<number, string>();
+  for (const doc of documents) {
+    if (doc.chapter != null) {
+      chapterMap.set(doc.chapter, doc.chapter_name || `Chapter ${doc.chapter}`);
+    }
+  }
+  const chapters: ChapterEntry[] = Array.from(chapterMap.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([chapter, chapterName]) => ({
+      chapter,
+      chapterName,
+      taught: syllabus[String(chapter)] === "taught",
+    }));
+
+  async function toggle(chapter: number, currentlyTaught: boolean) {
+    setSaving(chapter);
+    const nextStatus = currentlyTaught ? "not_taught" : "taught";
+    try {
+      await apiFetch(`/context/class/${classId}/syllabus`, {
+        method: "PATCH",
+        body: { chapter, status: nextStatus },
+      });
+      setSyllabus((prev) => ({ ...prev, [String(chapter)]: nextStatus }));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  if (loading) return null;
+
+  return (
+    <Card>
+      <h2 className="font-semibold text-gray-900 mb-3">Syllabus progress</h2>
+      {chapters.length === 0 ? (
+        <p className="text-sm text-gray-500">Upload a document with a chapter number to track progress here.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {chapters.map((c) => (
+            <label
+              key={c.chapter}
+              className="flex items-center gap-3 px-3 py-2 rounded-md border border-gray-200 text-sm cursor-pointer hover:bg-gray-50"
+            >
+              <input
+                type="checkbox"
+                checked={c.taught}
+                disabled={saving === c.chapter}
+                onChange={() => toggle(c.chapter, c.taught)}
+              />
+              <span className={c.taught ? "text-gray-900" : "text-gray-500"}>
+                Chapter {c.chapter} — {c.chapterName}
+              </span>
+              {c.taught && <span className="ml-auto text-xs text-green-700">Taught</span>}
+            </label>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
