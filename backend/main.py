@@ -15,6 +15,7 @@ from backend.api.chat import router as chat_router
 from backend.api.classes import router as classes_router
 from backend.api.context import router as context_router
 from backend.api.documents import router as documents_router
+from backend.api.progress import router as progress_router
 from backend.api.quizzes import router as quizzes_router
 from backend.core.config import get_settings
 from backend.core.database import engine
@@ -56,6 +57,7 @@ app.include_router(chat_router,      prefix="/api/v1")
 app.include_router(classes_router,   prefix="/api/v1")
 app.include_router(context_router,   prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
+app.include_router(progress_router,  prefix="/api/v1")
 app.include_router(quizzes_router,   prefix="/api/v1")
 
 

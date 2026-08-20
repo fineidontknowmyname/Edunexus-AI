@@ -1,10 +1,14 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from backend.models.db import MasteryTrend, Quiz, QuizAttempt, TopicMastery
+from backend.core.prerequisites import load_prerequisite_map
+from backend.models.db import Engagement, InteractionPattern, MasteryTrend, Quiz, QuizAttempt, TopicMastery
+from backend.services import context_service
+
+STALE_AFTER_DAYS = 7
 
 
 def calculate_mastery(scores_most_recent_first: list[float]) -> float:
@@ -86,3 +90,94 @@ def update_mastery_after_attempt(
 
     db.commit()
     return updated_topics
+
+
+def _assign_priority(attempted: bool, score: float, in_scope: bool, days_remaining: int | None) -> int:
+    if attempted and score < 0.40:
+        return 0
+    if not attempted and in_scope and days_remaining is not None and days_remaining <= 7:
+        return 1
+    if attempted and 0.40 <= score < 0.60:
+        return 2
+    if not attempted:
+        return 3
+    if 0.60 <= score < 0.80:
+        return 4
+    return 5
+
+
+def get_learning_path(db: Session, student_id: str, class_id: str) -> dict[str, Any]:
+    student_context = context_service.assemble_student_context(db, student_id, class_id)
+    class_context = context_service.assemble_class_context(db, class_id)
+
+    syllabus_topics = list(load_prerequisite_map(class_context["subject"]).keys())
+    mastery = student_context["mastery"]
+    upcoming = student_context.get("upcoming_focus")
+    topics_in_scope = set(upcoming["topics_in_scope"]) if upcoming else set()
+    days_remaining = upcoming["days_remaining"] if upcoming else None
+
+    entries = []
+    for index, topic in enumerate(syllabus_topics):
+        entry = mastery.get(topic)
+        attempted = bool(entry and entry["attempts"] > 0)
+        score = entry["score"] if entry else 0.0
+        in_scope = topic in topics_in_scope
+        priority = _assign_priority(attempted, score, in_scope, days_remaining)
+
+        entries.append({
+            "topic": topic,
+            "priority": priority,
+            "mastery_score": score,
+            "attempts": entry["attempts"] if entry else 0,
+            "trend": entry["trend"] if entry else "not_started",
+            "in_assessment_scope": in_scope,
+            "syllabus_index": index,
+        })
+
+    entries.sort(key=lambda e: (e["priority"], 0 if e["in_assessment_scope"] else 1, e["syllabus_index"]))
+
+    cold_start = len(mastery) == 0
+    print(f"[PROGRESS] Learning path built: {len(entries)} topics, cold_start={cold_start}")
+
+    return {"cold_start": cold_start, "path": entries}
+
+
+def get_dashboard(db: Session, student_id: str, class_id: str) -> dict[str, Any]:
+    student_context = context_service.assemble_student_context(db, student_id, class_id)
+    mastery = student_context["mastery"]
+
+    engagement_row = db.query(Engagement).filter(Engagement.student_id == student_id).first()
+    engagement = {
+        "current_streak": engagement_row.current_streak if engagement_row else 0,
+        "longest_streak": engagement_row.longest_streak if engagement_row else 0,
+        "staleness_flag": engagement_row.staleness_flag if engagement_row else False,
+    }
+
+    now = datetime.utcnow()
+    stale_cutoff = now - timedelta(days=STALE_AFTER_DAYS)
+    interaction_rows = db.query(InteractionPattern).filter(InteractionPattern.student_id == student_id).all()
+    last_touched: dict[str, datetime] = {}
+    for row in interaction_rows:
+        if row.last_asked_at:
+            last_touched[row.topic] = row.last_asked_at
+
+    mastery_rows = db.query(TopicMastery).filter(
+        TopicMastery.student_id == student_id, TopicMastery.class_id == class_id
+    ).all()
+    for row in mastery_rows:
+        if row.last_attempt_at and (row.topic not in last_touched or row.last_attempt_at > last_touched[row.topic]):
+            last_touched[row.topic] = row.last_attempt_at
+
+    stale_topics = [topic for topic, last in last_touched.items() if last < stale_cutoff]
+
+    print(f"[PROGRESS] Dashboard built for student={student_id}: {len(mastery)} topics tracked, {len(stale_topics)} stale")
+
+    return {
+        "mastery": [
+            {"topic": topic, "score": v["score"], "trend": v["trend"], "attempts": v["attempts"]}
+            for topic, v in mastery.items()
+        ],
+        "engagement": engagement,
+        "upcoming_focus": student_context.get("upcoming_focus"),
+        "stale_topics": stale_topics,
+    }

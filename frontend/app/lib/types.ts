@@ -146,3 +146,41 @@ export interface QuizAttemptResult {
   results: { question_id: string; correct: boolean; correct_answer: string; chosen: string | null }[];
   updated_mastery: Record<string, { mastery_score: number; trend: string; attempt_count: number }>;
 }
+
+export type MasteryTrend = "improving" | "stable" | "declining" | "not_started";
+
+export interface LearningPathEntry {
+  topic: string;
+  priority: number;
+  mastery_score: number;
+  attempts: number;
+  trend: MasteryTrend;
+  in_assessment_scope: boolean;
+  syllabus_index: number;
+}
+
+export interface LearningPathResponse {
+  cold_start: boolean;
+  path: LearningPathEntry[];
+}
+
+export interface DashboardMasteryEntry {
+  topic: string;
+  score: number;
+  trend: MasteryTrend;
+  attempts: number;
+}
+
+export interface DashboardUpcomingFocus {
+  assessment_name: string;
+  days_remaining: number;
+  topics_in_scope: string[];
+  weak_topics_in_scope: string[];
+}
+
+export interface DashboardResponse {
+  mastery: DashboardMasteryEntry[];
+  engagement: { current_streak: number; longest_streak: number; staleness_flag: boolean };
+  upcoming_focus: DashboardUpcomingFocus | null;
+  stale_topics: string[];
+}
