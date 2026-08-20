@@ -161,6 +161,23 @@ def detect_topic(message: str, subject: str) -> str | None:
     return detected
 
 
+def get_uploaded_topics(db: Session, class_id: str, subject: str) -> list[str]:
+    from backend.models.db import Chunk, Document
+
+    chunk_rows = (
+        db.query(Chunk.text)
+        .join(Document, Chunk.document_id == Document.id)
+        .filter(Document.class_id == class_id, Document.deleted == False)  # noqa: E712
+        .all()
+    )
+    combined_text = " ".join(row[0] for row in chunk_rows).lower()
+
+    vocabulary = list(load_prerequisite_map(subject).keys())
+    present = [t for t in vocabulary if t.lower() in combined_text]
+    print(f"[CONTEXT] Topics actually present in class={class_id}'s uploaded content: {present}")
+    return present
+
+
 def check_staleness(db: Session, student_id: str) -> None:
     engagement_row = db.query(Engagement).filter(Engagement.student_id == student_id).first()
     if engagement_row is None or engagement_row.last_interaction_date is None:

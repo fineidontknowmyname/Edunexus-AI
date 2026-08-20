@@ -110,8 +110,11 @@ def get_learning_path(db: Session, student_id: str, class_id: str) -> dict[str, 
     student_context = context_service.assemble_student_context(db, student_id, class_id)
     class_context = context_service.assemble_class_context(db, class_id)
 
-    syllabus_topics = list(load_prerequisite_map(class_context["subject"]).keys())
+    vocabulary = list(load_prerequisite_map(class_context["subject"]).keys())
+    uploaded_topics = set(context_service.get_uploaded_topics(db, class_id, class_context["subject"]))
     mastery = student_context["mastery"]
+    already_tracked = set(mastery.keys())
+    syllabus_topics = [t for t in vocabulary if t in uploaded_topics or t in already_tracked]
     upcoming = student_context.get("upcoming_focus")
     topics_in_scope = set(upcoming["topics_in_scope"]) if upcoming else set()
     days_remaining = upcoming["days_remaining"] if upcoming else None
