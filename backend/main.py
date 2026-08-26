@@ -18,7 +18,7 @@ from backend.api.documents import router as documents_router
 from backend.api.insights import router as insights_router
 from backend.api.progress import router as progress_router
 from backend.api.quizzes import router as quizzes_router
-from backend.core.config import get_settings
+from backend.core.config import get_cors_origins, get_settings
 from backend.core.database import engine
 from backend.pipeline.embedder import get_embedding_model
 
@@ -47,7 +47,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"] if settings.environment == "development" else [],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

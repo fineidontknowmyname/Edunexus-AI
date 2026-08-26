@@ -180,8 +180,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] max-w-5xl mx-auto gap-4">
-      <div className="w-56 flex flex-col gap-2">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-11rem)] md:h-[calc(100vh-8rem)] max-w-5xl mx-auto gap-4">
+      <div className="hidden md:flex w-56 flex-col gap-2">
         <Button onClick={handleNewChat} className="w-full">
           New chat
         </Button>
@@ -202,7 +202,13 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col border-l border-gray-200 pl-4">
+      <div className="md:hidden">
+        <Button variant="secondary" onClick={handleNewChat} className="w-full">
+          New chat
+        </Button>
+      </div>
+
+      <div className="flex-1 flex flex-col md:border-l md:border-gray-200 md:pl-4 min-h-0">
         <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-2">
           {loadingHistory && <p className="text-sm text-gray-400 text-center">Loading conversation…</p>}
           {!loadingHistory && messages.length === 0 && (

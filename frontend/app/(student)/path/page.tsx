@@ -45,6 +45,12 @@ export default function LearningPathPage() {
         </p>
       )}
 
+      {data.path.length === 0 && (
+        <p className="text-sm text-gray-500">
+          No topics tracked yet — ask your teacher to upload notes, or take a quiz to get started.
+        </p>
+      )}
+
       <div className="flex flex-col gap-2">
         {data.path.map((entry) => {
           const label = PRIORITY_LABEL[entry.priority];

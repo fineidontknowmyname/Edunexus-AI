@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     jwt_expire_hours: int = 24
 
     environment: str = "development"
+    cors_origins: str = "http://localhost:3000"
 
     model_config = SettingsConfigDict(
         env_file=_ENV_FILE,
@@ -33,3 +34,8 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
+
+def get_cors_origins() -> list[str]:
+    settings = get_settings()
+    return [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
