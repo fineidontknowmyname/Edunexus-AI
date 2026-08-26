@@ -87,12 +87,15 @@ def build_prompt(
         f"{query_topic}={mastery_entry['score']:.2f}" if mastery_entry else "unknown (no prior attempts)"
     )
 
+    educator_note = student_context.get("latest_educator_note")
+
     system_block = (
         f"Subject: {class_context['subject']} | Mode: {session_mode}\n"
         f"Student: weak=[{weak}] strong=[{strong}]\n"
         f"Topic mastery score: {mastery_line}\n"
         f"Recent misconception: {recent_misconception}\n"
         f"Assessment: {assessment_line}"
+        + (f"\nTeacher note: {educator_note}" if educator_note else "")
     )
 
     rules_block = "\n".join(f"- {r}" for r in rules) if rules else "None."

@@ -8,6 +8,7 @@ from backend.core.prerequisites import get_prerequisites, load_prerequisite_map
 from backend.models.db import (
     Class,
     ClassContext,
+    EducatorNote,
     Engagement,
     InteractionPattern,
     Misconception,
@@ -90,11 +91,20 @@ def assemble_student_context(db: Session, student_id: str, class_id: str) -> dic
     class_context = assemble_class_context(db, class_id)
     upcoming_focus = _compute_upcoming_focus(class_context["assessments"], weak_topics)
 
+    latest_note_row = (
+        db.query(EducatorNote)
+        .filter(EducatorNote.student_id == student_id, EducatorNote.class_id == class_id)
+        .order_by(EducatorNote.created_at.desc())
+        .first()
+    )
+    latest_educator_note = latest_note_row.note if latest_note_row else None
+
     print(
         f"[CONTEXT] Student context: {len(mastery)} topics tracked | "
         f"weak={weak_topics} strong={strong_topics} | "
         f"misconceptions={len(misconceptions)} | staleness={engagement['staleness_flag']} | "
-        f"upcoming_focus={'yes' if upcoming_focus else 'no'}"
+        f"upcoming_focus={'yes' if upcoming_focus else 'no'} | "
+        f"educator_note={'yes' if latest_educator_note else 'no'}"
     )
 
     return {
@@ -106,6 +116,7 @@ def assemble_student_context(db: Session, student_id: str, class_id: str) -> dic
         "misconceptions": misconceptions,
         "interaction_patterns": interaction_patterns,
         "engagement": engagement,
+        "latest_educator_note": latest_educator_note,
         "upcoming_focus": upcoming_focus,
     }
 

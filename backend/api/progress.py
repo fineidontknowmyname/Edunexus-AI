@@ -3,10 +3,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend.api.dependencies import CurrentUser, RequireStudent
+from backend.api.dependencies import CurrentUser, RequireEducator, RequireStudent
 from backend.core.database import get_db
 from backend.models.db import ClassEnrollment
-from backend.services import progress_service
+from backend.services import context_service, insights_service, progress_service
 
 router = APIRouter(prefix="/progress", tags=["progress"])
 
@@ -47,3 +47,21 @@ def path(
     print(f"[PROGRESS API] Learning path requested by student={current_user.id}")
     resolved_class_id = _resolve_class_id(db, current_user.id, class_id)
     return progress_service.get_learning_path(db, str(current_user.id), resolved_class_id)
+
+
+@router.get("/student/{student_id}")
+def student_full_context(
+    student_id: str,
+    class_id: str,
+    db: DbDep,
+    _educator: Annotated[None, RequireEducator],
+):
+    print(f"[PROGRESS API] Full student context requested for student={student_id} class={class_id}")
+    student_context = context_service.assemble_student_context(db, student_id, class_id)
+    notes = insights_service.get_educator_notes(db, student_id, class_id)
+    learning_path = progress_service.get_learning_path(db, student_id, class_id)
+    return {
+        "context": student_context,
+        "notes": notes,
+        "learning_path": learning_path["path"],
+    }

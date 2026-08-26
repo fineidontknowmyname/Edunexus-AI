@@ -84,6 +84,12 @@ class AssessmentsUpdate(BaseModel):
     assessments: list[AssessmentEntry]
 
 
+class EducatorNoteCreate(BaseModel):
+    student_id: UUID
+    class_id: UUID
+    note: str = Field(min_length=1)
+
+
 class DocumentRead(_OrmBase):
     id: UUID
     title: str

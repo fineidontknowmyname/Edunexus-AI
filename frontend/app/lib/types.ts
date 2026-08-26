@@ -184,3 +184,64 @@ export interface DashboardResponse {
   upcoming_focus: DashboardUpcomingFocus | null;
   stale_topics: string[];
 }
+
+export interface HeatmapEntry {
+  topic: string;
+  average_mastery: number;
+  student_count: number;
+  struggling_count: number;
+}
+
+export interface MisconceptionSummary {
+  topic: string;
+  description: string;
+  count: number;
+}
+
+export interface ClassInsightsResponse {
+  heatmap: HeatmapEntry[];
+  misconceptions: MisconceptionSummary[];
+}
+
+export interface AtRiskStudent {
+  student_id: string;
+  full_name: string;
+  email: string;
+  weak_topics_in_scope: string[];
+  days_remaining: number;
+}
+
+export interface TrendingTopic {
+  topic: string;
+  questions_asked: number;
+}
+
+export interface FlaggedMessage {
+  message_id: string;
+  student_name: string;
+  content: string;
+  source_type: SourceType | null;
+  created_at: string;
+}
+
+export interface EducatorNoteEntry {
+  id: string;
+  note: string;
+  created_at: string;
+}
+
+export interface StudentFullContext {
+  context: {
+    student_id: string;
+    mastery: Record<string, { score: number; attempts: number; trend: string }>;
+    weak_topics: string[];
+    strong_topics: string[];
+    misconceptions: { topic: string; description: string }[];
+    interaction_patterns: Record<string, { questions_asked: number; last_asked: string | null }>;
+    engagement: { current_streak: number; last_interaction: string | null; staleness_flag: boolean };
+    latest_educator_note: string | null;
+    upcoming_focus: DashboardUpcomingFocus | null;
+  };
+  notes: EducatorNoteEntry[];
+  learning_path: LearningPathEntry[];
+}

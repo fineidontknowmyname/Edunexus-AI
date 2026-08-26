@@ -8,7 +8,7 @@ from backend.api.dependencies import CurrentUser, RequireEducator
 from backend.core.database import get_db
 from backend.models import schemas
 from backend.models.db import Class, ClassContext
-from backend.services import context_service
+from backend.services import context_service, insights_service
 
 router = APIRouter(prefix="/context", tags=["context"])
 
@@ -70,3 +70,15 @@ def update_assessments(
     db.commit()
     print(f"[CONTEXT API SUCCESS] class={class_id} assessments updated: {len(payload.assessments)} entries")
     return {"assessments": [a.model_dump() for a in payload.assessments]}
+
+
+@router.post("/notes", status_code=201)
+def add_note(
+    payload: schemas.EducatorNoteCreate,
+    db: DbDep,
+    current_user: CurrentUser,
+    _educator: Annotated[None, RequireEducator],
+):
+    return insights_service.add_educator_note(
+        db, str(current_user.id), str(payload.student_id), str(payload.class_id), payload.note
+    )
