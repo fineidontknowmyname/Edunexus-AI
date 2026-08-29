@@ -1,13 +1,3 @@
-"""
-Run: backend/venv/Scripts/python.exe -m backend.scripts.seed_demo_accounts
-
-Seeds the two Chunk 6 demo accounts (Priya Sharma / Rahul Verma) into the
-OS Sem 5 class with a realistic 4-week mastery/engagement history, so the
-progress dashboard, learning path, and educator insights pages have
-demo-ready data without depending on live quiz attempts during the demo.
-Idempotent: re-running it wipes and recreates only these two accounts'
-data, so it's safe to run again the night before evaluation.
-"""
 import sys
 from datetime import datetime, timedelta
 

@@ -1,5 +1,6 @@
 import type { ChatMessageUI } from "../../lib/types";
 import { EvidenceCard } from "./EvidenceCard";
+import { MarkdownMessage } from "./MarkdownMessage";
 
 export function MessageBubble({
   message,
@@ -14,11 +15,13 @@ export function MessageBubble({
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[75%] ${isUser ? "items-end" : "items-start"} flex flex-col`}>
         <div
-          className={`px-4 py-2 rounded-lg text-sm whitespace-pre-wrap ${
-            isUser ? "bg-accent-primary text-inverse" : "bg-surface border border-subtle text-primary"
+          className={`px-4 py-2 rounded-lg ${
+            isUser
+              ? "bg-accent-primary text-inverse text-sm whitespace-pre-wrap"
+              : "bg-surface border border-subtle text-primary"
           }`}
         >
-          {message.content}
+          {isUser ? message.content : <MarkdownMessage content={message.content} />}
           {!message.content && message.streaming && (
             <span className="inline-flex gap-1 items-center">
               <span className="w-1.5 h-1.5 rounded-full bg-tertiary animate-bounce [animation-delay:-0.3s]" />

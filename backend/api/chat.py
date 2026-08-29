@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,6 +17,16 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 DbDep = Annotated[Session, Depends(get_db)]
 
 MAX_RESPONSE_TOKENS = 350
+
+_MARKDOWN_LEADING_PATTERN = re.compile(r"^[#>\-*\s]+", re.MULTILINE)
+_MARKDOWN_EMPHASIS_PATTERN = re.compile(r"\*{1,3}|_{1,3}|`+")
+
+
+def to_preview_text(content: str, max_len: int = 60) -> str:
+    plain = _MARKDOWN_LEADING_PATTERN.sub("", content)
+    plain = _MARKDOWN_EMPHASIS_PATTERN.sub("", plain)
+    plain = re.sub(r"\s+", " ", plain).strip()
+    return plain[:max_len]
 
 
 def _resolve_class_id(db: Session, student_id: str, requested_class_id: str | None) -> str:
@@ -201,7 +212,7 @@ def list_sessions(
             "subject": session.subject,
             "mode": session.mode.value,
             "created_at": session.created_at.isoformat(),
-            "preview": (last_message.content[:60] if last_message else ""),
+            "preview": (to_preview_text(last_message.content) if last_message else ""),
         })
     return result
 

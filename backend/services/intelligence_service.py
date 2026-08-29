@@ -12,8 +12,10 @@ def apply_rules(
 
     if top_similarity < 0.55:
         rules.append(
-            "This question may not be covered in the uploaded curriculum. "
-            "Label your answer [General Knowledge] and suggest the student verify it independently."
+            "This question may not be covered in the uploaded curriculum. Answer from general knowledge "
+            "and note in your own words that the student should verify it independently — the UI already "
+            "shows a 'General knowledge' badge, so do not prefix your answer with a literal tag like "
+            "'[General Knowledge]'."
         )
 
     if query_topic:

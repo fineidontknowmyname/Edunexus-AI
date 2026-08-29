@@ -1,13 +1,5 @@
 @import "tailwindcss";
 
-/*
- * Design tokens adapted from the BizLink CRM design system reference
- * (.claude/bizlink-ui-design-system.md) for EduNexus AI. Only the token
- * layer (palette, spacing, radius) is carried over — the CRM-specific
- * components (Kanban board, KPI gauges) do not apply to this product and
- * were not built. See CODE_COMMENTS_LOG.md for the full adaptation notes.
- */
-
 :root {
   --color-app: #F4F1EA;
   --color-surface: #FFFFFF;
