@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/quiz", label: "Quizzes" },
   { href: "/path", label: "Learning Path" },
   { href: "/progress", label: "Progress" },
+  { href: "/profile", label: "Profile" },
 ];
 
 export function StudentSidebar() {

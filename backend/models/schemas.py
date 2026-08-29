@@ -47,6 +47,15 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class ProfileUpdate(BaseModel):
+    full_name: str = Field(min_length=1, max_length=255)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
 class ClassCreate(BaseModel):
     name: str
     subject: str | None = None

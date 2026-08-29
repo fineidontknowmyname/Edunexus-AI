@@ -12,7 +12,7 @@ export function Navbar() {
     <header className="h-14 border-b border-subtle bg-surface flex items-center justify-between px-6">
       <span className="font-semibold text-primary">EduNexus AI</span>
       <div className="flex items-center gap-4">
-        {user && <span className="text-sm text-secondary">{user.full_name}</span>}
+        {user && <span className="hidden sm:inline text-sm text-secondary">{user.full_name}</span>}
         <ThemeToggle />
         <Button variant="secondary" onClick={logout}>
           Sign out

@@ -36,3 +36,19 @@ def login(payload: schemas.UserLogin, db: DbDep):
 @router.get("/me", response_model=schemas.UserRead)
 def me(current_user: CurrentUser):
     return current_user
+
+
+@router.patch("/me", response_model=schemas.UserRead)
+def update_me(payload: schemas.ProfileUpdate, db: DbDep, current_user: CurrentUser):
+    return auth_service.update_profile(db=db, user=current_user, full_name=payload.full_name)
+
+
+@router.post("/change-password", response_model=schemas.MessageResponse)
+def change_password(payload: schemas.ChangePasswordRequest, db: DbDep, current_user: CurrentUser):
+    auth_service.change_password(
+        db=db,
+        user=current_user,
+        current_password=payload.current_password,
+        new_password=payload.new_password,
+    )
+    return {"message": "Password changed successfully."}

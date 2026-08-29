@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/upload", label: "Upload" },
   { href: "/quiz-review", label: "Quiz Review" },
   { href: "/insights", label: "Class Insights" },
+  { href: "/profile", label: "Profile" },
 ];
 
 export function EducatorSidebar() {

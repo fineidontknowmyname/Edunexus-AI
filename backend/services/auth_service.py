@@ -92,6 +92,30 @@ def login_user(db: Session, email: str, password: str) -> dict:
     }
 
 
+def update_profile(db: Session, user: User, full_name: str) -> User:
+    print(f"[AUTH] Profile update: user={user.id} full_name={full_name!r}")
+    user.full_name = full_name
+    db.commit()
+    db.refresh(user)
+    print(f"[AUTH SUCCESS] Profile updated for user {user.id}")
+    return user
+
+
+def change_password(db: Session, user: User, current_password: str, new_password: str) -> None:
+    print(f"[AUTH] Change-password attempt: user={user.id}")
+
+    if not verify_password(current_password, user.hashed_password):
+        print(f"[AUTH ERROR] Change-password rejected — current password incorrect: user={user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+
+    user.hashed_password = hash_password(new_password)
+    db.commit()
+    print(f"[AUTH SUCCESS] Password changed for user {user.id}")
+
+
 def get_user_by_id(db: Session, user_id: UUID) -> User:
     user = db.get(User, user_id)
     if user is None:
