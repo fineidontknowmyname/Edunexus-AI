@@ -29,10 +29,10 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+    <main className="min-h-screen flex items-center justify-center bg-app p-6">
       <Card className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">EduNexus AI</h1>
-        <p className="text-sm text-gray-500 mb-6">Sign in to your account</p>
+        <h1 className="text-2xl font-bold text-primary mb-1">EduNexus AI</h1>
+        <p className="text-sm text-tertiary mb-6">Sign in to your account</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Input
@@ -53,15 +53,15 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
           />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <Button type="submit" loading={loading} className="w-full">
             Sign in
           </Button>
         </form>
 
-        <p className="text-sm text-gray-500 mt-4 text-center">
+        <p className="text-sm text-tertiary mt-4 text-center">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-blue-600 hover:underline">
+          <Link href="/register" className="text-accent-secondary hover:underline">
             Register
           </Link>
         </p>

@@ -92,11 +92,11 @@ export default function InsightsPage() {
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-gray-900">Class Insights</h1>
+      <h1 className="text-2xl font-bold text-primary">Class Insights</h1>
 
       {classes.length > 1 && (
         <select
-          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+          className="w-full px-3 py-2 border border-strong rounded-md text-sm bg-surface text-primary"
           value={classId}
           onChange={(e) => setClassId(e.target.value)}
         >
@@ -106,10 +106,10 @@ export default function InsightsPage() {
         </select>
       )}
 
-      {loading && <p className="text-sm text-gray-500">Loading…</p>}
+      {loading && <p className="text-sm text-tertiary">Loading…</p>}
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Schedule an assessment</h2>
+        <h2 className="font-semibold text-primary mb-3">Schedule an assessment</h2>
         <form onSubmit={handleScheduleAssessment} className="flex flex-col gap-3">
           <Input label="Name" value={assessmentName} onChange={(e) => setAssessmentName(e.target.value)} required />
           <Input label="Date" type="date" value={assessmentDate} onChange={(e) => setAssessmentDate(e.target.value)} required />
@@ -124,18 +124,18 @@ export default function InsightsPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Mastery heatmap</h2>
+        <h2 className="font-semibold text-primary mb-3">Mastery heatmap</h2>
         {!insights || insights.heatmap.length === 0 ? (
-          <p className="text-sm text-gray-500">No quiz data yet.</p>
+          <p className="text-sm text-tertiary">No quiz data yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {insights.heatmap.map((h) => (
               <div key={h.topic} className="flex items-center justify-between text-sm">
-                <span className="text-gray-900">{h.topic}</span>
+                <span className="text-primary">{h.topic}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500">{h.student_count} student{h.student_count === 1 ? "" : "s"}</span>
+                  <span className="text-xs text-tertiary">{h.student_count} student{h.student_count === 1 ? "" : "s"}</span>
                   {h.struggling_count > 0 && (
-                    <span className="text-xs text-red-600">{h.struggling_count} struggling</span>
+                    <span className="text-xs text-danger">{h.struggling_count} struggling</span>
                   )}
                   <Badge tone={masteryTone(h.average_mastery)}>{Math.round(h.average_mastery * 100)}%</Badge>
                 </div>
@@ -146,15 +146,15 @@ export default function InsightsPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Common misconceptions</h2>
+        <h2 className="font-semibold text-primary mb-3">Common misconceptions</h2>
         {!insights || insights.misconceptions.length === 0 ? (
-          <p className="text-sm text-gray-500">None detected yet.</p>
+          <p className="text-sm text-tertiary">None detected yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {insights.misconceptions.map((m, i) => (
               <div key={i} className="text-sm">
-                <span className="font-medium text-gray-900">{m.topic}</span>
-                <span className="text-gray-600"> — {m.description} </span>
+                <span className="font-medium text-primary">{m.topic}</span>
+                <span className="text-secondary"> — {m.description} </span>
                 <Badge tone="amber">{m.count}×</Badge>
               </div>
             ))}
@@ -163,18 +163,18 @@ export default function InsightsPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">At-risk students</h2>
+        <h2 className="font-semibold text-primary mb-3">At-risk students</h2>
         {atRisk.length === 0 ? (
-          <p className="text-sm text-gray-500">No at-risk students — or no assessment scheduled yet.</p>
+          <p className="text-sm text-tertiary">No at-risk students — or no assessment scheduled yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {atRisk.map((s) => (
               <div key={s.student_id} className="flex items-center justify-between text-sm">
                 <div>
-                  <Link href={`/students/${s.student_id}?class_id=${classId}`} className="text-blue-600 hover:underline font-medium">
+                  <Link href={`/students/${s.student_id}?class_id=${classId}`} className="text-accent-secondary hover:underline font-medium">
                     {s.full_name}
                   </Link>
-                  <span className="text-gray-500"> — weak on {s.weak_topics_in_scope.join(", ")}</span>
+                  <span className="text-tertiary"> — weak on {s.weak_topics_in_scope.join(", ")}</span>
                 </div>
                 <Badge tone="red">{s.days_remaining}d left</Badge>
               </div>
@@ -184,9 +184,9 @@ export default function InsightsPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Trending topics (last 7 days)</h2>
+        <h2 className="font-semibold text-primary mb-3">Trending topics (last 7 days)</h2>
         {trending.length === 0 ? (
-          <p className="text-sm text-gray-500">No recent activity.</p>
+          <p className="text-sm text-tertiary">No recent activity.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {trending.map((t) => (
@@ -197,15 +197,15 @@ export default function InsightsPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Flagged responses</h2>
+        <h2 className="font-semibold text-primary mb-3">Flagged responses</h2>
         {flags.length === 0 ? (
-          <p className="text-sm text-gray-500">No flagged responses.</p>
+          <p className="text-sm text-tertiary">No flagged responses.</p>
         ) : (
           <div className="flex flex-col gap-3">
             {flags.map((f) => (
-              <div key={f.message_id} className="border-t border-gray-100 pt-2">
-                <p className="text-xs text-gray-500">{f.student_name} · {new Date(f.created_at).toLocaleString()}</p>
-                <p className="text-sm text-gray-900">{f.content}</p>
+              <div key={f.message_id} className="border-t border-subtle pt-2">
+                <p className="text-xs text-tertiary">{f.student_name} · {new Date(f.created_at).toLocaleString()}</p>
+                <p className="text-sm text-primary">{f.content}</p>
               </div>
             ))}
           </div>

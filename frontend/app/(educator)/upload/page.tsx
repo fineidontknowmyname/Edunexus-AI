@@ -150,15 +150,15 @@ export default function UploadPage() {
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-gray-900">Curriculum Upload</h1>
+      <h1 className="text-2xl font-bold text-primary">Curriculum Upload</h1>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Class</h2>
+        <h2 className="font-semibold text-primary mb-3">Class</h2>
         {classesLoading ? (
-          <p className="text-sm text-gray-500">Loading classes…</p>
+          <p className="text-sm text-tertiary">Loading classes…</p>
         ) : classes.length > 0 ? (
           <select
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+            className="w-full px-3 py-2 border border-strong rounded-md text-sm bg-surface text-primary"
             value={classId}
             onChange={(e) => setClassId(e.target.value)}
           >
@@ -169,7 +169,7 @@ export default function UploadPage() {
             ))}
           </select>
         ) : (
-          <p className="text-sm text-gray-500 mb-3">
+          <p className="text-sm text-tertiary mb-3">
             You have no classes yet — create one to start uploading curriculum.
           </p>
         )}
@@ -188,7 +188,7 @@ export default function UploadPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Upload document</h2>
+        <h2 className="font-semibold text-primary mb-3">Upload document</h2>
         <form onSubmit={handleUpload} className="flex flex-col gap-4">
           <div
             onDragOver={(e) => {
@@ -198,7 +198,7 @@ export default function UploadPage() {
             onDragLeave={() => setDragActive(false)}
             onDrop={handleDrop}
             className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-              dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300"
+              dragActive ? "border-accent-secondary bg-accent-secondary/10" : "border-strong"
             }`}
             onClick={() => document.getElementById("file-input")?.click()}
           >
@@ -214,11 +214,11 @@ export default function UploadPage() {
               }}
             />
             {file ? (
-              <p className="text-sm text-gray-700">
-                {file.name} <span className="text-gray-400">({(file.size / 1024).toFixed(0)} KB)</span>
+              <p className="text-sm text-secondary">
+                {file.name} <span className="text-tertiary">({(file.size / 1024).toFixed(0)} KB)</span>
               </p>
             ) : (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-tertiary">
                 Drag & drop a PDF, PPTX, or DOCX file here, or click to browse
               </p>
             )}
@@ -249,7 +249,7 @@ export default function UploadPage() {
             placeholder="e.g. Process Scheduling"
           />
 
-          {uploadError && <p className="text-sm text-red-600">{uploadError}</p>}
+          {uploadError && <p className="text-sm text-danger">{uploadError}</p>}
 
           <Button type="submit" disabled={!file || !classId} loading={submitting}>
             Upload
@@ -258,32 +258,32 @@ export default function UploadPage() {
 
         {jobStatus && (
           <div className="mt-4 flex items-center gap-2 text-sm">
-            <span className="text-gray-600">Ingestion status:</span>
+            <span className="text-secondary">Ingestion status:</span>
             <Badge tone={STATUS_TONE[jobStatus.status === "processing" ? "processing" : jobStatus.status]}>
               {jobStatus.status === "processing" ? "Processing…" : jobStatus.status}
             </Badge>
             {jobStatus.status === "ready" && (
-              <span className="text-gray-500">
+              <span className="text-tertiary">
                 Ready — {jobStatus.chunk_count ?? 0} chunks indexed. You can now ask questions about this content.
               </span>
             )}
             {jobStatus.status === "failed" && (
-              <span className="text-red-600">{jobStatus.detail}</span>
+              <span className="text-danger">{jobStatus.detail}</span>
             )}
           </div>
         )}
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Documents</h2>
+        <h2 className="font-semibold text-primary mb-3">Documents</h2>
         {docsLoading ? (
-          <p className="text-sm text-gray-500">Loading…</p>
+          <p className="text-sm text-tertiary">Loading…</p>
         ) : documents.length === 0 ? (
-          <p className="text-sm text-gray-500">No documents uploaded yet for this class.</p>
+          <p className="text-sm text-tertiary">No documents uploaded yet for this class.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 border-b border-gray-200">
+              <tr className="text-left text-tertiary border-b border-subtle">
                 <th className="py-2 font-medium">Title</th>
                 <th className="py-2 font-medium">Unit / Chapter</th>
                 <th className="py-2 font-medium">Status</th>
@@ -293,19 +293,19 @@ export default function UploadPage() {
             </thead>
             <tbody>
               {documents.map((doc) => (
-                <tr key={doc.id} className="border-b border-gray-100">
-                  <td className="py-2 text-gray-900">{doc.title}</td>
-                  <td className="py-2 text-gray-600">
+                <tr key={doc.id} className="border-b border-subtle">
+                  <td className="py-2 text-primary">{doc.title}</td>
+                  <td className="py-2 text-secondary">
                     {doc.unit ?? "—"} / {doc.chapter ?? "—"}
                   </td>
                   <td className="py-2">
                     <Badge tone={STATUS_TONE[doc.status]}>{doc.status}</Badge>
                   </td>
-                  <td className="py-2 text-gray-600">{doc.chunk_count}</td>
+                  <td className="py-2 text-secondary">{doc.chunk_count}</td>
                   <td className="py-2 text-right">
                     <button
                       onClick={() => handleDelete(doc.id)}
-                      className="text-xs text-red-600 hover:underline"
+                      className="text-xs text-danger hover:underline"
                     >
                       Delete
                     </button>

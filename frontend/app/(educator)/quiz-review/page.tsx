@@ -92,13 +92,13 @@ export default function QuizReviewPage() {
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-gray-900">Quiz Generation & Review</h1>
+      <h1 className="text-2xl font-bold text-primary">Quiz Generation & Review</h1>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Generate a quiz</h2>
+        <h2 className="font-semibold text-primary mb-3">Generate a quiz</h2>
         {classes.length > 1 && (
           <select
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm mb-3"
+            className="w-full px-3 py-2 border border-strong rounded-md text-sm bg-surface text-primary mb-3"
             value={classId}
             onChange={(e) => setClassId(e.target.value)}
           >
@@ -108,7 +108,7 @@ export default function QuizReviewPage() {
           </select>
         )}
         {documents.length === 0 && classId && (
-          <p className="text-xs text-amber-600 mb-3">No documents uploaded to this class yet — generation needs curriculum content.</p>
+          <p className="text-xs text-warning mb-3">No documents uploaded to this class yet — generation needs curriculum content.</p>
         )}
         <form onSubmit={handleGenerate} className="flex flex-col gap-3">
           <Input label="Quiz title" value={title} onChange={(e) => setTitle(e.target.value)} required />
@@ -117,7 +117,7 @@ export default function QuizReviewPage() {
             <Input label="Chapter" type="number" min={1} value={chapter} onChange={(e) => setChapter(Number(e.target.value))} />
             <Input label="# Questions" type="number" min={1} max={20} value={numQuestions} onChange={(e) => setNumQuestions(Number(e.target.value))} />
           </div>
-          {genError && <p className="text-sm text-red-600">{genError}</p>}
+          {genError && <p className="text-sm text-danger">{genError}</p>}
           <Button type="submit" loading={generating} disabled={!classId}>
             Generate Quiz
           </Button>
@@ -125,19 +125,19 @@ export default function QuizReviewPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Pending review</h2>
+        <h2 className="font-semibold text-primary mb-3">Pending review</h2>
         {loadingPending ? (
-          <p className="text-sm text-gray-500">Loading…</p>
+          <p className="text-sm text-tertiary">Loading…</p>
         ) : pending.length === 0 ? (
-          <p className="text-sm text-gray-500">No quizzes pending review.</p>
+          <p className="text-sm text-tertiary">No quizzes pending review.</p>
         ) : (
           <div className="flex flex-col gap-6">
             {pending.map((quiz) => {
               const approvedCount = quiz.questions.filter((q) => q.status === "approved").length;
               return (
-                <div key={quiz.id} className="border border-gray-200 rounded-lg p-4">
+                <div key={quiz.id} className="border border-subtle rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-gray-900">{quiz.title}</h3>
+                    <h3 className="font-semibold text-primary">{quiz.title}</h3>
                     <Button
                       variant="secondary"
                       loading={publishing === quiz.id}
@@ -149,31 +149,31 @@ export default function QuizReviewPage() {
                   </div>
                   <div className="flex flex-col gap-3">
                     {quiz.questions.map((q) => (
-                      <div key={q.id} className="border-t border-gray-100 pt-3">
+                      <div key={q.id} className="border-t border-subtle pt-3">
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm text-gray-900 flex-1">{q.question_text}</p>
+                          <p className="text-sm text-primary flex-1">{q.question_text}</p>
                           <Badge tone={q.status === "approved" ? "green" : q.status === "rejected" ? "red" : "gray"}>
                             {q.status}
                           </Badge>
                         </div>
-                        <ul className="text-xs text-gray-500 mt-1 ml-4 list-disc">
+                        <ul className="text-xs text-tertiary mt-1 ml-4 list-disc">
                           {q.options.map((opt) => (
-                            <li key={opt} className={opt === q.correct_answer ? "text-green-700 font-medium" : ""}>
+                            <li key={opt} className={opt === q.correct_answer ? "text-success font-medium" : ""}>
                               {opt}
                             </li>
                           ))}
                         </ul>
-                        <p className="text-xs text-gray-400 mt-1">Topic: {q.topic ?? "—"} · {q.difficulty}</p>
+                        <p className="text-xs text-tertiary mt-1">Topic: {q.topic ?? "—"} · {q.difficulty}</p>
                         <div className="flex gap-2 mt-2">
                           <button
                             onClick={() => handleQuestionStatus(q.id, "approved")}
-                            className="text-xs text-green-700 hover:underline"
+                            className="text-xs text-success hover:underline"
                           >
                             Approve
                           </button>
                           <button
                             onClick={() => handleQuestionStatus(q.id, "rejected")}
-                            className="text-xs text-red-600 hover:underline"
+                            className="text-xs text-danger hover:underline"
                           >
                             Reject
                           </button>

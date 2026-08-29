@@ -14,8 +14,8 @@ export function QuizQuestion({
   disabled: boolean;
 }) {
   return (
-    <div className="border border-gray-200 rounded-lg p-4">
-      <p className="text-sm font-medium text-gray-900 mb-3">
+    <div className="border border-subtle rounded-lg p-4">
+      <p className="text-sm font-medium text-primary mb-3">
         {index + 1}. {question.question_text}
       </p>
       <div className="flex flex-col gap-2">
@@ -23,7 +23,7 @@ export function QuizQuestion({
           <label
             key={option}
             className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm cursor-pointer ${
-              selected === option ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
+              selected === option ? "border-accent-secondary bg-accent-secondary/10" : "border-subtle hover:bg-app"
             } ${disabled ? "cursor-not-allowed opacity-70" : ""}`}
           >
             <input

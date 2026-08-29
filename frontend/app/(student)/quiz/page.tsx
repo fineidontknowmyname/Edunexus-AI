@@ -25,23 +25,23 @@ export default function QuizListPage() {
       .finally(() => setLoading(false));
   }, [classes]);
 
-  if (loading) return <p className="text-sm text-gray-500">Loading…</p>;
+  if (loading) return <p className="text-sm text-tertiary">Loading…</p>;
 
   if (!classes || classes.length === 0) {
-    return <p className="text-sm text-gray-500">Join a class first from the Chat page.</p>;
+    return <p className="text-sm text-tertiary">Join a class first from the Chat page.</p>;
   }
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
-      <h1 className="text-2xl font-bold text-gray-900">Available Quizzes</h1>
+      <h1 className="text-2xl font-bold text-primary">Available Quizzes</h1>
       {quizzes.length === 0 ? (
-        <p className="text-sm text-gray-500">No quizzes available yet — ask your teacher to generate one.</p>
+        <p className="text-sm text-tertiary">No quizzes available yet — ask your teacher to generate one.</p>
       ) : (
         quizzes.map((q) => (
           <Link key={q.id} href={`/quiz/${q.id}`}>
-            <Card className="hover:border-blue-400 cursor-pointer">
-              <h2 className="font-semibold text-gray-900">{q.title}</h2>
-              <p className="text-sm text-gray-500">
+            <Card className="hover:border-accent-secondary cursor-pointer">
+              <h2 className="font-semibold text-primary">{q.title}</h2>
+              <p className="text-sm text-tertiary">
                 Unit {q.unit} · Chapter {q.chapter} · {q.question_count} questions
               </p>
             </Card>

@@ -7,7 +7,7 @@ export function EvidenceCard({ sourceType, citationCount }: { sourceType: Source
       <div className="mt-2 flex items-center gap-2 text-xs">
         <Badge tone="green">From your curriculum</Badge>
         {citationCount > 0 && (
-          <span className="text-gray-500">
+          <span className="text-tertiary">
             {citationCount} source{citationCount === 1 ? "" : "s"} referenced
           </span>
         )}
@@ -18,7 +18,7 @@ export function EvidenceCard({ sourceType, citationCount }: { sourceType: Source
   return (
     <div className="mt-2 flex items-center gap-2 text-xs">
       <Badge tone="amber">General knowledge</Badge>
-      <span className="text-gray-500">Not in your uploaded materials — verify independently</span>
+      <span className="text-tertiary">Not in your uploaded materials — verify independently</span>
     </div>
   );
 }

@@ -8,16 +8,16 @@ const TREND_ARROW: Record<MasteryTrend, string> = {
 };
 
 const TREND_COLOR: Record<MasteryTrend, string> = {
-  improving: "text-green-600",
-  declining: "text-red-600",
-  stable: "text-gray-400",
-  not_started: "text-gray-300",
+  improving: "text-success",
+  declining: "text-danger",
+  stable: "text-tertiary",
+  not_started: "text-tertiary",
 };
 
 function barColor(score: number): string {
-  if (score >= 0.7) return "bg-green-500";
-  if (score >= 0.4) return "bg-amber-500";
-  return "bg-red-500";
+  if (score >= 0.7) return "bg-success";
+  if (score >= 0.4) return "bg-warning";
+  return "bg-danger";
 }
 
 export function MasteryBar({
@@ -35,14 +35,14 @@ export function MasteryBar({
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between text-sm">
-        <span className="text-gray-900">{topic}</span>
-        <span className="flex items-center gap-1 text-gray-600">
+        <span className="text-primary">{topic}</span>
+        <span className="flex items-center gap-1 text-secondary">
           {pct}%
           <span className={TREND_COLOR[trend]}>{TREND_ARROW[trend]}</span>
-          <span className="text-xs text-gray-400">({attempts} attempt{attempts === 1 ? "" : "s"})</span>
+          <span className="text-xs text-tertiary">({attempts} attempt{attempts === 1 ? "" : "s"})</span>
         </span>
       </div>
-      <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div className="w-full h-2 bg-surface-muted rounded-full overflow-hidden">
         <div className={`h-full ${barColor(score)}`} style={{ width: `${pct}%` }} />
       </div>
     </div>

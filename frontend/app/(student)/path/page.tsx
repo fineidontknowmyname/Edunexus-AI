@@ -32,21 +32,21 @@ export default function LearningPathPage() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load learning path."));
   }, []);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!data) return <p className="text-sm text-gray-500">Loading…</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!data) return <p className="text-sm text-tertiary">Loading…</p>;
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
-      <h1 className="text-2xl font-bold text-gray-900">Learning Path</h1>
+      <h1 className="text-2xl font-bold text-primary">Learning Path</h1>
 
       {data.cold_start && (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-tertiary">
           This is syllabus order — complete a quiz to personalize your path.
         </p>
       )}
 
       {data.path.length === 0 && (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-tertiary">
           No topics tracked yet — ask your teacher to upload notes, or take a quiz to get started.
         </p>
       )}
@@ -59,17 +59,17 @@ export default function LearningPathPage() {
             <Card key={entry.topic} className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-900">{entry.topic}</span>
+                  <span className="font-medium text-primary">{entry.topic}</span>
                   <Badge tone={label.tone}>{label.text}</Badge>
                   {entry.in_assessment_scope && <Badge tone="red">In exam scope</Badge>}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-tertiary mt-1">
                   {entry.attempts === 0
                     ? "Not attempted yet"
                     : `${Math.round(entry.mastery_score * 100)}% mastery · ${entry.attempts} attempt${entry.attempts === 1 ? "" : "s"}`}
                 </p>
               </div>
-              <Link href={cta.href} className="text-sm text-blue-600 hover:underline whitespace-nowrap ml-4">
+              <Link href={cta.href} className="text-sm text-accent-secondary hover:underline whitespace-nowrap ml-4">
                 {cta.label}
               </Link>
             </Card>

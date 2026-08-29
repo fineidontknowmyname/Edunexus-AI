@@ -56,15 +56,15 @@ export function SyllabusChecklist({ classId, documents }: { classId: string; doc
 
   return (
     <Card>
-      <h2 className="font-semibold text-gray-900 mb-3">Syllabus progress</h2>
+      <h2 className="font-semibold text-primary mb-3">Syllabus progress</h2>
       {chapters.length === 0 ? (
-        <p className="text-sm text-gray-500">Upload a document with a chapter number to track progress here.</p>
+        <p className="text-sm text-tertiary">Upload a document with a chapter number to track progress here.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {chapters.map((c) => (
             <label
               key={c.chapter}
-              className="flex items-center gap-3 px-3 py-2 rounded-md border border-gray-200 text-sm cursor-pointer hover:bg-gray-50"
+              className="flex items-center gap-3 px-3 py-2 rounded-md border border-subtle text-sm cursor-pointer hover:bg-app"
             >
               <input
                 type="checkbox"
@@ -72,10 +72,10 @@ export function SyllabusChecklist({ classId, documents }: { classId: string; doc
                 disabled={saving === c.chapter}
                 onChange={() => toggle(c.chapter, c.taught)}
               />
-              <span className={c.taught ? "text-gray-900" : "text-gray-500"}>
+              <span className={c.taught ? "text-primary" : "text-tertiary"}>
                 Chapter {c.chapter} — {c.chapterName}
               </span>
-              {c.taught && <span className="ml-auto text-xs text-green-700">Taught</span>}
+              {c.taught && <span className="ml-auto text-xs text-success">Taught</span>}
             </label>
           ))}
         </div>

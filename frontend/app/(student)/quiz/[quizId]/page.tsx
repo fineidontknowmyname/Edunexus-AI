@@ -45,13 +45,13 @@ export default function QuizTakePage() {
     );
   }
 
-  if (!quiz) return <p className="text-sm text-gray-500">Loading…</p>;
+  if (!quiz) return <p className="text-sm text-tertiary">Loading…</p>;
 
   const allAnswered = quiz.questions.every((q) => answers[q.id]);
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
-      <h1 className="text-2xl font-bold text-gray-900">{quiz.title}</h1>
+      <h1 className="text-2xl font-bold text-primary">{quiz.title}</h1>
       {quiz.questions.map((q, i) => (
         <QuizQuestion
           key={q.id}
@@ -62,7 +62,7 @@ export default function QuizTakePage() {
           disabled={submitting}
         />
       ))}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
       <Button onClick={handleSubmit} disabled={!allAnswered} loading={submitting}>
         Submit Quiz
       </Button>

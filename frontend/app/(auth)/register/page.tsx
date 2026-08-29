@@ -32,10 +32,10 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+    <main className="min-h-screen flex items-center justify-center bg-app p-6">
       <Card className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Create an account</h1>
-        <p className="text-sm text-gray-500 mb-6">Join EduNexus AI</p>
+        <h1 className="text-2xl font-bold text-primary mb-1">Create an account</h1>
+        <p className="text-sm text-tertiary mb-6">Join EduNexus AI</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Input
@@ -67,10 +67,10 @@ export default function RegisterPage() {
           />
 
           <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-gray-700">I am a...</span>
+            <span className="text-sm font-medium text-secondary">I am a...</span>
             <div className="flex gap-4">
               {(["student", "educator"] as UserRole[]).map((r) => (
-                <label key={r} className="flex items-center gap-2 text-sm text-gray-700">
+                <label key={r} className="flex items-center gap-2 text-sm text-secondary">
                   <input
                     type="radio"
                     name="role"
@@ -84,15 +84,15 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <Button type="submit" loading={loading} className="w-full">
             Create account
           </Button>
         </form>
 
-        <p className="text-sm text-gray-500 mt-4 text-center">
+        <p className="text-sm text-tertiary mt-4 text-center">
           Already have an account?{" "}
-          <Link href="/login" className="text-blue-600 hover:underline">
+          <Link href="/login" className="text-accent-secondary hover:underline">
             Sign in
           </Link>
         </p>

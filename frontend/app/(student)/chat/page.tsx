@@ -149,22 +149,22 @@ export default function ChatPage() {
   }
 
   if (classes === null) {
-    return <p className="text-sm text-gray-500">Loading…</p>;
+    return <p className="text-sm text-tertiary">Loading…</p>;
   }
 
   if (classes.length === 0) {
     return (
       <div className="max-w-md mx-auto">
         <Card>
-          <h2 className="font-semibold text-gray-900 mb-2">Join a class to start chatting</h2>
-          <p className="text-sm text-gray-500 mb-4">You're not enrolled in any class yet.</p>
+          <h2 className="font-semibold text-primary mb-2">Join a class to start chatting</h2>
+          <p className="text-sm text-tertiary mb-4">You're not enrolled in any class yet.</p>
           <div className="flex flex-col gap-2">
             {allClasses.length === 0 ? (
-              <p className="text-sm text-gray-500">No classes available yet.</p>
+              <p className="text-sm text-tertiary">No classes available yet.</p>
             ) : (
               allClasses.map((c) => (
-                <div key={c.id} className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2">
-                  <span className="text-sm text-gray-900">
+                <div key={c.id} className="flex items-center justify-between border border-subtle rounded-md px-3 py-2">
+                  <span className="text-sm text-primary">
                     {c.name} {c.subject ? `— ${c.subject}` : ""}
                   </span>
                   <Button variant="secondary" loading={joining === c.id} onClick={() => handleJoin(c.id)}>
@@ -186,17 +186,17 @@ export default function ChatPage() {
           New chat
         </Button>
         <div className="flex-1 overflow-y-auto flex flex-col gap-1">
-          {sessions.length === 0 && <p className="text-xs text-gray-400 px-2">No past sessions yet.</p>}
+          {sessions.length === 0 && <p className="text-xs text-tertiary px-2">No past sessions yet.</p>}
           {sessions.map((s) => (
             <button
               key={s.session_id}
               onClick={() => handleLoadSession(s.session_id)}
               className={`text-left px-3 py-2 rounded-md text-xs ${
-                s.session_id === sessionId ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50"
+                s.session_id === sessionId ? "bg-accent-secondary/10 text-accent-secondary" : "text-secondary hover:bg-app"
               }`}
             >
               <div className="font-medium truncate">{s.preview || "New conversation"}</div>
-              <div className="text-gray-400">{new Date(s.created_at).toLocaleDateString()} · {s.mode}</div>
+              <div className="text-tertiary">{new Date(s.created_at).toLocaleDateString()} · {s.mode}</div>
             </button>
           ))}
         </div>
@@ -208,18 +208,18 @@ export default function ChatPage() {
         </Button>
       </div>
 
-      <div className="flex-1 flex flex-col md:border-l md:border-gray-200 md:pl-4 min-h-0">
+      <div className="flex-1 flex flex-col md:border-l md:border-subtle md:pl-4 min-h-0">
         <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-2">
-          {loadingHistory && <p className="text-sm text-gray-400 text-center">Loading conversation…</p>}
+          {loadingHistory && <p className="text-sm text-tertiary text-center">Loading conversation…</p>}
           {!loadingHistory && messages.length === 0 && (
-            <p className="text-sm text-gray-400 text-center mt-8">
+            <p className="text-sm text-tertiary text-center mt-8">
               Ask a question about {classes[0].subject ?? classes[0].name}.
             </p>
           )}
           {messages.map((m, i) => (
             <MessageBubble key={i} message={m} onFlag={handleFlag} />
           ))}
-          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+          {error && <p className="text-sm text-danger text-center">{error}</p>}
           <div ref={bottomRef} />
         </div>
         <ChatInput mode={mode} onModeChange={setMode} onSend={handleSend} disabled={streaming} />

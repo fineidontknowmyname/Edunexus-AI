@@ -26,7 +26,7 @@ export function ChatInput({
   }
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4 flex flex-col gap-2">
+    <div className="border-t border-subtle bg-surface p-4 flex flex-col gap-2">
       <div className="flex gap-2">
         {(["study", "revision"] as SessionMode[]).map((m) => (
           <button
@@ -34,8 +34,8 @@ export function ChatInput({
             onClick={() => onModeChange(m)}
             className={`px-3 py-1 rounded-full text-xs font-medium border ${
               mode === m
-                ? "bg-blue-600 text-white border-blue-600"
-                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                ? "bg-accent-primary text-inverse border-accent-primary"
+                : "bg-surface text-secondary border-strong hover:bg-app"
             }`}
           >
             {m === "study" ? "Study (Socratic)" : "Revision (direct)"}
@@ -55,7 +55,7 @@ export function ChatInput({
           }}
           rows={2}
           placeholder="Ask about your curriculum..."
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 px-3 py-2 border border-strong rounded-md text-sm bg-surface text-primary placeholder:text-tertiary resize-none focus:outline-none focus:ring-2 focus:ring-accent-secondary"
         />
         <Button type="submit" disabled={disabled || !text.trim()}>
           Send

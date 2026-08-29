@@ -49,16 +49,16 @@ export default function StudentDetailPage() {
     }
   }
 
-  if (!classId) return <p className="text-sm text-red-600">Missing class_id in URL.</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!data) return <p className="text-sm text-gray-500">Loading…</p>;
+  if (!classId) return <p className="text-sm text-danger">Missing class_id in URL.</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!data) return <p className="text-sm text-tertiary">Loading…</p>;
 
   const { context, notes, learning_path } = data;
   const masteryEntries = Object.entries(context.mastery);
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-gray-900">Student Detail</h1>
+      <h1 className="text-2xl font-bold text-primary">Student Detail</h1>
 
       <Card>
         <div className="flex items-center gap-4 text-sm">
@@ -69,12 +69,12 @@ export default function StudentDetailPage() {
 
       {context.misconceptions.length > 0 && (
         <Card>
-          <h2 className="font-semibold text-gray-900 mb-2">Active misconceptions</h2>
+          <h2 className="font-semibold text-primary mb-2">Active misconceptions</h2>
           <div className="flex flex-col gap-1">
             {context.misconceptions.map((m, i) => (
               <p key={i} className="text-sm">
-                <span className="font-medium text-gray-900">{m.topic}</span>
-                <span className="text-gray-600"> — {m.description}</span>
+                <span className="font-medium text-primary">{m.topic}</span>
+                <span className="text-secondary"> — {m.description}</span>
               </p>
             ))}
           </div>
@@ -82,9 +82,9 @@ export default function StudentDetailPage() {
       )}
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Mastery by topic</h2>
+        <h2 className="font-semibold text-primary mb-3">Mastery by topic</h2>
         {masteryEntries.length === 0 ? (
-          <p className="text-sm text-gray-500">No quiz attempts yet.</p>
+          <p className="text-sm text-tertiary">No quiz attempts yet.</p>
         ) : (
           <div className="flex flex-col gap-4">
             {masteryEntries.map(([topic, m]) => (
@@ -95,37 +95,37 @@ export default function StudentDetailPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Learning path</h2>
+        <h2 className="font-semibold text-primary mb-3">Learning path</h2>
         <div className="flex flex-col gap-1">
           {learning_path.map((entry) => (
             <div key={entry.topic} className="flex items-center justify-between text-sm">
-              <span className="text-gray-900">{entry.topic}</span>
-              <span className="text-gray-500">{Math.round(entry.mastery_score * 100)}%</span>
+              <span className="text-primary">{entry.topic}</span>
+              <span className="text-tertiary">{Math.round(entry.mastery_score * 100)}%</span>
             </div>
           ))}
         </div>
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-gray-900 mb-3">Educator notes</h2>
+        <h2 className="font-semibold text-primary mb-3">Educator notes</h2>
         <form onSubmit={handleAddNote} className="flex gap-2 mb-4">
           <input
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             placeholder="Add a note about this student…"
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+            className="flex-1 px-3 py-2 border border-strong rounded-md text-sm bg-surface text-primary placeholder:text-tertiary"
             required
           />
           <Button type="submit" loading={savingNote}>Add</Button>
         </form>
         <div className="flex flex-col gap-2">
           {notes.length === 0 ? (
-            <p className="text-sm text-gray-500">No notes yet.</p>
+            <p className="text-sm text-tertiary">No notes yet.</p>
           ) : (
             notes.map((n) => (
-              <div key={n.id} className="text-sm border-t border-gray-100 pt-2">
-                <p className="text-gray-900">{n.note}</p>
-                <p className="text-xs text-gray-400">{new Date(n.created_at).toLocaleString()}</p>
+              <div key={n.id} className="text-sm border-t border-subtle pt-2">
+                <p className="text-primary">{n.note}</p>
+                <p className="text-xs text-tertiary">{new Date(n.created_at).toLocaleString()}</p>
               </div>
             ))
           )}

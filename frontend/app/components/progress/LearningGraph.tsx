@@ -3,7 +3,7 @@ import { MasteryBar } from "./MasteryBar";
 
 export function LearningGraph({ mastery }: { mastery: DashboardMasteryEntry[] }) {
   if (mastery.length === 0) {
-    return <p className="text-sm text-gray-500">No quiz attempts yet — take a quiz to start tracking mastery.</p>;
+    return <p className="text-sm text-tertiary">No quiz attempts yet — take a quiz to start tracking mastery.</p>;
   }
 
   const sorted = [...mastery].sort((a, b) => a.score - b.score);
