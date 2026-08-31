@@ -1,53 +1,36 @@
 import logging
-import sys
 import time
 from functools import lru_cache
 from typing import Any
 
 try:
-    from sentence_transformers import SentenceTransformer  # type: ignore[import-untyped, import-not-found]
+    from fastembed import TextEmbedding
 except ImportError:
-    SentenceTransformer = None  # type: ignore[assignment, misc]
+    TextEmbedding = None  # type: ignore[assignment, misc]
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
+DEFAULT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 @lru_cache(maxsize=1)
 def get_embedding_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
-    print(f"[EMBEDDER MODEL] Loading SentenceTransformer model '{model_name}'...")
-    try:
-        import site
-        site_dirs = []
-        try:
-            site_dirs.extend(site.getsitepackages())
-        except AttributeError:
-            pass
-        user_site = site.getusersitepackages()
-        if user_site:
-            site_dirs.append(user_site)
-
-        for s_dir in site_dirs:
-            if s_dir not in sys.path:
-                sys.path.insert(0, s_dir)
-
-        from sentence_transformers import SentenceTransformer  # type: ignore[import-untyped, import-not-found]
-    except ImportError as e:
-        print(f"[EMBEDDER ERROR] sentence-transformers is not installed: {e}")
-        logger.error("sentence-transformers is not installed: %s", e)
-        raise RuntimeError("sentence-transformers package is required. Install via `pip install sentence-transformers`.") from e
+    print(f"[EMBEDDER MODEL] Loading fastembed model '{model_name}'...")
+    if TextEmbedding is None:
+        print("[EMBEDDER ERROR] fastembed is not installed")
+        logger.error("fastembed is not installed")
+        raise RuntimeError("fastembed package is required. Install via `pip install fastembed`.")
 
     try:
         t0 = time.time()
-        model = SentenceTransformer(model_name)
+        model = TextEmbedding(model_name=model_name)
         elapsed = time.time() - t0
         print(f"[EMBEDDER MODEL SUCCESS] Model '{model_name}' loaded in {elapsed:.2f}s")
         logger.info("Embedding model '%s' loaded in %.2fs", model_name, elapsed)
         return model
     except Exception as e:
         print(f"[EMBEDDER ERROR] Failed to load model '{model_name}': {e}")
-        logger.exception("Failed to load SentenceTransformer model '%s'", model_name)
+        logger.exception("Failed to load fastembed model '%s'", model_name)
         raise
 
 
@@ -63,18 +46,8 @@ def embed_texts(texts: list[str], model: Any = None) -> list[list[float]]:
     t0 = time.time()
 
     try:
-        embeddings = model.encode(
-            texts,
-            batch_size=32,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
+        vectors = [vec.tolist() for vec in model.embed(texts, batch_size=32)]
         elapsed = time.time() - t0
-
-        if hasattr(embeddings, "tolist"):
-            vectors = embeddings.tolist()
-        else:
-            vectors = [list(vec) for vec in embeddings]
 
         dim = len(vectors[0]) if vectors else 0
         print(f"[EMBEDDER SUCCESS] Created {len(vectors)} vector embeddings (dim={dim}) in {elapsed:.2f}s")
@@ -99,18 +72,8 @@ def embed_single(text: str, model: Any = None) -> list[float]:
     t0 = time.time()
 
     try:
-        embeddings = model.encode(
-            [text],
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
+        vector = next(iter(model.embed([text]))).tolist()
         elapsed = time.time() - t0
-
-        if hasattr(embeddings, "tolist"):
-            vector = embeddings.tolist()[0]
-        else:
-            vector = list(embeddings[0])
-
         dim = len(vector)
         print(f"[EMBEDDER SUCCESS] Single query embedding created (dim={dim}) in {elapsed:.2f}s")
         return vector
