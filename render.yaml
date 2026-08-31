@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: edunexus-backend
+    runtime: python
+    buildCommand: pip install -r backend/requirements-torch.txt && pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.main:app --app-dir . --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_PRIMARY_MODEL
+        value: llama-3.1-8b-instant
+      - key: GROQ_SECONDARY_MODEL
+        value: llama-3.3-70b-versatile
+      - key: LLM_PROVIDER
+        value: groq
+      - key: EMBEDDING_MODEL
+        value: all-MiniLM-L6-v2
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRE_HOURS
+        value: "24"
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        sync: false
