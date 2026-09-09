@@ -96,7 +96,7 @@ export interface JobStatus {
   chunk_count?: number;
 }
 
-export type SessionMode = "study" | "revision" | "exam_focus";
+export type SessionMode = "study" | "revision" | "exam_focus" | "socratic";
 export type SourceType = "curriculum" | "general_knowledge";
 
 export interface ChatMessageUI {
@@ -107,6 +107,7 @@ export interface ChatMessageUI {
   citationCount?: number;
   flagged?: boolean;
   streaming?: boolean;
+  verificationFailed?: boolean;
 }
 
 export interface ChatHistoryMessage {

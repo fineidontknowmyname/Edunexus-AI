@@ -13,6 +13,8 @@ export interface SSEEvent {
   cached?: boolean;
   citations?: string[];
   detail?: string;
+  verification_failed?: boolean;
+  learning_tag?: string | null;
 }
 
 export interface ChatQueryPayload {

@@ -28,7 +28,7 @@ export function ChatInput({
   return (
     <div className="border-t border-subtle bg-surface p-4 flex flex-col gap-2">
       <div className="flex gap-2">
-        {(["study", "revision"] as SessionMode[]).map((m) => (
+        {(["study", "revision", "socratic"] as SessionMode[]).map((m) => (
           <button
             key={m}
             onClick={() => onModeChange(m)}
@@ -38,7 +38,7 @@ export function ChatInput({
                 : "bg-surface text-secondary border-strong hover:bg-app"
             }`}
           >
-            {m === "study" ? "Study (Socratic)" : "Revision (direct)"}
+            {m === "study" ? "Study" : m === "revision" ? "Revision (direct)" : "Socratic"}
           </button>
         ))}
       </div>

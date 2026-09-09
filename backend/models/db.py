@@ -65,6 +65,7 @@ class SessionMode(str, enum.Enum):
     study = "study"
     revision = "revision"
     exam_focus = "exam_focus"
+    socratic = "socratic"
 
 
 class ContextTier(str, enum.Enum):
@@ -207,8 +208,10 @@ class ResponseCache(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     query_embedding = Column(Vector(EMBEDDING_DIM), nullable=False)
     subject = Column(String(255), nullable=True)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
     chapter = Column(Integer, nullable=True)
     context_tier = Column(Enum(ContextTier), nullable=False)
+    learning_tag = Column(String(50), nullable=True)
     response_text = Column(Text, nullable=False)
     chunk_ids_used = Column(ARRAY(UUID(as_uuid=True)), nullable=True)
     source_type = Column(Enum(SourceType), nullable=True)
@@ -271,6 +274,28 @@ class InteractionPattern(Base):
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
 
+class TopicBehavior(Base):
+    """Per-student, per-topic behavioural signals feeding the learning-tag (Rule 9)."""
+
+    __tablename__ = "topic_behavior"
+    __table_args__ = (
+        UniqueConstraint("student_id", "subject_id", "topic", name="uq_topic_behavior_student_subject_topic"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic = Column(String(500), nullable=False)
+    message_count = Column(Integer, default=0, nullable=False)
+    follow_up_count = Column(Integer, default=0, nullable=False)
+    qt_conceptual = Column(Integer, default=0, nullable=False)
+    qt_example = Column(Integer, default=0, nullable=False)
+    qt_direct = Column(Integer, default=0, nullable=False)
+    learning_tag = Column(String(50), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
+
+
 class Engagement(Base):
     __tablename__ = "engagement"
 
@@ -293,7 +318,9 @@ class ChatSession(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     subject = Column(String(255), nullable=True)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
     mode = Column(Enum(SessionMode), default=SessionMode.study, nullable=False)
+    socratic_state = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)

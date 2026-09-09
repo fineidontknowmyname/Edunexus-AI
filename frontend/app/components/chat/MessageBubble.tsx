@@ -35,6 +35,12 @@ export function MessageBubble({
           <EvidenceCard sourceType={message.sourceType} citationCount={message.citationCount ?? 0} />
         )}
 
+        {!isUser && message.verificationFailed && !message.streaming && (
+          <span className="mt-1 text-xs text-tertiary">
+            ⚠ Self-check flagged parts of this as possibly unsupported by your curriculum.
+          </span>
+        )}
+
         {!isUser && message.id && !message.streaming && (
           <button
             onClick={() => onFlag(message.id!)}

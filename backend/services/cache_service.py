@@ -28,17 +28,24 @@ def compute_context_tier(student_context: dict[str, Any]) -> str:
 def check_cache(
     db: Session,
     query_vector: list[float],
-    subject: str,
+    subject: str | None,
     context_tier: str,
+    subject_id: str | None = None,
+    learning_tag: str | None = None,
 ) -> ResponseCache | None:
     cutoff = datetime.utcnow() - timedelta(hours=TTL_HOURS)
     distance_expr = ResponseCache.query_embedding.cosine_distance(query_vector)
 
+    scope_filter = (
+        ResponseCache.subject_id == subject_id if subject_id else ResponseCache.subject == subject
+    )
     row = (
         db.query(ResponseCache, distance_expr.label("distance"))
         .filter(
-            ResponseCache.subject == subject,
+            scope_filter,
             ResponseCache.context_tier == ContextTier(context_tier),
+            ResponseCache.learning_tag.is_(learning_tag) if learning_tag is None
+            else ResponseCache.learning_tag == learning_tag,
             ResponseCache.created_at >= cutoff,
         )
         .order_by(distance_expr)
@@ -61,20 +68,24 @@ def check_cache(
 def store_cache(
     db: Session,
     query_vector: list[float],
-    subject: str,
+    subject: str | None,
     context_tier: str,
     response_text: str,
     chunk_ids_used: list[UUID],
     source_type: str,
+    subject_id: str | None = None,
+    learning_tag: str | None = None,
 ) -> None:
     entry = ResponseCache(
         query_embedding=query_vector,
         subject=subject,
+        subject_id=subject_id,
         context_tier=ContextTier(context_tier),
+        learning_tag=learning_tag,
         response_text=response_text,
         chunk_ids_used=chunk_ids_used or None,
         source_type=SourceType(source_type),
     )
     db.add(entry)
     db.commit()
-    print(f"[CACHE] Stored new response_cache entry id={entry.id} subject={subject} tier={context_tier}")
+    print(f"[CACHE] Stored entry id={entry.id} subject={subject}/{subject_id} tier={context_tier} tag={learning_tag}")

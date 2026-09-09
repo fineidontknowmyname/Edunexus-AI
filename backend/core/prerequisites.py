@@ -65,17 +65,29 @@ def topic_names_db(db: Session, subject_id: str) -> list[str]:
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
+# subject-name -> bundled file, for the pre-multi-subject code paths only
+_LEGACY_FILES = {
+    "operating systems": "prerequisites_os.json",
+    "os": "prerequisites_os.json",
+}
+
+
 @lru_cache(maxsize=16)
 def load_prerequisite_map(subject: str = "") -> dict[str, list[str]]:
     if not subject:
         return {}
-    filename = f"prerequisites_{subject.lower().replace(' ', '_')}.json"
-    file_path = _DATA_DIR / filename
-    if not file_path.exists():
-        return {}
-    with open(file_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    return data.get("prerequisite_map", {})
+    candidates = [
+        f"prerequisites_{subject.lower().replace(' ', '_')}.json",
+        _LEGACY_FILES.get(subject.lower().strip(), ""),
+    ]
+    for filename in candidates:
+        if not filename:
+            continue
+        file_path = _DATA_DIR / filename
+        if file_path.exists():
+            with open(file_path, "r", encoding="utf-8") as f:
+                return json.load(f).get("prerequisite_map", {})
+    return {}
 
 
 def get_prerequisites(topic: str, subject: str = "") -> list[str]:

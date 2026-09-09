@@ -127,6 +127,7 @@ export default function ChatPage() {
               streaming: false,
               sourceType: event.source_type,
               citationCount: event.citations?.length ?? 0,
+              verificationFailed: event.verification_failed ?? false,
             };
             return next;
           });

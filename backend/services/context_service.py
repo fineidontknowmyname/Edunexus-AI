@@ -29,12 +29,13 @@ def assemble_class_context(db: Session, class_id: str) -> dict[str, Any]:
 
     print(
         f"[CONTEXT] Class context assembled: subject={class_row.subject} "
-        f"syllabus_entries={len(syllabus)} assessments={len(assessments)}"
+        f"subject_id={class_row.subject_id} syllabus_entries={len(syllabus)} assessments={len(assessments)}"
     )
 
     return {
         "class_id": str(class_id),
-        "subject": class_row.subject or "Operating Systems",
+        "subject": class_row.subject,
+        "subject_id": str(class_row.subject_id) if class_row.subject_id else None,
         "syllabus": syllabus,
         "assessments": assessments,
         "teacher_emphasis": ctx.teacher_emphasis if ctx else None,
@@ -153,9 +154,25 @@ def _compute_upcoming_focus(assessments: list[dict], weak_topics: list[str]) -> 
 
 
 def check_prerequisites(student_context: dict[str, Any], query_topic: str | None, subject: str) -> list[str]:
+    """Legacy: prerequisites from the bundled file (no subject_id)."""
     if not query_topic:
         return []
     required = get_prerequisites(query_topic, subject)
+    return _gaps(student_context, required, query_topic)
+
+
+def check_prerequisites_for_subject(
+    db: Session, student_context: dict[str, Any], query_topic: str | None, subject_id: str
+) -> list[str]:
+    if not query_topic:
+        return []
+    from backend.core.prerequisites import get_prerequisites_db
+
+    required = get_prerequisites_db(db, subject_id, query_topic)
+    return _gaps(student_context, required, query_topic)
+
+
+def _gaps(student_context: dict[str, Any], required: list[str], query_topic: str) -> list[str]:
     mastery = student_context["mastery"]
     gaps = [req for req in required if mastery.get(req, {}).get("score", 0.0) < 0.50]
     if gaps:
@@ -164,11 +181,48 @@ def check_prerequisites(student_context: dict[str, Any], query_topic: str | None
 
 
 def detect_topic(message: str, subject: str) -> str | None:
+    """Legacy: substring match against the bundled prerequisite file (no subject_id)."""
     known_topics = list(load_prerequisite_map(subject).keys())
     lowered = message.lower()
     matches = [t for t in known_topics if t.lower() in lowered]
     detected = max(matches, key=len) if matches else None
-    print(f"[CONTEXT] Topic detection: message={message[:60]!r} -> detected={detected!r}")
+    print(f"[CONTEXT] Topic detection (legacy): message={message[:60]!r} -> detected={detected!r}")
+    return detected
+
+
+TOPIC_MATCH_THRESHOLD = 0.45
+
+
+def detect_topic_for_subject(
+    db: Session, message: str, subject_id: str, embedding_model: Any
+) -> str | None:
+    """Embedding match of the message against the subject's confirmed topic anchors.
+
+    Falls back to a substring pass over the confirmed topic names, so an exact
+    mention still wins even if the anchor similarity is low.
+    """
+    from backend.pipeline.embedder import embed_single
+    from backend.services import classification_service, topic_graph_service
+
+    names, anchor_vectors = topic_graph_service.topic_anchors(db, subject_id, embedding_model)
+    if not names:
+        return None
+
+    lowered = message.lower()
+    substr = [n for n in names if n.lower() in lowered]
+    if substr:
+        detected = max(substr, key=len)
+        print(f"[CONTEXT] Topic detection (substring): {detected!r}")
+        return detected
+
+    query_vec = embed_single(message, model=embedding_model)
+    scored = sorted(
+        ((classification_service._cosine(query_vec, av), n) for n, av in zip(names, anchor_vectors)),
+        reverse=True,
+    )
+    best_sim, best_topic = scored[0]
+    detected = best_topic if best_sim >= TOPIC_MATCH_THRESHOLD else None
+    print(f"[CONTEXT] Topic detection (embedding): {detected!r} (best={best_sim:.3f} '{best_topic}')")
     return detected
 
 

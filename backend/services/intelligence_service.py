@@ -1,12 +1,28 @@
 from typing import Any
 
 
+_LEARNING_TAG_GUIDANCE = {
+    "example-driven": (
+        "This student learns best from worked examples. Lead with a concrete example, then generalise."
+    ),
+    "concept-first": (
+        "This student prefers the underlying principle first. State the concept and the 'why', "
+        "then apply it."
+    ),
+    "needs-repetition": (
+        "This student has needed several passes on this topic. Re-explain from the basics in a "
+        "slightly different way; keep it short and check understanding."
+    ),
+}
+
+
 def apply_rules(
     student_context: dict[str, Any],
     query_topic: str | None,
     top_similarity: float,
     session_mode: str,
     prerequisite_gaps: list[str],
+    learning_tag: str | None = None,
 ) -> list[str]:
     rules: list[str] = []
 
@@ -59,5 +75,8 @@ def apply_rules(
     if student_context["engagement"]["staleness_flag"]:
         rules.append("The student is returning after an absence. Give a brief re-orientation before the main response.")
 
-    print(f"[INTELLIGENCE] {len(rules)} rule(s) triggered for topic={query_topic!r} mode={session_mode}: {rules}")
+    if learning_tag and learning_tag in _LEARNING_TAG_GUIDANCE:
+        rules.append(_LEARNING_TAG_GUIDANCE[learning_tag])
+
+    print(f"[INTELLIGENCE] {len(rules)} rule(s) triggered for topic={query_topic!r} mode={session_mode} tag={learning_tag!r}: {rules}")
     return rules
