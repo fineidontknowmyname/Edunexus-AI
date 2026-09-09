@@ -22,9 +22,19 @@ def create_class(
 ):
     print(f"[CLASSES] Creating class '{payload.name}' for educator {current_user.id}")
 
+    subject_name = payload.subject
+    if payload.subject_id is not None:
+        from backend.models.db import Subject
+
+        subject_row = db.get(Subject, payload.subject_id)
+        if subject_row is None:
+            raise HTTPException(status_code=404, detail=f"Subject '{payload.subject_id}' not found.")
+        subject_name = subject_row.name
+
     class_row = Class(
         name=payload.name,
-        subject=payload.subject,
+        subject=subject_name,
+        subject_id=payload.subject_id,
         semester=payload.semester,
         educator_id=current_user.id,
     )

@@ -43,7 +43,11 @@ async def generate_quiz(
     class_row = db.get(Class, class_id)
     if class_row is None:
         raise ValueError(f"Class '{class_id}' not found.")
-    subject = class_row.subject or "Operating Systems"
+    subject = class_row.subject
+    if not subject:
+        raise ValueError(
+            f"Class '{class_id}' has no subject set. Assign a subject to the class before generating quizzes."
+        )
 
     from backend.pipeline.embedder import embed_single
 

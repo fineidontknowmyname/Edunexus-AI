@@ -18,8 +18,9 @@ from backend.api.documents import router as documents_router
 from backend.api.insights import router as insights_router
 from backend.api.progress import router as progress_router
 from backend.api.quizzes import router as quizzes_router
+from backend.api.subjects import router as subjects_router
 from backend.core.config import get_cors_origins, get_settings
-from backend.core.database import engine
+from backend.core.database import SessionLocal, engine
 from backend.pipeline.embedder import get_embedding_model
 
 settings = get_settings()
@@ -30,6 +31,16 @@ async def lifespan(app: FastAPI):
     app.state.embedding_model = None
     print("[STARTUP] Loading embedding model into app.state...")
     app.state.embedding_model = get_embedding_model()
+    try:
+        from backend.services.ingestion_jobs import sweep_stale
+
+        db = SessionLocal()
+        try:
+            sweep_stale(db)
+        finally:
+            db.close()
+    except Exception as exc:  # noqa: BLE001 - startup must not fail on the sweep
+        print(f"[STARTUP] Stale-job sweep skipped: {exc}")
     print("[STARTUP] EduNexus AI ready.")
     yield
     print("[SHUTDOWN] EduNexus AI shutting down.")
@@ -61,6 +72,7 @@ app.include_router(documents_router, prefix="/api/v1")
 app.include_router(insights_router,  prefix="/api/v1")
 app.include_router(progress_router,  prefix="/api/v1")
 app.include_router(quizzes_router,   prefix="/api/v1")
+app.include_router(subjects_router,  prefix="/api/v1")
 
 
 @app.get("/api/health", tags=["health"])

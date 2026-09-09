@@ -38,6 +38,12 @@ export function SyllabusChecklist({ classId, documents }: { classId: string; doc
       taught: syllabus[String(chapter)] === "taught",
     }));
 
+  // Topic-keyed entries are auto-marked at ingestion from chunk classification.
+  const topicsCovered = Object.entries(syllabus)
+    .filter(([key, status]) => status === "taught" && !/^\d+$/.test(key))
+    .map(([topic]) => topic)
+    .sort();
+
   async function toggle(chapter: number, currentlyTaught: boolean) {
     setSaving(chapter);
     const nextStatus = currentlyTaught ? "not_taught" : "taught";
@@ -78,6 +84,22 @@ export function SyllabusChecklist({ classId, documents }: { classId: string; doc
               {c.taught && <span className="ml-auto text-xs text-success">Taught</span>}
             </label>
           ))}
+        </div>
+      )}
+
+      {topicsCovered.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-sm font-medium text-secondary mb-2">Topics covered (auto-detected)</h3>
+          <div className="flex flex-wrap gap-2">
+            {topicsCovered.map((t) => (
+              <span
+                key={t}
+                className="px-2 py-1 text-xs rounded bg-surface-muted text-secondary border border-subtle"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </Card>

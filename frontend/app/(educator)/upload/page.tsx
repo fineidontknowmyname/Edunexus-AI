@@ -3,7 +3,7 @@
 import { DragEvent, FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch, ApiError } from "../../lib/api";
 import { usePoll } from "../../lib/hooks/usePoll";
-import type { ClassRow, DocumentRow, JobStatus, UploadJobResponse } from "../../lib/types";
+import type { ClassRow, DocumentRow, JobStatus, Subject, UploadJobResponse } from "../../lib/types";
 import { Card } from "../../components/ui/Card";
 import { Input } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
@@ -28,10 +28,12 @@ export default function UploadPage() {
   const [newClassName, setNewClassName] = useState("");
   const [creatingClass, setCreatingClass] = useState(false);
 
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjectId, setSubjectId] = useState<string>("");
+
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [title, setTitle] = useState("");
-  const [subject, setSubject] = useState("Operating Systems");
   const [unit, setUnit] = useState(1);
   const [chapter, setChapter] = useState(1);
   const [chapterName, setChapterName] = useState("");
@@ -53,6 +55,10 @@ export default function UploadPage() {
 
   useEffect(() => {
     loadClasses();
+    apiFetch<Subject[]>("/subjects").then((rows) => {
+      setSubjects(rows);
+      if (rows.length > 0) setSubjectId((prev) => prev || rows[0].id);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -63,7 +69,7 @@ export default function UploadPage() {
     try {
       const created = await apiFetch<ClassRow>("/classes/", {
         method: "POST",
-        body: { name: newClassName, subject },
+        body: { name: newClassName, subject_id: subjectId || null },
       });
       setNewClassName("");
       await loadClasses();
@@ -124,7 +130,7 @@ export default function UploadPage() {
     formData.append("file", file);
     formData.append("class_id", classId);
     formData.append("title", title || file.name);
-    formData.append("subject", subject);
+    if (subjectId) formData.append("subject_id", subjectId);
     formData.append("unit", String(unit));
     formData.append("chapter", String(chapter));
     formData.append("chapter_name", chapterName);
@@ -225,8 +231,31 @@ export default function UploadPage() {
           </div>
 
           <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-          <div className="grid grid-cols-3 gap-3">
-            <Input label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-secondary">Subject</label>
+            {subjects.length === 0 ? (
+              <p className="text-sm text-tertiary">
+                No subjects yet — create one on the{" "}
+                <a href="/subjects" className="text-accent-secondary underline">
+                  Subjects
+                </a>{" "}
+                page first.
+              </p>
+            ) : (
+              <select
+                className="px-3 py-2 border border-strong rounded-md text-sm bg-surface text-primary"
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+              >
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <Input
               label="Unit"
               type="number"

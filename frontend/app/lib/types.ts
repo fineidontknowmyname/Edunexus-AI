@@ -18,9 +18,46 @@ export interface ClassRow {
   id: string;
   name: string;
   subject: string | null;
+  subject_id: string | null;
   semester: number | null;
   created_at: string;
   educator_id: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  created_at: string;
+  created_by: string;
+}
+
+export interface Subject {
+  id: string;
+  name: string;
+  category_id: string;
+  created_at: string;
+  created_by: string;
+}
+
+export interface TopicNode {
+  topic: string;
+  description: string | null;
+  requires: string[];
+  related_concepts: string[];
+}
+
+export interface TopicGraphResponse {
+  subject_id: string;
+  topics: TopicNode[];
+}
+
+export interface UnclassifiedChunk {
+  chunk_id: string;
+  document_id: string;
+  document_title: string;
+  unit: number | null;
+  chapter: number | null;
+  text_preview: string;
 }
 
 export type DocumentStatus = "pending" | "processing" | "ready" | "failed";
@@ -30,6 +67,7 @@ export interface DocumentRow {
   title: string;
   filename: string;
   subject: string | null;
+  subject_id: string | null;
   unit: number | null;
   chapter: number | null;
   chapter_name: string | null;

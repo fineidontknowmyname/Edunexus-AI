@@ -59,6 +59,7 @@ class ChangePasswordRequest(BaseModel):
 class ClassCreate(BaseModel):
     name: str
     subject: str | None = None
+    subject_id: UUID | None = None
     semester: int | None = None
 
 
@@ -66,9 +67,68 @@ class ClassRead(_OrmBase):
     id: UUID
     name: str
     subject: str | None
+    subject_id: UUID | None = None
     semester: int | None
     created_at: datetime
     educator_id: UUID
+
+
+class CategoryCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
+class CategoryRead(_OrmBase):
+    id: UUID
+    name: str
+    created_at: datetime
+    created_by: UUID
+
+
+class SubjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    category_id: UUID
+
+
+class SubjectRead(_OrmBase):
+    id: UUID
+    name: str
+    category_id: UUID
+    created_at: datetime
+    created_by: UUID
+
+
+class TopicNode(BaseModel):
+    topic: str = Field(min_length=1, max_length=500)
+    description: str | None = None
+    requires: list[str] = []
+    related_concepts: list[str] = []
+
+
+class TopicGraphDraft(BaseModel):
+    subject_id: UUID
+    topics: list[TopicNode]
+
+
+class TopicGraphConfirm(BaseModel):
+    topics: list[TopicNode]
+
+
+class TopicRename(BaseModel):
+    old_topic: str = Field(min_length=1)
+    new_topic: str = Field(min_length=1, max_length=500)
+
+
+class UnclassifiedChunk(BaseModel):
+    chunk_id: UUID
+    document_id: UUID
+    document_title: str
+    unit: int | None
+    chapter: int | None
+    text_preview: str
+
+
+class ChunkTopicPatch(BaseModel):
+    topic: str = Field(min_length=1, max_length=500)
 
 
 class AssessmentEntry(BaseModel):

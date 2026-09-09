@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import relationship
@@ -72,6 +73,38 @@ class ContextTier(str, enum.Enum):
     significant_gaps = "significant_gaps"
 
 
+class IngestionJobStatus(str, enum.Enum):
+    queued = "queued"
+    processing = "processing"
+    done = "done"
+    failed = "failed"
+
+
+class Category(Base):
+    __tablename__ = "categories"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    subjects = relationship("Subject", back_populates="category", cascade="all, delete-orphan")
+
+
+class Subject(Base):
+    __tablename__ = "subjects"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    category = relationship("Category", back_populates="subjects")
+    topics = relationship("PrerequisiteMap", back_populates="subject_", cascade="all, delete-orphan")
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -98,6 +131,7 @@ class Class(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(500), nullable=False)
     subject = Column(String(255), nullable=True)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
     semester = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -128,6 +162,7 @@ class Document(Base):
     filename = Column(String(500), nullable=False)
     file_path = Column(String(1000), nullable=False)
     subject = Column(String(255), nullable=True)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
     unit = Column(Integer, nullable=True)
     chapter = Column(Integer, nullable=True)
     chapter_name = Column(String(500), nullable=True)
@@ -153,6 +188,8 @@ class Chunk(Base):
     full_text = Column(Text, nullable=False)
     embedding = Column(Vector(EMBEDDING_DIM), nullable=False)
     subject = Column(String(255), nullable=True)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
+    topic = Column(String(500), nullable=True)
     unit = Column(Integer, nullable=True)
     chapter = Column(Integer, nullable=True)
     chunk_index = Column(Integer, nullable=False)
@@ -160,6 +197,7 @@ class Chunk(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=True)
     document = relationship("Document", back_populates="chunks")
 
 
@@ -346,8 +384,34 @@ class EducatorNote(Base):
 
 class PrerequisiteMap(Base):
     __tablename__ = "prerequisite_map"
+    __table_args__ = (
+        UniqueConstraint("subject_id", "topic", name="uq_prerequisite_map_subject_topic"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    subject = Column(String(255), nullable=False)
+    subject = Column(String(255), nullable=True)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
     topic = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
     requires = Column(ARRAY(Text), nullable=True)
+    related_concepts = Column(ARRAY(Text), nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    subject_ = relationship("Subject", back_populates="topics")
+
+
+class IngestionJob(Base):
+    __tablename__ = "ingestion_jobs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    status = Column(Enum(IngestionJobStatus), default=IngestionJobStatus.queued, nullable=False, index=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    claimed_at = Column(DateTime, nullable=True)
+    error = Column(Text, nullable=True)
+    chunk_count = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
