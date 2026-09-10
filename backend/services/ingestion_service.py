@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_subject(db: Session, doc: Document) -> tuple[Any, str | None]:
-    """Return (subject_id, subject_name) for a document, preferring the document's
-    own subject_id, then its class's subject_id, then the free-text subject string."""
     subject_id = doc.subject_id
     subject_name = doc.subject
 
@@ -36,8 +34,6 @@ def _resolve_subject(db: Session, doc: Document) -> tuple[Any, str | None]:
 
 
 def process_job(db: Session, document_id: str, embedding_model: Any) -> dict:
-    """Run the full ingestion pipeline for one document. Raises on failure so the
-    queue can re-queue or fail the job."""
     print(f"[INGESTION] Starting pipeline for Document ID: {document_id}")
 
     doc: Document | None = db.get(Document, document_id)

@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch, ApiError } from "../../lib/api";
 import type {
   Category,
+  MisconceptionRule,
   Subject,
   TopicGraphResponse,
   TopicNode,
@@ -13,6 +14,7 @@ import { Card } from "../../components/ui/Card";
 import { Input } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
 import { TopicGraphEditor } from "../../components/subjects/TopicGraphEditor";
+import { MisconceptionRulesEditor } from "../../components/subjects/MisconceptionRulesEditor";
 
 export default function SubjectsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -30,6 +32,11 @@ export default function SubjectsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [unclassified, setUnclassified] = useState<UnclassifiedChunk[]>([]);
+
+  const [rules, setRules] = useState<MisconceptionRule[]>([]);
+  const [rulesDrafting, setRulesDrafting] = useState(false);
+  const [rulesSaving, setRulesSaving] = useState(false);
+  const [rulesMsg, setRulesMsg] = useState<string | null>(null);
 
   const loadCategories = useCallback(async () => {
     setCategories(await apiFetch<Category[]>("/categories"));
@@ -53,6 +60,11 @@ export default function SubjectsPage() {
     setTopics(res.topics);
     const uc = await apiFetch<UnclassifiedChunk[]>(`/subjects/${subjectId}/unclassified`);
     setUnclassified(uc);
+    const rr = await apiFetch<{ rules: MisconceptionRule[] }>(
+      `/subjects/${subjectId}/misconception-rules`
+    );
+    setRules(rr.rules);
+    setRulesMsg(null);
   }, []);
 
   useEffect(() => {
@@ -129,6 +141,41 @@ export default function SubjectsPage() {
   async function tagChunk(chunkId: string, topic: string) {
     await apiFetch(`/chunks/${chunkId}/topic`, { method: "PATCH", body: { topic } });
     setUnclassified((prev) => prev.filter((c) => c.chunk_id !== chunkId));
+  }
+
+  async function handleDraftRules() {
+    if (!selectedSubjectId) return;
+    setRulesDrafting(true);
+    setRulesMsg(null);
+    try {
+      const res = await apiFetch<{ rules: MisconceptionRule[] }>(
+        `/subjects/${selectedSubjectId}/misconception-rules/draft`,
+        { method: "POST" }
+      );
+      setRules(res.rules);
+      setRulesMsg(`Drafted ${res.rules.length} rule(s) — review and confirm.`);
+    } catch (err) {
+      setRulesMsg(err instanceof ApiError ? err.message : "Draft failed.");
+    } finally {
+      setRulesDrafting(false);
+    }
+  }
+
+  async function handleSaveRules() {
+    if (!selectedSubjectId) return;
+    setRulesSaving(true);
+    setRulesMsg(null);
+    try {
+      const res = await apiFetch<{ rule_count: number }>(
+        `/subjects/${selectedSubjectId}/misconception-rules`,
+        { method: "PUT", body: { rules } }
+      );
+      setRulesMsg(`Saved ${res.rule_count} rule(s).`);
+    } catch (err) {
+      setRulesMsg(err instanceof ApiError ? err.message : "Save failed.");
+    } finally {
+      setRulesSaving(false);
+    }
   }
 
   const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? "—";
@@ -272,6 +319,33 @@ export default function SubjectsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </Card>
+      )}
+
+      {selectedSubjectId && topics.length > 0 && (
+        <Card>
+          <h2 className="font-semibold text-primary mb-1">Misconception rules</h2>
+          <p className="text-sm text-tertiary mb-3">
+            Deterministic keyword rules for this subject. A wrong quiz answer matching a rule logs
+            that misconception at zero token cost; anything unmatched falls back to the AI check.
+          </p>
+
+          <div className="flex items-center gap-3 mb-4">
+            <Button type="button" variant="secondary" loading={rulesDrafting} onClick={handleDraftRules}>
+              Draft from topics
+            </Button>
+            <span className="text-xs text-tertiary">One AI call — not saved until you confirm.</span>
+          </div>
+
+          <MisconceptionRulesEditor topics={topics} rules={rules} onChange={setRules} />
+
+          {rulesMsg && <p className="text-sm text-secondary mt-3">{rulesMsg}</p>}
+
+          <div className="mt-4">
+            <Button onClick={handleSaveRules} loading={rulesSaving}>
+              Save rules
+            </Button>
           </div>
         </Card>
       )}

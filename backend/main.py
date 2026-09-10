@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
             sweep_stale(db)
         finally:
             db.close()
-    except Exception as exc:  # noqa: BLE001 - startup must not fail on the sweep
+    except Exception as exc:  # noqa: BLE001
         print(f"[STARTUP] Stale-job sweep skipped: {exc}")
     print("[STARTUP] EduNexus AI ready.")
     yield

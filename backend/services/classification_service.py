@@ -1,15 +1,3 @@
-"""Deterministic chunk-to-topic assignment.
-
-Reuses the chunk embeddings already computed at ingestion. Groups chunks by
-section, mean-pools each section's vectors, and cosine-matches against the
-subject's embedded topic anchors. A section is assigned a topic only if the best
-match clears an absolute threshold and a margin over the runner-up; otherwise its
-chunks are left unclassified (topic = None) for educator review.
-
-No LLM call on this path. A batched LLM tie-breaker is intentionally out of scope
-for Phase 1 to stay within free-tier limits; ambiguous sections simply surface
-for review.
-"""
 from __future__ import annotations
 
 import math
@@ -46,11 +34,6 @@ def assign_topics(
     topic_names: list[str],
     topic_vectors: list[list[float]],
 ) -> dict[int, str | None]:
-    """Return ``{chunk_index_in_list: topic or None}``.
-
-    ``chunk_meta[i]`` must have ``unit``, ``chapter``, ``chapter_name`` keys used
-    only for grouping into sections.
-    """
     if not topic_names:
         return {i: None for i in range(len(chunk_meta))}
 

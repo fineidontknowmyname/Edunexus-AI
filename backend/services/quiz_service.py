@@ -44,17 +44,20 @@ async def generate_quiz(
     if class_row is None:
         raise ValueError(f"Class '{class_id}' not found.")
     subject = class_row.subject
-    if not subject:
+    subject_id = str(class_row.subject_id) if class_row.subject_id else None
+    if not subject and not subject_id:
         raise ValueError(
             f"Class '{class_id}' has no subject set. Assign a subject to the class before generating quizzes."
         )
 
     from backend.pipeline.embedder import embed_single
 
-    seed_vector = embed_single(f"{subject} chapter {chapter}", model=embedding_model)
-    chunks_with_sim = rag_service.retrieve_chunks(db, subject, seed_vector, top_k=6, chapter_scope=[chapter])
+    seed_vector = embed_single(f"{subject or 'curriculum'} chapter {chapter}", model=embedding_model)
+    chunks_with_sim = rag_service.retrieve_chunks(
+        db, subject, seed_vector, top_k=6, chapter_scope=[chapter], subject_id=subject_id
+    )
     if not chunks_with_sim:
-        chunks_with_sim = rag_service.retrieve_chunks(db, subject, seed_vector, top_k=6)
+        chunks_with_sim = rag_service.retrieve_chunks(db, subject, seed_vector, top_k=6, subject_id=subject_id)
 
     content = "\n\n".join(chunk.text for chunk, _sim in chunks_with_sim)
     if not content.strip():
@@ -98,7 +101,9 @@ async def generate_quiz(
     db.add(quiz)
     db.flush()
 
-    source_chunk_id = chunks_with_sim[0][0].id if chunks_with_sim else None
+    source_chunk = chunks_with_sim[0][0] if chunks_with_sim else None
+    source_chunk_id = source_chunk.id if source_chunk else None
+    source_chunk_topic = source_chunk.topic if source_chunk else None
 
     created_count = 0
     for item in parsed:
@@ -114,7 +119,13 @@ async def generate_quiz(
             print(f"[QUIZ GEN WARNING] Skipping malformed question: {item}")
             continue
 
-        topic = context_service.detect_topic(question_text, subject) or class_row.subject
+        if subject_id:
+            topic = (
+                context_service.detect_topic_for_subject(db, question_text, subject_id, embedding_model)
+                or source_chunk_topic
+            )
+        else:
+            topic = context_service.detect_topic(question_text, subject or "") or source_chunk_topic
 
         db.add(
             QuizQuestion(
@@ -136,6 +147,9 @@ async def generate_quiz(
     return quiz
 
 
+TOPIC_PASS_THRESHOLD = 0.5
+
+
 async def score_attempt(
     db: Session, quiz: Quiz, student_id: str, class_id: str, answers: dict[str, str]
 ) -> dict[str, Any]:
@@ -144,6 +158,9 @@ async def score_attempt(
     approved_questions = [q for q in quiz.questions if q.status == ReviewStatus.approved]
     if not approved_questions:
         raise ValueError("This quiz has no approved questions yet.")
+
+    class_row = db.get(Class, class_id)
+    subject_id = str(class_row.subject_id) if class_row and class_row.subject_id else None
 
     topic_correct: dict[str, int] = {}
     topic_total: dict[str, int] = {}
@@ -161,11 +178,17 @@ async def score_attempt(
             topic_correct[topic] = topic_correct.get(topic, 0) + 1
             misconception_service.resolve_misconceptions_for_correct_answer(db, student_id, class_id, topic)
         elif chosen is not None:
-            description = misconception_service.check_rule_map(topic, question.question_text, chosen, question.correct_answer)
+            if subject_id:
+                description = misconception_service.check_rules_db(
+                    db, subject_id, topic, question.question_text, chosen
+                )
+            else:
+                description = misconception_service.check_rule_map(
+                    topic, question.question_text, chosen, question.correct_answer
+                )
             if description is None:
-                curriculum_context = question.question_text
                 ai_result = await misconception_service.detect_misconception_ai(
-                    question.question_text, chosen, question.correct_answer, curriculum_context
+                    question.question_text, chosen, question.correct_answer, question.question_text
                 )
                 if ai_result:
                     description = ai_result["description"]
@@ -180,12 +203,14 @@ async def score_attempt(
         })
 
     topic_scores = {t: topic_correct.get(t, 0) / topic_total[t] for t in topic_total}
+    topic_passed = {t: score >= TOPIC_PASS_THRESHOLD for t, score in topic_scores.items()}
     overall_score = (total_correct / len(approved_questions)) * 100
 
-    print(f"[QUIZ SCORE] Overall={overall_score:.1f}% topic_scores={topic_scores}")
+    print(f"[QUIZ SCORE] Overall={overall_score:.1f}% topic_scores={topic_scores} passed={topic_passed}")
 
     return {
         "score": overall_score,
         "topic_scores": topic_scores,
+        "topic_passed": topic_passed,
         "results": per_question_results,
     }

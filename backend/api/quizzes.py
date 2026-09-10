@@ -215,7 +215,8 @@ async def submit_attempt(
     db.refresh(attempt)
 
     updated_mastery = progress_service.update_mastery_after_attempt(
-        db, str(current_user.id), str(quiz.class_id), result["topic_scores"]
+        db, str(current_user.id), str(quiz.class_id), result["topic_scores"],
+        topic_passed=result.get("topic_passed"),
     )
     evidence_service.update_engagement(db, current_user.id)
 

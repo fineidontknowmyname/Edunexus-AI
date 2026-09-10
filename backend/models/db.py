@@ -241,6 +241,7 @@ class TopicMastery(Base):
     mastery_score = Column(Float, default=0.0, nullable=False)
     attempt_count = Column(Integer, default=0, nullable=False)
     last_attempt_at = Column(DateTime, nullable=True)
+    last_quiz_passed = Column(Boolean, nullable=True)
     trend = Column(Enum(MasteryTrend), default=MasteryTrend.not_started, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -263,6 +264,21 @@ class Misconception(Base):
     source_quiz_attempt_id = Column(UUID(as_uuid=True), ForeignKey("quiz_attempts.id"), nullable=True)
 
 
+class MisconceptionRule(Base):
+    __tablename__ = "misconception_rules"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic = Column(String(500), nullable=False)
+    name = Column(String(255), nullable=True)
+    description = Column(Text, nullable=False)
+    wrong_answer_keywords = Column(ARRAY(Text), nullable=True)
+    question_keywords = Column(ARRAY(Text), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+
+
 class InteractionPattern(Base):
     __tablename__ = "interaction_patterns"
 
@@ -275,8 +291,6 @@ class InteractionPattern(Base):
 
 
 class TopicBehavior(Base):
-    """Per-student, per-topic behavioural signals feeding the learning-tag (Rule 9)."""
-
     __tablename__ = "topic_behavior"
     __table_args__ = (
         UniqueConstraint("student_id", "subject_id", "topic", name="uq_topic_behavior_student_subject_topic"),

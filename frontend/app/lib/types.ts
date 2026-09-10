@@ -60,6 +60,14 @@ export interface UnclassifiedChunk {
   text_preview: string;
 }
 
+export interface MisconceptionRule {
+  topic: string;
+  name: string | null;
+  description: string;
+  wrong_answer_keywords: string[];
+  question_keywords: string[];
+}
+
 export type DocumentStatus = "pending" | "processing" | "ready" | "failed";
 
 export interface DocumentRow {

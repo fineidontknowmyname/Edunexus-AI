@@ -131,6 +131,18 @@ class ChunkTopicPatch(BaseModel):
     topic: str = Field(min_length=1, max_length=500)
 
 
+class MisconceptionRuleNode(BaseModel):
+    topic: str = Field(min_length=1, max_length=500)
+    name: str | None = None
+    description: str = Field(min_length=1)
+    wrong_answer_keywords: list[str] = []
+    question_keywords: list[str] = []
+
+
+class MisconceptionRulesConfirm(BaseModel):
+    rules: list[MisconceptionRuleNode]
+
+
 class AssessmentEntry(BaseModel):
     name: str
     date: str

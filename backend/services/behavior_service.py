@@ -1,11 +1,3 @@
-"""Behavioural learning-tag tracking (Chunk 2.3).
-
-Per student, per topic, per subject: message count, follow-up rate, and a
-deterministic question-type split (conceptual / example-seeking /
-direct-answer-seeking). A small set of interpretable tags is derived from
-threshold rules over those counters. This is a routing proxy, NOT a validated
-learning-styles classifier.
-"""
 from __future__ import annotations
 
 import re
@@ -73,7 +65,6 @@ def record_turn(
     message: str,
     last_role: str | None,
 ) -> str | None:
-    """Update counters for (student, subject, topic) and return the derived tag."""
     if not topic or not subject_id:
         return None
 

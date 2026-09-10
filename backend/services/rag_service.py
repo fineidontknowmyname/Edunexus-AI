@@ -24,7 +24,6 @@ def taught_chapters_from_syllabus(syllabus: dict[str, str]) -> list[int]:
 
 
 def _subject_filter(subject: str | None, subject_id: str | None):
-    """Prefer subject_id scoping; fall back to the legacy free-text subject string."""
     if subject_id:
         return Chunk.subject_id == subject_id
     return Chunk.subject == subject
@@ -75,9 +74,6 @@ def retrieve_graph_expanded(
     subject_id: str | None,
     chapter_scope: list[int] | None = None,
 ) -> tuple[list[tuple[Chunk, float]], list[str]]:
-    """Primary vector pass, then a graph-expansion pass: pull a few extra chunks
-    whose ``topic`` is a 1-hop neighbour of the detected topic. Returns the merged
-    chunk set and the list of neighbour topics that actually contributed."""
     primary = retrieve_chunks(
         db, subject, query_vector, chapter_scope=chapter_scope, subject_id=subject_id
     )

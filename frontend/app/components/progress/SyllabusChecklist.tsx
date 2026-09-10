@@ -38,7 +38,6 @@ export function SyllabusChecklist({ classId, documents }: { classId: string; doc
       taught: syllabus[String(chapter)] === "taught",
     }));
 
-  // Topic-keyed entries are auto-marked at ingestion from chunk classification.
   const topicsCovered = Object.entries(syllabus)
     .filter(([key, status]) => status === "taught" && !/^\d+$/.test(key))
     .map(([topic]) => topic)

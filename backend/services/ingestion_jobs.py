@@ -1,9 +1,3 @@
-"""Durable ingestion queue backed by the ``ingestion_jobs`` table.
-
-Phase 1: a ``BackgroundTask`` calls :func:`drain_once` after each upload. In
-production a dedicated worker / cron loop calls :func:`drain_once` on a poll
-(30-60s) — same function, different caller. No Redis, no Celery.
-"""
 from __future__ import annotations
 
 import logging
@@ -31,7 +25,6 @@ def enqueue(db: Session, document_id: str) -> IngestionJob:
 
 
 def claim_next(db: Session) -> IngestionJob | None:
-    """Atomically claim one queued job (``FOR UPDATE SKIP LOCKED``)."""
     row = db.execute(
         text(
             """
@@ -110,7 +103,6 @@ def sweep_stale(db: Session) -> int:
 
 
 def drain_once(session_factory, embedding_model: Any) -> bool:
-    """Claim and process the next queued job. Returns True if a job was handled."""
     from backend.services.ingestion_service import process_job
 
     db: Session = session_factory()
@@ -127,7 +119,7 @@ def drain_once(session_factory, embedding_model: Any) -> bool:
     try:
         result = process_job(work_db, document_id=document_id, embedding_model=embedding_model)
         mark(work_db, job_id, IngestionJobStatus.done, chunk_count=result.get("chunk_count"))
-    except Exception as exc:  # noqa: BLE001 - queue must not crash the caller
+    except Exception as exc:  # noqa: BLE001
         logger.exception("Ingestion job %s failed", job_id)
         requeue(work_db, job_id, error=str(exc))
     finally:

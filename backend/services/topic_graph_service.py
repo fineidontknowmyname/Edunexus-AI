@@ -1,9 +1,3 @@
-"""Per-subject Topic Graph: draft from syllabus, confirm, rename.
-
-Draft is one LLM call from the parsed syllabus (never a built-in list). The
-educator edits and confirms it; only then is it written to ``prerequisite_map``
-and becomes the subject's canonical vocabulary.
-"""
 from __future__ import annotations
 
 import json
@@ -156,7 +150,6 @@ def read_graph(db: Session, subject_id: str) -> list[dict[str, Any]]:
 
 
 def rename_topic(db: Session, subject_id: str, old_topic: str, new_topic: str) -> None:
-    """Rename a topic and cascade it across all rows that key off the topic string."""
     old_topic = old_topic.strip()
     new_topic = new_topic.strip()[:500]
     if not new_topic:
@@ -230,10 +223,6 @@ def _subject_class_ids(db: Session, subject_id: str) -> list[Any]:
     return [row[0] for row in db.query(Class.id).filter(Class.subject_id == subject_id).all()]
 
 
-# --------------------------------------------------------------------------- #
-# Topic anchor embedding cache (used by classification_service)
-# --------------------------------------------------------------------------- #
-
 _anchor_cache: dict[str, tuple[int, list[str], list[list[float]]]] = {}
 _anchor_version: dict[str, int] = {}
 
@@ -243,7 +232,6 @@ def bump_anchor_version(subject_id: str) -> None:
 
 
 def topic_anchors(db: Session, subject_id: str, embedding_model: Any) -> tuple[list[str], list[list[float]]]:
-    """Return (topic_names, anchor_vectors) for a subject, cached until the graph changes."""
     version = _anchor_version.get(subject_id, 0)
     cached = _anchor_cache.get(subject_id)
     if cached is not None and cached[0] == version:

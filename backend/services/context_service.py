@@ -154,7 +154,6 @@ def _compute_upcoming_focus(assessments: list[dict], weak_topics: list[str]) -> 
 
 
 def check_prerequisites(student_context: dict[str, Any], query_topic: str | None, subject: str) -> list[str]:
-    """Legacy: prerequisites from the bundled file (no subject_id)."""
     if not query_topic:
         return []
     required = get_prerequisites(query_topic, subject)
@@ -181,7 +180,6 @@ def _gaps(student_context: dict[str, Any], required: list[str], query_topic: str
 
 
 def detect_topic(message: str, subject: str) -> str | None:
-    """Legacy: substring match against the bundled prerequisite file (no subject_id)."""
     known_topics = list(load_prerequisite_map(subject).keys())
     lowered = message.lower()
     matches = [t for t in known_topics if t.lower() in lowered]
@@ -196,11 +194,6 @@ TOPIC_MATCH_THRESHOLD = 0.45
 def detect_topic_for_subject(
     db: Session, message: str, subject_id: str, embedding_model: Any
 ) -> str | None:
-    """Embedding match of the message against the subject's confirmed topic anchors.
-
-    Falls back to a substring pass over the confirmed topic names, so an exact
-    mention still wins even if the anchor similarity is low.
-    """
     from backend.pipeline.embedder import embed_single
     from backend.services import classification_service, topic_graph_service
 

@@ -1,9 +1,4 @@
-"""phase2_chat
-
-Graph RAG scoping (subject_id on chat_sessions / response_cache), the Socratic
-turn-state column, the learning-tag on the response cache, and the topic_behavior
-table that feeds Rule 9.
-"""
+"""phase2_chat"""
 from typing import Sequence, Union
 
 from alembic import op
@@ -56,4 +51,3 @@ def downgrade() -> None:
     op.drop_constraint('fk_chat_sessions_subject_id', 'chat_sessions', type_='foreignkey')
     op.drop_column('chat_sessions', 'socratic_state')
     op.drop_column('chat_sessions', 'subject_id')
-    # note: the 'socratic' enum value is left in place (Postgres cannot drop enum values)

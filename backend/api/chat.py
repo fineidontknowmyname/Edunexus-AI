@@ -69,7 +69,7 @@ def _get_or_create_session(
             print(f"[CHAT ERROR] session_id={session_id} not found or not owned by student {student_id}")
             raise HTTPException(status_code=404, detail="Chat session not found.")
         if session.mode != mode:
-            session.socratic_state = None  # switching modes clears any pending Socratic turn
+            session.socratic_state = None
         session.mode = mode
         db.commit()
         print(f"[CHAT] Reusing session {session.id}, mode set to {mode.value}")

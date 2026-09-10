@@ -1,8 +1,4 @@
-"""multi_subject_phase1
-
-Adds educator-created categories/subjects, the per-subject Topic Graph storage on
-prerequisite_map, chunk-level class_id/subject_id/topic, and the ingestion_jobs queue.
-"""
+"""multi_subject_phase1"""
 from typing import Sequence, Union
 
 from alembic import op

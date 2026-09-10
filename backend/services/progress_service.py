@@ -62,8 +62,13 @@ def _topic_score_history(db: Session, student_id: str, class_id: str, topic: str
 
 
 def update_mastery_after_attempt(
-    db: Session, student_id: str, class_id: str, topic_scores: dict[str, float]
+    db: Session,
+    student_id: str,
+    class_id: str,
+    topic_scores: dict[str, float],
+    topic_passed: dict[str, bool] | None = None,
 ) -> dict[str, Any]:
+    topic_passed = topic_passed or {}
     updated_topics = {}
     for topic in topic_scores:
         history = _topic_score_history(db, student_id, class_id, topic)
@@ -84,8 +89,15 @@ def update_mastery_after_attempt(
         row.attempt_count = attempt_count
         row.trend = trend
         row.last_attempt_at = datetime.utcnow()
+        if topic in topic_passed:
+            row.last_quiz_passed = topic_passed[topic]
 
-        updated_topics[topic] = {"mastery_score": mastery_score, "trend": trend.value, "attempt_count": attempt_count}
+        updated_topics[topic] = {
+            "mastery_score": mastery_score,
+            "trend": trend.value,
+            "attempt_count": attempt_count,
+            "last_quiz_passed": row.last_quiz_passed,
+        }
         print(f"[PROGRESS] Mastery updated: student={student_id} topic={topic} score={mastery_score:.3f} trend={trend.value} attempts={attempt_count}")
 
     db.commit()

@@ -1,9 +1,3 @@
-"""Educator-created categories and subjects.
-
-Nothing here is pre-seeded: the platform ships with zero categories, zero
-subjects, and zero topics. Any educator can create a category or a subject
-through the app.
-"""
 from __future__ import annotations
 
 from sqlalchemy.orm import Session

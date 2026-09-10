@@ -27,7 +27,6 @@ def _drain_in_background() -> None:
     if embedding_model is None:
         logger.error("Embedding model not loaded; cannot drain ingestion queue.")
         return
-    # Drain any work that is ready (this upload, plus anything left behind).
     while ingestion_jobs.drain_once(SessionLocal, embedding_model):
         pass
 

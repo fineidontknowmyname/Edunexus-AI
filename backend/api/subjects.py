@@ -11,17 +11,12 @@ from backend.core.database import get_db
 from backend.models import schemas
 from backend.models.db import Chunk, Document
 from backend.pipeline.parser import SUPPORTED_EXTENSIONS, extract_text
-from backend.services import subject_service, topic_graph_service
+from backend.services import misconception_service, subject_service, topic_graph_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["subjects"])
 DbDep = Annotated[Session, Depends(get_db)]
-
-
-# --------------------------------------------------------------------------- #
-# Categories
-# --------------------------------------------------------------------------- #
 
 
 @router.post("/categories", response_model=schemas.CategoryRead, status_code=201)
@@ -37,11 +32,6 @@ def create_category(
 @router.get("/categories", response_model=list[schemas.CategoryRead])
 def list_categories(db: DbDep, _user: CurrentUser):
     return subject_service.list_categories(db)
-
-
-# --------------------------------------------------------------------------- #
-# Subjects
-# --------------------------------------------------------------------------- #
 
 
 @router.post("/subjects", response_model=schemas.SubjectRead, status_code=201)
@@ -71,8 +61,6 @@ async def draft_topic_graph(
     _educator: Annotated[None, RequireEducator],
     file: UploadFile = File(...),
 ):
-    """Parse an uploaded syllabus and return an AI-drafted Topic Graph. Nothing is
-    written to the database until the educator confirms via PUT /topic-graph."""
     if subject_service.get_subject(db, subject_id) is None:
         raise HTTPException(status_code=404, detail=f"Subject '{subject_id}' not found.")
 
@@ -166,6 +154,58 @@ def list_unclassified(subject_id: str, db: DbDep, _educator: Annotated[None, Req
         )
         for chunk, title in rows
     ]
+
+
+@router.get("/subjects/{subject_id}/misconception-rules")
+def read_misconception_rules(subject_id: str, db: DbDep, _user: CurrentUser):
+    if subject_service.get_subject(db, subject_id) is None:
+        raise HTTPException(status_code=404, detail=f"Subject '{subject_id}' not found.")
+    rows = misconception_service.list_rules(db, subject_id)
+    return {
+        "subject_id": subject_id,
+        "rules": [
+            {
+                "topic": r.topic,
+                "name": r.name,
+                "description": r.description,
+                "wrong_answer_keywords": list(r.wrong_answer_keywords or []),
+                "question_keywords": list(r.question_keywords or []),
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.post("/subjects/{subject_id}/misconception-rules/draft")
+async def draft_misconception_rules(
+    subject_id: str, db: DbDep, _educator: Annotated[None, RequireEducator]
+):
+    if subject_service.get_subject(db, subject_id) is None:
+        raise HTTPException(status_code=404, detail=f"Subject '{subject_id}' not found.")
+    try:
+        rules = await misconception_service.draft_rules_from_topics(db, subject_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"Draft failed: {exc}")
+    return {"subject_id": subject_id, "rules": rules}
+
+
+@router.put("/subjects/{subject_id}/misconception-rules")
+def confirm_misconception_rules(
+    subject_id: str,
+    payload: schemas.MisconceptionRulesConfirm,
+    db: DbDep,
+    current_user: CurrentUser,
+    _educator: Annotated[None, RequireEducator],
+):
+    if subject_service.get_subject(db, subject_id) is None:
+        raise HTTPException(status_code=404, detail=f"Subject '{subject_id}' not found.")
+    try:
+        count = misconception_service.replace_rules(
+            db, subject_id, [r.model_dump() for r in payload.rules], str(current_user.id)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"subject_id": subject_id, "rule_count": count}
 
 
 @router.patch("/chunks/{chunk_id}/topic")
