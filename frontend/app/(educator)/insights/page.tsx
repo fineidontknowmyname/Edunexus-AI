@@ -36,6 +36,9 @@ export default function InsightsPage() {
   const [assessmentDate, setAssessmentDate] = useState("");
   const [assessmentCovers, setAssessmentCovers] = useState("");
   const [savingAssessment, setSavingAssessment] = useState(false);
+  const [refreshingConfusion, setRefreshingConfusion] = useState(false);
+
+  const subjectId = classes.find((c) => c.id === classId)?.subject_id ?? null;
 
   useEffect(() => {
     apiFetch<ClassRow[]>("/classes/").then((rows) => {
@@ -65,6 +68,19 @@ export default function InsightsPage() {
       setFlags(flagsRes);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleRefreshConfusion() {
+    if (!subjectId) return;
+    setRefreshingConfusion(true);
+    try {
+      await apiFetch(`/reflections/cluster?class_id=${classId}&subject_id=${subjectId}`, { method: "POST" });
+      await loadAll();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to refresh class confusion.");
+    } finally {
+      setRefreshingConfusion(false);
     }
   }
 
@@ -177,6 +193,36 @@ export default function InsightsPage() {
                   <span className="text-tertiary"> — weak on {s.weak_topics_in_scope.join(", ")}</span>
                 </div>
                 <Badge tone="red">{s.days_remaining}d left</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-primary">Class confusion</h2>
+          <Button
+            variant="secondary"
+            onClick={handleRefreshConfusion}
+            loading={refreshingConfusion}
+            disabled={!subjectId}
+          >
+            Refresh
+          </Button>
+        </div>
+        {!subjectId ? (
+          <p className="text-sm text-tertiary">This class has no subject set yet.</p>
+        ) : !insights || insights.class_confusion.length === 0 ? (
+          <p className="text-sm text-tertiary">
+            No confusion clusters yet — refresh once students have submitted a few reflections.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {insights.class_confusion.map((c, i) => (
+              <div key={i} className="flex items-center justify-between text-sm">
+                <span className="text-secondary">{c.representative_text}</span>
+                <Badge tone="blue">{c.cluster_size} student{c.cluster_size === 1 ? "" : "s"}</Badge>
               </div>
             ))}
           </div>

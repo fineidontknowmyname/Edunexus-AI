@@ -245,9 +245,16 @@ export interface MisconceptionSummary {
   count: number;
 }
 
+export interface ClassConfusionEntry {
+  representative_text: string;
+  cluster_size: number;
+  computed_at: string;
+}
+
 export interface ClassInsightsResponse {
   heatmap: HeatmapEntry[];
   misconceptions: MisconceptionSummary[];
+  class_confusion: ClassConfusionEntry[];
 }
 
 export interface AtRiskStudent {
