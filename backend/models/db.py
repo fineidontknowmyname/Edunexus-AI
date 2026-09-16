@@ -264,6 +264,44 @@ class Misconception(Base):
     source_quiz_attempt_id = Column(UUID(as_uuid=True), ForeignKey("quiz_attempts.id"), nullable=True)
 
 
+class Reflection(Base):
+    __tablename__ = "reflections"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    text = Column(Text, nullable=False)
+    topic = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=False, index=True)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True, index=True)
+
+
+class ReflectionCluster(Base):
+    __tablename__ = "reflection_clusters"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    representative_text = Column(Text, nullable=False)
+    cluster_size = Column(Integer, nullable=False)
+    computed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=False, index=True)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=False, index=True)
+
+
+class VideoRecommendationCache(Base):
+    __tablename__ = "video_recommendation_cache"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic = Column(String(500), nullable=False)
+    videos_json = Column(Text, nullable=False)
+    fetched_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=False)
+
+    __table_args__ = (UniqueConstraint("subject_id", "topic", name="uq_video_cache_subject_topic"),)
+
+
 class MisconceptionRule(Base):
     __tablename__ = "misconception_rules"
 

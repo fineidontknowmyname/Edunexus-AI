@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from backend.api.dependencies import CurrentUser, RequireEducator, RequireStudent
 from backend.core.database import get_db
 from backend.models.db import ClassEnrollment
-from backend.services import context_service, insights_service, progress_service
+from backend.services import context_service, insights_service, progress_service, routing_service
 
 router = APIRouter(prefix="/progress", tags=["progress"])
 
@@ -47,6 +47,18 @@ def path(
     print(f"[PROGRESS API] Learning path requested by student={current_user.id}")
     resolved_class_id = _resolve_class_id(db, current_user.id, class_id)
     return progress_service.get_learning_path(db, str(current_user.id), resolved_class_id)
+
+
+@router.get("/routing")
+def routing(
+    db: DbDep,
+    current_user: CurrentUser,
+    _student: Annotated[None, RequireStudent],
+    class_id: str | None = None,
+):
+    print(f"[PROGRESS API] Routing map requested by student={current_user.id}")
+    resolved_class_id = _resolve_class_id(db, current_user.id, class_id)
+    return routing_service.get_routing_map(db, str(current_user.id), resolved_class_id)
 
 
 @router.get("/student/{student_id}")

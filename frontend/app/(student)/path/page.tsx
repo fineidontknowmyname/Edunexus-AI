@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "../../lib/api";
-import type { LearningPathEntry, LearningPathResponse } from "../../lib/types";
+import type { ClassRow, LearningPathEntry, LearningPathResponse } from "../../lib/types";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
+import { RecommendationPanel } from "../../components/progress/RecommendationPanel";
 
 const PRIORITY_LABEL: Record<number, { text: string; tone: "red" | "amber" | "gray" | "blue" | "green" }> = {
   0: { text: "Urgent — weak & attempted", tone: "red" },
@@ -25,12 +26,30 @@ function ctaFor(entry: LearningPathEntry) {
 export default function LearningPathPage() {
   const [data, setData] = useState<LearningPathResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [classes, setClasses] = useState<ClassRow[] | null>(null);
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     apiFetch<LearningPathResponse>("/progress/path")
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load learning path."));
   }, []);
+
+  useEffect(() => {
+    apiFetch<ClassRow[]>("/classes/").then(setClasses);
+  }, []);
+
+  function toggleExpanded(topic: string) {
+    setExpandedTopics((prev) => {
+      const next = new Set(prev);
+      if (next.has(topic)) {
+        next.delete(topic);
+      } else {
+        next.add(topic);
+      }
+      return next;
+    });
+  }
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!data) return <p className="text-sm text-tertiary">Loading…</p>;
@@ -55,23 +74,37 @@ export default function LearningPathPage() {
         {data.path.map((entry) => {
           const label = PRIORITY_LABEL[entry.priority];
           const cta = ctaFor(entry);
+          const expanded = expandedTopics.has(entry.topic);
           return (
-            <Card key={entry.topic} className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-primary">{entry.topic}</span>
-                  <Badge tone={label.tone}>{label.text}</Badge>
-                  {entry.in_assessment_scope && <Badge tone="red">In exam scope</Badge>}
+            <Card key={entry.topic}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-primary">{entry.topic}</span>
+                    <Badge tone={label.tone}>{label.text}</Badge>
+                    {entry.in_assessment_scope && <Badge tone="red">In exam scope</Badge>}
+                  </div>
+                  <p className="text-xs text-tertiary mt-1">
+                    {entry.attempts === 0
+                      ? "Not attempted yet"
+                      : `${Math.round(entry.mastery_score * 100)}% mastery · ${entry.attempts} attempt${entry.attempts === 1 ? "" : "s"}`}
+                  </p>
                 </div>
-                <p className="text-xs text-tertiary mt-1">
-                  {entry.attempts === 0
-                    ? "Not attempted yet"
-                    : `${Math.round(entry.mastery_score * 100)}% mastery · ${entry.attempts} attempt${entry.attempts === 1 ? "" : "s"}`}
-                </p>
+                <div className="flex items-center gap-4 ml-4">
+                  <button
+                    onClick={() => toggleExpanded(entry.topic)}
+                    className="text-sm text-accent-secondary hover:underline whitespace-nowrap"
+                  >
+                    {expanded ? "Hide help" : "Get help"}
+                  </button>
+                  <Link href={cta.href} className="text-sm text-accent-secondary hover:underline whitespace-nowrap">
+                    {cta.label}
+                  </Link>
+                </div>
               </div>
-              <Link href={cta.href} className="text-sm text-accent-secondary hover:underline whitespace-nowrap ml-4">
-                {cta.label}
-              </Link>
+              {expanded && classes?.[0]?.id && (
+                <RecommendationPanel classId={classes[0].id} topic={entry.topic} />
+              )}
             </Card>
           );
         })}

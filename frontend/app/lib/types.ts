@@ -292,3 +292,41 @@ export interface StudentFullContext {
   notes: EducatorNoteEntry[];
   learning_path: LearningPathEntry[];
 }
+
+export interface ReflectionCreate {
+  class_id: string;
+  subject_id?: string | null;
+  topic?: string | null;
+  text: string;
+}
+
+export interface ReflectionRead {
+  id: string;
+  text: string;
+  topic: string | null;
+  created_at: string;
+}
+
+export interface RecommendationSection {
+  chunk_id: string;
+  text: string;
+  similarity: number;
+}
+
+export interface RecommendationVideo {
+  video_id: string;
+  title: string;
+  channel: string;
+  url: string;
+}
+
+export type RoutingLabel = "reinforce" | "advance" | "intervene";
+
+export interface RecommendationResponse {
+  routing: RoutingLabel;
+  learning_tag: string | null;
+  mode: "static" | "ai_session";
+  sections: RecommendationSection[];
+  videos: RecommendationVideo[];
+  socratic_seed_message: string | null;
+}

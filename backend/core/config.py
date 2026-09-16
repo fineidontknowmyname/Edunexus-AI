@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     groq_secondary_model: str = "openai/gpt-oss-120b"
     embedding_model: str = "all-MiniLM-L6-v2"
 
+    youtube_api_key: str = ""
+
     jwt_secret: str = "change-me-in-production"
     jwt_expire_hours: int = 24
 

@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from backend.models.db import Class, Document, Quiz, QuizAttempt, QuizQuestion, ReviewStatus
-from backend.services import context_service, misconception_service, rag_service
+from backend.services import context_service, misconception_service, rag_service, routing_service
 
 QUIZ_GENERATION_PROMPT_TEMPLATE = (
     "Generate {n} multiple-choice questions testing understanding of the curriculum content below. "
@@ -150,14 +150,29 @@ async def generate_quiz(
 TOPIC_PASS_THRESHOLD = 0.5
 
 
+def available_questions_for_student(
+    db: Session, quiz: Quiz, student_id: str, class_id: str
+) -> list[QuizQuestion]:
+    approved_questions = [q for q in quiz.questions if q.status == ReviewStatus.approved]
+    return [
+        q
+        for q in approved_questions
+        if routing_service.get_topic_routing(db, student_id, class_id, q.topic or "General")
+        != routing_service.INTERVENE
+    ]
+
+
 async def score_attempt(
     db: Session, quiz: Quiz, student_id: str, class_id: str, answers: dict[str, str]
 ) -> dict[str, Any]:
     print(f"[QUIZ SCORE] Scoring attempt for quiz={quiz.id} student={student_id}")
 
-    approved_questions = [q for q in quiz.questions if q.status == ReviewStatus.approved]
+    approved_questions = available_questions_for_student(db, quiz, student_id, class_id)
     if not approved_questions:
-        raise ValueError("This quiz has no approved questions yet.")
+        raise ValueError(
+            "No questions are available on this quiz right now — topics with an unresolved "
+            "misconception must be worked through before they're quizzed again."
+        )
 
     class_row = db.get(Class, class_id)
     subject_id = str(class_row.subject_id) if class_row and class_row.subject_id else None

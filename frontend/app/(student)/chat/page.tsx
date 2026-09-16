@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "../../lib/api";
 import { streamChatQuery } from "../../lib/hooks/useSSE";
 import type {
@@ -16,6 +17,9 @@ import { ChatInput } from "../../components/chat/ChatInput";
 import { MessageBubble } from "../../components/chat/MessageBubble";
 
 export default function ChatPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [classes, setClasses] = useState<ClassRow[] | null>(null);
   const [allClasses, setAllClasses] = useState<ClassRow[]>([]);
   const [joining, setJoining] = useState<string | null>(null);
@@ -29,10 +33,31 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const autoSentRef = useRef<boolean>(false);
 
   useEffect(() => {
     apiFetch<ClassRow[]>("/classes/").then(setClasses);
   }, []);
+
+  useEffect(() => {
+    const topic = searchParams.get("topic");
+    const urlMode = searchParams.get("mode");
+    if (
+      !autoSentRef.current &&
+      urlMode === "socratic" &&
+      topic &&
+      !sessionId &&
+      messages.length === 0 &&
+      classes !== null &&
+      classes.length > 0
+    ) {
+      autoSentRef.current = true;
+      setMode("socratic");
+      handleSend(topic);
+      router.replace("/chat");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classes]);
 
   useEffect(() => {
     if (classes !== null && classes.length === 0) {

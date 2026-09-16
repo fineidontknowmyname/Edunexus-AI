@@ -15,9 +15,11 @@ DbDep = Annotated[Session, Depends(get_db)]
 @router.get("/class/{class_id}")
 def class_insights(class_id: str, db: DbDep, _educator: Annotated[None, RequireEducator]):
     print(f"[INSIGHTS API] Class insights requested for class={class_id}")
+    class_context = context_service.assemble_class_context(db, class_id)
     return {
         "heatmap": insights_service.get_class_heatmap(db, class_id),
         "misconceptions": insights_service.get_common_misconceptions(db, class_id),
+        "class_confusion": insights_service.get_class_confusion(db, class_id, class_context["subject_id"]),
     }
 
 

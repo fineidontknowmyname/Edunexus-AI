@@ -162,11 +162,13 @@ def get_quiz(
     quiz = db.get(Quiz, quiz_id)
     if quiz is None or quiz.status != ReviewStatus.approved:
         raise HTTPException(status_code=404, detail="Quiz not found.")
-    approved_questions = [q for q in quiz.questions if q.status == ReviewStatus.approved]
+    available_questions = quiz_service.available_questions_for_student(
+        db, quiz, str(current_user.id), str(quiz.class_id)
+    )
     return {
         "id": str(quiz.id),
         "title": quiz.title,
-        "questions": [_question_out(q, include_answer=False) for q in approved_questions],
+        "questions": [_question_out(q, include_answer=False) for q in available_questions],
     }
 
 

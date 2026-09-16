@@ -143,6 +143,36 @@ class MisconceptionRulesConfirm(BaseModel):
     rules: list[MisconceptionRuleNode]
 
 
+class ReflectionCreate(BaseModel):
+    class_id: UUID
+    subject_id: UUID | None = None
+    topic: str | None = None
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class ReflectionRead(_OrmBase):
+    id: UUID
+    text: str
+    topic: str | None
+    created_at: datetime
+
+
+class ReflectionClusterRead(_OrmBase):
+    id: UUID
+    representative_text: str
+    cluster_size: int
+    computed_at: datetime
+
+
+class RecommendationRead(BaseModel):
+    routing: str
+    learning_tag: str | None
+    mode: str
+    sections: list[dict[str, Any]] = []
+    videos: list[dict[str, Any]] = []
+    socratic_seed_message: str | None = None
+
+
 class AssessmentEntry(BaseModel):
     name: str
     date: str

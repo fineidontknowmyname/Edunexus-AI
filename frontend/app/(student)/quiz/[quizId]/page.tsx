@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { apiFetch, ApiError } from "../../../lib/api";
-import type { QuizAttemptResult, QuizDetail } from "../../../lib/types";
+import type { ClassRow, QuizAttemptResult, QuizDetail } from "../../../lib/types";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { QuizQuestion } from "../../../components/quiz/QuizQuestion";
 import { QuizResults } from "../../../components/quiz/QuizResults";
+import { ReflectionPrompt } from "../../../components/reflection/ReflectionPrompt";
 
 export default function QuizTakePage() {
   const params = useParams<{ quizId: string }>();
@@ -16,10 +17,15 @@ export default function QuizTakePage() {
   const [result, setResult] = useState<QuizAttemptResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [classes, setClasses] = useState<ClassRow[] | null>(null);
 
   useEffect(() => {
     apiFetch<QuizDetail>(`/quizzes/${params.quizId}`).then(setQuiz);
   }, [params.quizId]);
+
+  useEffect(() => {
+    apiFetch<ClassRow[]>("/classes/").then(setClasses);
+  }, []);
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -38,9 +44,17 @@ export default function QuizTakePage() {
   }
 
   if (result) {
+    const weakestTopic =
+      Object.entries(result.topic_scores).length === 0
+        ? null
+        : Object.entries(result.topic_scores).reduce((a, b) => (b[1] < a[1] ? b : a))[0];
+
     return (
       <div className="max-w-2xl mx-auto">
         <QuizResults result={result} />
+        {classes?.[0] && (
+          <ReflectionPrompt classId={classes[0].id} subjectId={classes[0].subject_id} topic={weakestTopic} />
+        )}
       </div>
     );
   }

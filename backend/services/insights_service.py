@@ -11,6 +11,7 @@ from backend.models.db import (
     EducatorNote,
     InteractionPattern,
     Misconception,
+    ReflectionCluster,
     TopicMastery,
     User,
 )
@@ -140,6 +141,27 @@ def get_trending_topics(db: Session, class_id: str) -> list[dict[str, Any]]:
     )
     result = [{"topic": r.topic, "questions_asked": r.total_questions} for r in rows]
     print(f"[INSIGHTS] {len(result)} trending topic(s) for class={class_id} (last {TRENDING_WINDOW_DAYS} days)")
+    return result
+
+
+def get_class_confusion(db: Session, class_id: str, subject_id: str | None) -> list[dict[str, Any]]:
+    if not subject_id:
+        return []
+    rows = (
+        db.query(ReflectionCluster)
+        .filter(ReflectionCluster.class_id == class_id, ReflectionCluster.subject_id == subject_id)
+        .order_by(ReflectionCluster.cluster_size.desc())
+        .all()
+    )
+    result = [
+        {
+            "representative_text": r.representative_text,
+            "cluster_size": r.cluster_size,
+            "computed_at": r.computed_at.isoformat(),
+        }
+        for r in rows
+    ]
+    print(f"[INSIGHTS] {len(result)} class-confusion cluster(s) for class={class_id} subject={subject_id}")
     return result
 
 
