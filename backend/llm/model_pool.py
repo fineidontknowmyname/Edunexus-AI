@@ -20,7 +20,7 @@ class ModelPool:
             self.secondary_provider = GroqProvider(model_name=settings.groq_secondary_model)
             self.dev_provider = None
 
-            self.tpm_limits = [14400, 14400]
+            self.tpm_limits = [8000, 8000]
             self.tpm_used = [0, 0]
             self.window_start = [time.time(), time.time()]
             print(
