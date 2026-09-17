@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from backend.api.dependencies import CurrentUser, RequireStudent
 from backend.core.database import get_db
+from backend.core.rate_limit import rate_limit
 from backend.models import schemas
 from backend.models.db import ChatMessage, ChatSession, ClassEnrollment, SessionMode
 from backend.services import (
@@ -100,7 +101,7 @@ def _sse(event: dict) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
-@router.post("/query")
+@router.post("/query", dependencies=[Depends(rate_limit("chat-query", max_requests=30, window_seconds=60))])
 def chat_query(
     payload: schemas.ChatRequest,
     db: DbDep,

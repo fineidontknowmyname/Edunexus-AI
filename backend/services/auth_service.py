@@ -1,11 +1,21 @@
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from backend.core.security import create_access_token, hash_password, verify_password
-from backend.models.db import Engagement, User, UserRole
+from backend.core.config import get_settings
+from backend.core.security import (
+    create_access_token,
+    generate_refresh_token,
+    hash_password,
+    hash_refresh_token,
+    verify_password,
+)
+from backend.models.db import Engagement, RefreshToken, User, UserRole
 from backend.services.context_service import check_staleness
+
+settings = get_settings()
 
 
 def register_user(
@@ -60,6 +70,27 @@ def register_user(
     }
 
 
+def _create_refresh_token(db: Session, user_id: UUID) -> str:
+    raw = generate_refresh_token()
+    db.add(
+        RefreshToken(
+            token_hash=hash_refresh_token(raw),
+            expires_at=datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days),
+            user_id=user_id,
+        )
+    )
+    db.commit()
+    return raw
+
+
+def _revoke_all_for_user(db: Session, user_id: UUID) -> None:
+    db.query(RefreshToken).filter(
+        RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None)
+    ).update({RefreshToken.revoked_at: datetime.utcnow()})
+    db.commit()
+    print(f"[AUTH] Revoked all active refresh tokens for user {user_id}")
+
+
 def login_user(db: Session, email: str, password: str) -> dict:
     print(f"[AUTH] Login attempt: email={email}")
 
@@ -83,13 +114,56 @@ def login_user(db: Session, email: str, password: str) -> dict:
     if user.role == UserRole.student:
         check_staleness(db, user.id)
 
-    token = create_access_token(user_id=user.id, role=user.role.value)
+    access_token = create_access_token(user_id=user.id, role=user.role.value)
+    refresh_token = _create_refresh_token(db, user.id)
     print(f"[AUTH SUCCESS] Login OK for user {user.id} ({user.email}, role={user.role.value})")
 
     return {
-        "access_token": token,
-        "token_type": "bearer",
+        "user": user,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
     }
+
+
+def rotate_refresh_token(db: Session, raw_token: str) -> tuple[User, str]:
+    token_hash = hash_refresh_token(raw_token)
+    row: RefreshToken | None = (
+        db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+    )
+
+    if row is None or row.expires_at < datetime.utcnow():
+        print("[AUTH ERROR] Refresh rejected — token missing or expired")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session.")
+
+    if row.revoked_at is not None:
+        print(f"[AUTH ERROR] Refresh token reuse detected for user {row.user_id} — revoking all sessions")
+        _revoke_all_for_user(db, row.user_id)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session invalidated, please log in again.",
+        )
+
+    user = db.get(User, row.user_id)
+    if user is None or not user.is_active:
+        print(f"[AUTH ERROR] Refresh rejected — user {row.user_id} not found or inactive")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session.")
+
+    row.revoked_at = datetime.utcnow()
+    db.commit()
+    new_raw = _create_refresh_token(db, user.id)
+    print(f"[AUTH SUCCESS] Refresh OK for user {user.id}")
+    return user, new_raw
+
+
+def revoke_refresh_token(db: Session, raw_token: str) -> None:
+    token_hash = hash_refresh_token(raw_token)
+    row: RefreshToken | None = (
+        db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+    )
+    if row is not None and row.revoked_at is None:
+        row.revoked_at = datetime.utcnow()
+        db.commit()
+        print(f"[AUTH] Refresh token revoked for user {row.user_id} (logout)")
 
 
 def update_profile(db: Session, user: User, full_name: str) -> User:

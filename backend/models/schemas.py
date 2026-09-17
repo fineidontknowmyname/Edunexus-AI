@@ -11,11 +11,6 @@ class _OrmBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-
 class TokenData(BaseModel):
     user_id: UUID | None = None
     role: UserRole | None = None
@@ -23,14 +18,14 @@ class TokenData(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=8, max_length=72)
     full_name: str = Field(min_length=1, max_length=255)
     role: UserRole = UserRole.student
 
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=72)
 
 
 class UserRead(_OrmBase):
@@ -40,6 +35,10 @@ class UserRead(_OrmBase):
     role: UserRole
     is_active: bool
     created_at: datetime
+
+
+class LoginResponse(BaseModel):
+    user: UserRead
 
 
 class UserUpdate(BaseModel):
@@ -52,8 +51,8 @@ class ProfileUpdate(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str
-    new_password: str = Field(min_length=8)
+    current_password: str = Field(max_length=72)
+    new_password: str = Field(min_length=8, max_length=72)
 
 
 class ClassCreate(BaseModel):

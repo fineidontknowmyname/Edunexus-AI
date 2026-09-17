@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from backend.core.cookies import ACCESS_COOKIE
 from backend.core.database import get_db
 from backend.core.security import decode_access_token
 from backend.models.db import User, UserRole
@@ -15,15 +16,16 @@ CredentialsDep = Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_
 DbDep = Annotated[Session, Depends(get_db)]
 
 
-def _get_token_data(credentials: CredentialsDep) -> TokenData:
-    if credentials is None:
-        print("[AUTH DEPENDENCY] Rejected request — no Authorization header present.")
+def _get_token_data(request: Request, credentials: CredentialsDep) -> TokenData:
+    raw_token = request.cookies.get(ACCESS_COOKIE) or (credentials.credentials if credentials else None)
+    if raw_token is None:
+        print("[AUTH DEPENDENCY] Rejected request — no access cookie or Authorization header present.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token_data = decode_access_token(credentials.credentials)
+    token_data = decode_access_token(raw_token)
     if token_data is None:
         print("[AUTH DEPENDENCY] Rejected request — token failed to decode/verify (invalid or expired).")
         raise HTTPException(

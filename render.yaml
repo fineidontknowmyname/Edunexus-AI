@@ -19,8 +19,6 @@ services:
         value: all-MiniLM-L6-v2
       - key: JWT_SECRET
         generateValue: true
-      - key: JWT_EXPIRE_HOURS
-        value: "24"
       - key: ENVIRONMENT
         value: production
       - key: CORS_ORIGINS

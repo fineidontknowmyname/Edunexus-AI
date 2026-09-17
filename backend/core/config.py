@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     youtube_api_key: str = ""
 
     jwt_secret: str = "change-me-in-production"
-    jwt_expire_hours: int = 24
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 30
 
     environment: str = "development"
     cors_origins: str = "http://localhost:3000"

@@ -1,7 +1,7 @@
 "use client";
 
-import { API_URL } from "./constants";
-import { getToken } from "./auth";
+import { API_URL, CSRF_HEADER } from "./constants";
+import { clearSession, getCsrfToken } from "./auth";
 
 export class ApiError extends Error {
   status: number;
@@ -14,11 +14,28 @@ export class ApiError extends Error {
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
-  auth?: boolean;
 }
 
-export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, auth = true, headers, ...rest } = options;
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const NO_REFRESH_PATHS = new Set(["/auth/login", "/auth/register", "/auth/refresh"]);
+
+let refreshPromise: Promise<boolean> | null = null;
+
+function refreshSession(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = rawFetch("/auth/refresh", { method: "POST" })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+function rawFetch(path: string, options: RequestOptions): Promise<Response> {
+  const { body, headers, ...rest } = options;
+  const method = (options.method ?? "GET").toUpperCase();
 
   const finalHeaders = new Headers(headers);
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
@@ -26,17 +43,32 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (!isFormData && body !== undefined) {
     finalHeaders.set("Content-Type", "application/json");
   }
-
-  if (auth) {
-    const token = getToken();
-    if (token) finalHeaders.set("Authorization", `Bearer ${token}`);
+  if (MUTATING_METHODS.has(method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) finalHeaders.set(CSRF_HEADER, csrfToken);
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
+  return fetch(`${API_URL}${path}`, {
     ...rest,
+    method,
+    credentials: "include",
     headers: finalHeaders,
     body: isFormData ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
   });
+}
+
+export async function apiFetch<T>(path: string, options: RequestOptions = {}, _retried = false): Promise<T> {
+  let response = await rawFetch(path, options);
+
+  if (response.status === 401 && !_retried && !NO_REFRESH_PATHS.has(path)) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      return apiFetch<T>(path, options, true);
+    }
+    clearSession();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new ApiError(401, "Session expired.");
+  }
 
   if (!response.ok) {
     let detail = response.statusText;

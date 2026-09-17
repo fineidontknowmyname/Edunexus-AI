@@ -1,7 +1,7 @@
 "use client";
 
-import { API_URL } from "../constants";
-import { getToken } from "../auth";
+import { API_URL, CSRF_HEADER } from "../constants";
+import { getCsrfToken } from "../auth";
 import type { SessionMode } from "../types";
 
 export interface SSEEvent {
@@ -25,12 +25,13 @@ export interface ChatQueryPayload {
 }
 
 export async function* streamChatQuery(payload: ChatQueryPayload): AsyncGenerator<SSEEvent> {
-  const token = getToken();
+  const csrfToken = getCsrfToken();
   const response = await fetch(`${API_URL}/chat/query`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken ? { [CSRF_HEADER]: csrfToken } : {}),
     },
     body: JSON.stringify(payload),
   });
