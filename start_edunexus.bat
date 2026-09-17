@@ -19,6 +19,10 @@ if %errorlevel%==0 (
 )
 
 echo.
+echo Starting ingestion worker...
+start "EduNexus Ingestion Worker" cmd /k "cd /d %~dp0 && call backend\venv\Scripts\activate.bat && python -m backend.worker"
+
+echo.
 echo Checking frontend on port %FRONTEND_PORT%...
 netstat -ano | findstr ":%FRONTEND_PORT% " | findstr "LISTENING" >nul
 if %errorlevel%==0 (

@@ -3,11 +3,11 @@ import os
 import tempfile
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.api.dependencies import CurrentUser, RequireEducator
-from backend.core.database import SessionLocal, get_db
+from backend.core.database import get_db
 from backend.models.db import Class, Document, DocumentStatus
 from backend.services import ingestion_jobs
 
@@ -20,20 +20,8 @@ SUPPORTED_EXTENSIONS = (".pdf", ".pptx", ".docx", ".txt")
 DbDep = Annotated[Session, Depends(get_db)]
 
 
-def _drain_in_background() -> None:
-    from backend.main import app
-
-    embedding_model = getattr(app.state, "embedding_model", None)
-    if embedding_model is None:
-        logger.error("Embedding model not loaded; cannot drain ingestion queue.")
-        return
-    while ingestion_jobs.drain_once(SessionLocal, embedding_model):
-        pass
-
-
 @router.post("/upload", status_code=202)
 def upload_document(
-    background_tasks: BackgroundTasks,
     db: DbDep,
     current_user: CurrentUser,
     _educator: Annotated[None, RequireEducator],
@@ -93,7 +81,6 @@ def upload_document(
     document_id = str(doc.id)
 
     job = ingestion_jobs.enqueue(db, document_id)
-    background_tasks.add_task(_drain_in_background)
     print(f"[API UPLOAD] Document {document_id} queued as job {job.id}")
 
     return {"document_id": document_id, "job_id": str(job.id), "status": "processing"}

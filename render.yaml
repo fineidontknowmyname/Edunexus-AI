@@ -25,3 +25,26 @@ services:
         value: production
       - key: CORS_ORIGINS
         sync: false
+
+  - type: worker
+    name: edunexus-ingestion-worker
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: python -m backend.worker
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_PRIMARY_MODEL
+        value: openai/gpt-oss-20b
+      - key: GROQ_SECONDARY_MODEL
+        value: openai/gpt-oss-120b
+      - key: LLM_PROVIDER
+        value: groq
+      - key: EMBEDDING_MODEL
+        value: all-MiniLM-L6-v2
+      - key: ENVIRONMENT
+        value: production
+      - key: INGESTION_POLL_INTERVAL_SECONDS
+        value: "45"
