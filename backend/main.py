@@ -22,6 +22,7 @@ from backend.api.recommendations import router as recommendations_router
 from backend.api.reflections import router as reflections_router
 from backend.api.subjects import router as subjects_router
 from backend.core.config import get_cors_origins, get_settings
+from backend.core.csrf import CSRFMiddleware
 from backend.core.database import SessionLocal, engine
 from backend.pipeline.embedder import get_embedding_model
 
@@ -58,6 +59,7 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
+app.add_middleware(CSRFMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_cors_origins(),

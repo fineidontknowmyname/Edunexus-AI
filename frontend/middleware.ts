@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const TOKEN_COOKIE = "edunexus_token";
+const TOKEN_COOKIE = "edunexus_access";
 const ROLE_COOKIE = "edunexus_role";
 
 const PUBLIC_PATHS = ["/login", "/register"];
