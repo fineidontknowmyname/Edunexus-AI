@@ -5,8 +5,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from backend.core.prerequisites import load_prerequisite_map
-from backend.models.db import Engagement, InteractionPattern, MasteryTrend, Quiz, QuizAttempt, TopicMastery
-from backend.services import context_service
+from backend.models.db import Class, Engagement, InteractionPattern, MasteryTrend, Quiz, QuizAttempt, TopicMastery
+from backend.services import context_service, evidence_service
 
 STALE_AFTER_DAYS = 7
 
@@ -25,13 +25,17 @@ def calculate_mastery(scores_most_recent_first: list[float]) -> float:
     return recent + (sum(older) / len(older)) * 0.2
 
 
+TREND_THRESHOLD = 0.1
+
+
 def calculate_trend(scores_most_recent_first: list[float]) -> MasteryTrend:
     if len(scores_most_recent_first) < 3:
         return MasteryTrend.not_started if not scores_most_recent_first else MasteryTrend.stable
-    last_3 = scores_most_recent_first[:3]
-    if last_3[0] > last_3[1] > last_3[2]:
+    newest, middle, oldest = scores_most_recent_first[:3]
+    delta = newest - (middle + oldest) / 2
+    if delta >= TREND_THRESHOLD:
         return MasteryTrend.improving
-    if last_3[0] < last_3[1] < last_3[2]:
+    if delta <= -TREND_THRESHOLD:
         return MasteryTrend.declining
     return MasteryTrend.stable
 
@@ -70,6 +74,8 @@ def update_mastery_after_attempt(
 ) -> dict[str, Any]:
     topic_passed = topic_passed or {}
     updated_topics = {}
+    class_row = db.get(Class, class_id)
+    subject_id = class_row.subject_id if class_row else None
     for topic in topic_scores:
         history = _topic_score_history(db, student_id, class_id, topic)
         mastery_score = calculate_mastery(history)
@@ -82,8 +88,10 @@ def update_mastery_after_attempt(
             .first()
         )
         if row is None:
-            row = TopicMastery(student_id=student_id, class_id=class_id, topic=topic)
+            row = TopicMastery(student_id=student_id, class_id=class_id, subject_id=subject_id, topic=topic)
             db.add(row)
+        elif row.subject_id is None:
+            row.subject_id = subject_id
 
         row.mastery_score = mastery_score
         row.attempt_count = attempt_count
@@ -170,7 +178,9 @@ def get_dashboard(db: Session, student_id: str, class_id: str) -> dict[str, Any]
 
     now = datetime.utcnow()
     stale_cutoff = now - timedelta(days=STALE_AFTER_DAYS)
-    interaction_rows = db.query(InteractionPattern).filter(InteractionPattern.student_id == student_id).all()
+    interaction_rows = db.query(InteractionPattern).filter(
+        InteractionPattern.student_id == student_id, evidence_service.interaction_scope(class_id)
+    ).all()
     last_touched: dict[str, datetime] = {}
     for row in interaction_rows:
         if row.last_asked_at:

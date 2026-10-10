@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { apiFetch } from "../../lib/api";
+import { MessageCircleQuestion } from "lucide-react";
+import { apiFetch, errorMessage } from "../../lib/api";
 import type { ReflectionRead } from "../../lib/types";
-import { Card } from "../ui/Card";
+import { Card, CardHeader } from "../ui/Card";
 import { Button } from "../ui/Button";
+import { Textarea } from "../ui/Input";
+import { Alert } from "../ui/Feedback";
 
 export function ReflectionPrompt({
   classId,
@@ -15,50 +18,57 @@ export function ReflectionPrompt({
   subjectId?: string | null;
   topic?: string | null;
 }) {
-  const [dismissed, setDismissed] = useState(false);
+  const [state, setState] = useState<"open" | "sent" | "skipped">("open");
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  if (dismissed) return null;
+  if (state === "skipped") return null;
+  if (state === "sent") {
+    return <Alert tone="success" title="Thanks for sharing">Your teacher sees anonymised themes from reflections like yours.</Alert>;
+  }
 
   async function handleShare() {
     const trimmed = text.trim();
     if (!trimmed) return;
     setSubmitting(true);
+    setError(null);
     try {
       await apiFetch<ReflectionRead>("/reflections", {
         method: "POST",
         body: { class_id: classId, subject_id: subjectId ?? null, topic: topic ?? null, text: trimmed },
       });
+      setState("sent");
     } catch (err) {
-      console.error(err);
+      setError(errorMessage(err, "Couldn't share your reflection."));
     } finally {
       setSubmitting(false);
-      setDismissed(true);
     }
   }
 
-  function handleSkip() {
-    setDismissed(true);
-  }
-
   return (
-    <Card className="mt-4">
-      <h3 className="font-semibold text-primary mb-1 text-sm">What's still unclear about this?</h3>
-      <p className="text-sm text-tertiary mb-3">A quick note helps us tailor what you see next — totally optional.</p>
-      <textarea
+    <Card>
+      <CardHeader
+        icon={<MessageCircleQuestion className="h-4 w-4" />}
+        title={topic ? `What's still unclear about ${topic}?` : "What's still unclear?"}
+        description="Optional. A quick note helps tailor what you see next."
+      />
+      <Textarea
+        label="Your reflection"
+        srOnlyLabel
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={3}
+        maxLength={2000}
         placeholder="Share what's still confusing…"
         disabled={submitting}
-        className="w-full px-3 py-2 border border-strong rounded-md text-sm bg-surface text-primary placeholder:text-tertiary resize-none focus:outline-none focus:ring-2 focus:ring-accent-secondary mb-3"
       />
-      <div className="flex gap-2">
-        <Button onClick={handleShare} disabled={!text.trim() || submitting} loading={submitting}>
+      {error && <Alert tone="danger" className="mt-3">{error}</Alert>}
+      <div className="mt-3 flex gap-2">
+        <Button onClick={handleShare} disabled={!text.trim()} loading={submitting}>
           Share
         </Button>
-        <Button variant="secondary" onClick={handleSkip} disabled={submitting}>
+        <Button variant="ghost" onClick={() => setState("skipped")} disabled={submitting}>
           Skip
         </Button>
       </div>

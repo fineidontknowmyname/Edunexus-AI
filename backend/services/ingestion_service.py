@@ -1,11 +1,12 @@
 import json
 import logging
 import os
+import tempfile
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from backend.models.db import Chunk, Class, ClassContext, Document, DocumentStatus
+from backend.models.db import Chunk, Class, ClassContext, Document, DocumentFile, DocumentStatus
 from backend.pipeline.chunker import chunk_text
 from backend.pipeline.embedder import embed_texts
 from backend.pipeline.parser import extract_text
@@ -33,6 +34,21 @@ def _resolve_subject(db: Session, doc: Document) -> tuple[Any, str | None]:
     return subject_id, subject_name
 
 
+def _materialize_upload(db: Session, doc: Document) -> tuple[str, DocumentFile | None]:
+    file_row = db.query(DocumentFile).filter(DocumentFile.document_id == doc.id).first()
+    if file_row is not None:
+        ext = os.path.splitext(doc.filename or "")[1].lower()
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+        try:
+            tmp.write(file_row.data)
+        finally:
+            tmp.close()
+        return tmp.name, file_row
+    if doc.file_path and os.path.exists(doc.file_path):
+        return doc.file_path, None
+    raise ValueError("The uploaded file is no longer available. Please upload the document again.")
+
+
 def process_job(db: Session, document_id: str, embedding_model: Any) -> dict:
     print(f"[INGESTION] Starting pipeline for Document ID: {document_id}")
 
@@ -40,10 +56,12 @@ def process_job(db: Session, document_id: str, embedding_model: Any) -> dict:
     if doc is None:
         raise ValueError(f"Document '{document_id}' not found in database.")
 
-    file_path = doc.file_path
     filename = doc.filename
     doc.status = DocumentStatus.processing
     db.commit()
+
+    file_path, file_row = _materialize_upload(db, doc)
+    succeeded = False
 
     subject_id, subject_name = _resolve_subject(db, doc)
     print(
@@ -105,7 +123,10 @@ def process_job(db: Session, document_id: str, embedding_model: Any) -> dict:
         _auto_mark_chapter_taught(db, doc)
         _auto_mark_topics_taught(db, doc, [t for t in topic_by_index.values() if t])
 
+        if file_row is not None:
+            db.delete(file_row)
         db.commit()
+        succeeded = True
         print(f"[INGESTION SUCCESS] '{filename}' -> {len(chunks_data)} chunks stored.")
         return {
             "document_id": document_id,
@@ -118,19 +139,12 @@ def process_job(db: Session, document_id: str, embedding_model: Any) -> dict:
         db.rollback()
         print(f"[INGESTION FAILED] '{filename}': {e}")
         logger.exception("Ingestion pipeline failed for document '%s'", document_id)
-        try:
-            doc.status = DocumentStatus.failed
-            db.commit()
-        except Exception as commit_err:
-            print(f"[INGESTION ERROR] Could not set failed status: {commit_err}")
-            db.rollback()
         raise
 
     finally:
-        if file_path and os.path.exists(file_path):
+        if (file_row is not None or succeeded) and file_path and os.path.exists(file_path):
             try:
                 os.remove(file_path)
-                print(f"[INGESTION CLEANUP] Removed temp file: {file_path}")
             except OSError as cleanup_err:
                 logger.warning("Failed to remove temp file '%s': %s", file_path, cleanup_err)
 

@@ -107,6 +107,7 @@ export type SessionMode = "study" | "revision" | "exam_focus" | "socratic";
 export type SourceType = "curriculum" | "general_knowledge";
 
 export interface ChatMessageUI {
+  key: string;
   id: string | null;
   role: "user" | "assistant";
   content: string;
@@ -115,6 +116,11 @@ export interface ChatMessageUI {
   flagged?: boolean;
   streaming?: boolean;
   verificationFailed?: boolean;
+  failed?: boolean;
+  errorDetail?: string;
+  retryMessage?: string;
+  misconceptionResolved?: string | null;
+  createdAt?: string;
 }
 
 export interface ChatHistoryMessage {
@@ -184,6 +190,16 @@ export interface QuizDetail {
   title: string;
   questions: QuizQuestionStudent[];
 }
+
+export interface QuizAttemptSummary {
+  id: string;
+  quiz_id: string;
+  score: number;
+  topic_scores: Record<string, number>;
+  completed_at: string | null;
+}
+
+export type RoutingMap = Record<string, RoutingLabel>;
 
 export interface QuizAttemptResult {
   attempt_id: string;
@@ -335,4 +351,5 @@ export interface RecommendationResponse {
   sections: RecommendationSection[];
   videos: RecommendationVideo[];
   socratic_seed_message: string | null;
+  reason?: string | null;
 }

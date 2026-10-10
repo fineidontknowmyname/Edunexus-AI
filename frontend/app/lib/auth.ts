@@ -30,3 +30,7 @@ export function clearSession() {
 export function isAuthenticated(): boolean {
   return getRole() !== null;
 }
+
+export function hardNavigate(path: string) {
+  window.location.assign(new URL(path, window.location.origin).toString());
+}

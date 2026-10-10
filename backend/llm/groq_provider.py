@@ -24,6 +24,11 @@ class GroqProvider(LLMProvider):
             print("[GROQ PROVIDER ERROR] 'groq' package not importable — client not initialized.")
             self.client = None
 
+    def _reasoning_options(self) -> dict:
+        if self.model_name.startswith("openai/gpt-oss"):
+            return {"reasoning_effort": "low", "include_reasoning": False}
+        return {}
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -42,6 +47,7 @@ class GroqProvider(LLMProvider):
                 ],
                 max_tokens=max_tokens,
                 stream=False,
+                **self._reasoning_options(),
             )
         except Exception as e:
             print(f"[GROQ PROVIDER ERROR] generate() failed for model={self.model_name}: {e}")
@@ -61,6 +67,7 @@ class GroqProvider(LLMProvider):
                 ],
                 max_tokens=max_tokens,
                 stream=True,
+                **self._reasoning_options(),
             )
         except Exception as e:
             print(f"[GROQ PROVIDER ERROR] stream() failed to start for model={self.model_name}: {e}")

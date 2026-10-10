@@ -1,25 +1,33 @@
 from datetime import datetime
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.models.db import Engagement, InteractionPattern
 
 
-def record_interaction(db: Session, student_id: str, topic: str | None) -> None:
+def interaction_scope(class_id):
+    return or_(InteractionPattern.class_id == class_id, InteractionPattern.class_id.is_(None))
+
+
+def record_interaction(
+    db: Session, student_id: str, topic: str | None, class_id=None, subject_id=None
+) -> None:
     if not topic:
         return
-    pattern = (
-        db.query(InteractionPattern)
-        .filter(InteractionPattern.student_id == student_id, InteractionPattern.topic == topic)
-        .first()
+    query = db.query(InteractionPattern).filter(
+        InteractionPattern.student_id == student_id, InteractionPattern.topic == topic
     )
+    query = query.filter(InteractionPattern.class_id == class_id) if class_id else query
+    pattern = query.first()
     if pattern is None:
-        pattern = InteractionPattern(student_id=student_id, topic=topic, questions_asked=0)
+        pattern = InteractionPattern(
+            student_id=student_id, topic=topic, questions_asked=0, class_id=class_id, subject_id=subject_id
+        )
         db.add(pattern)
     pattern.questions_asked += 1
     pattern.last_asked_at = datetime.utcnow()
     db.commit()
-    print(f"[EVIDENCE] interaction_patterns updated: student={student_id} topic={topic} questions_asked={pattern.questions_asked}")
 
 
 def update_engagement(db: Session, student_id: str) -> None:

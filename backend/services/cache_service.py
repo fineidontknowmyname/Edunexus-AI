@@ -15,77 +15,74 @@ def compute_context_tier(student_context: dict[str, Any]) -> str:
     has_misconceptions = len(student_context["misconceptions"]) > 0
 
     if weak_count == 0 and not has_misconceptions:
-        tier = ContextTier.strong.value
-    elif weak_count <= 2 and not has_misconceptions:
-        tier = ContextTier.moderate_weak.value
-    else:
-        tier = ContextTier.significant_gaps.value
+        return ContextTier.strong.value
+    if weak_count <= 2 and not has_misconceptions:
+        return ContextTier.moderate_weak.value
+    return ContextTier.significant_gaps.value
 
-    print(f"[CACHE] Context tier computed: {tier} (weak_count={weak_count}, misconceptions={has_misconceptions})")
-    return tier
+
+def _nullable_eq(column, value):
+    return column.is_(None) if value is None else column == value
 
 
 def check_cache(
     db: Session,
     query_vector: list[float],
-    subject: str | None,
+    class_id: str,
+    subject_id: str | None,
     context_tier: str,
-    subject_id: str | None = None,
-    learning_tag: str | None = None,
+    learning_tag: str | None,
+    session_mode: str,
 ) -> ResponseCache | None:
     cutoff = datetime.utcnow() - timedelta(hours=TTL_HOURS)
     distance_expr = ResponseCache.query_embedding.cosine_distance(query_vector)
-
-    scope_filter = (
-        ResponseCache.subject_id == subject_id if subject_id else ResponseCache.subject == subject
-    )
     row = (
         db.query(ResponseCache, distance_expr.label("distance"))
         .filter(
-            scope_filter,
+            ResponseCache.class_id == class_id,
+            _nullable_eq(ResponseCache.subject_id, subject_id),
             ResponseCache.context_tier == ContextTier(context_tier),
-            ResponseCache.learning_tag.is_(learning_tag) if learning_tag is None
-            else ResponseCache.learning_tag == learning_tag,
+            _nullable_eq(ResponseCache.learning_tag, learning_tag),
+            ResponseCache.session_mode == session_mode,
             ResponseCache.created_at >= cutoff,
         )
         .order_by(distance_expr)
         .first()
     )
     if row is None:
-        print(f"[CACHE MISS] No candidate rows for subject={subject} tier={context_tier}")
         return None
-
     candidate, distance = row
-    similarity = 1 - distance
-    if similarity < SIMILARITY_THRESHOLD:
-        print(f"[CACHE MISS] Closest candidate similarity={similarity:.3f} < threshold={SIMILARITY_THRESHOLD}")
+    if 1 - distance < SIMILARITY_THRESHOLD:
         return None
-
-    print(f"[CACHE HIT] similarity={similarity:.3f} cache_id={candidate.id} — 0 tokens spent")
+    print(f"[CACHE HIT] similarity={1 - distance:.3f} cache_id={candidate.id}")
     return candidate
 
 
 def store_cache(
     db: Session,
     query_vector: list[float],
+    class_id: str,
     subject: str | None,
+    subject_id: str | None,
     context_tier: str,
+    learning_tag: str | None,
+    session_mode: str,
     response_text: str,
     chunk_ids_used: list[UUID],
     source_type: str,
-    subject_id: str | None = None,
-    learning_tag: str | None = None,
 ) -> None:
-    entry = ResponseCache(
-        query_embedding=query_vector,
-        subject=subject,
-        subject_id=subject_id,
-        context_tier=ContextTier(context_tier),
-        learning_tag=learning_tag,
-        response_text=response_text,
-        chunk_ids_used=chunk_ids_used or None,
-        source_type=SourceType(source_type),
+    db.add(
+        ResponseCache(
+            query_embedding=query_vector,
+            class_id=class_id,
+            subject=subject,
+            subject_id=subject_id,
+            context_tier=ContextTier(context_tier),
+            learning_tag=learning_tag,
+            session_mode=session_mode,
+            response_text=response_text,
+            chunk_ids_used=chunk_ids_used or None,
+            source_type=SourceType(source_type),
+        )
     )
-    db.add(entry)
     db.commit()
-    print(f"[CACHE] Stored entry id={entry.id} subject={subject}/{subject_id} tier={context_tier} tag={learning_tag}")

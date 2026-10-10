@@ -2,12 +2,20 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { GraduationCap, Presentation } from "lucide-react";
 import { useAuthActions } from "../../lib/hooks/useAuth";
-import { ApiError } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
 import type { UserRole } from "../../lib/types";
-import { Card } from "../../components/ui/Card";
 import { Input } from "../../components/ui/Input";
+import { PasswordInput } from "../../components/ui/PasswordInput";
 import { Button } from "../../components/ui/Button";
+import { Alert } from "../../components/ui/Feedback";
+import { cn } from "../../lib/cn";
+
+const ROLES: { value: UserRole; label: string; description: string; icon: typeof GraduationCap }[] = [
+  { value: "student", label: "Student", description: "Learn with an AI tutor", icon: GraduationCap },
+  { value: "educator", label: "Educator", description: "Teach and track a class", icon: Presentation },
+];
 
 export default function RegisterPage() {
   const { register } = useAuthActions();
@@ -25,78 +33,87 @@ export default function RegisterPage() {
     try {
       await register(email, password, fullName, role);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Registration failed. Please try again.");
-    } finally {
+      setError(errorMessage(err, "Registration failed. Please try again."));
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-app p-6">
-      <Card className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-primary mb-1">Create an account</h1>
-        <p className="text-sm text-tertiary mb-6">Join EduNexus AI</p>
+    <div className="w-full max-w-sm">
+      <h1 className="text-2xl font-semibold tracking-tight text-primary">Create your account</h1>
+      <p className="mt-1.5 text-sm text-tertiary">It takes less than a minute.</p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Input
-            id="full_name"
-            label="Full name"
-            required
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            autoComplete="name"
-          />
-          <Input
-            id="email"
-            label="Email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
-          <Input
-            id="password"
-            label="Password"
-            type="password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-          />
-
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-secondary">I am a...</span>
-            <div className="flex gap-4">
-              {(["student", "educator"] as UserRole[]).map((r) => (
-                <label key={r} className="flex items-center gap-2 text-sm text-secondary">
+      <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+        <fieldset>
+          <legend className="mb-1.5 text-sm font-medium text-secondary">I am a…</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {ROLES.map(({ value, label, description, icon: Icon }) => {
+              const selected = role === value;
+              return (
+                <label
+                  key={value}
+                  className={cn(
+                    "relative flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus",
+                    selected ? "border-accent-secondary bg-accent-secondary/8" : "border-strong bg-surface hover:bg-surface-muted"
+                  )}
+                >
                   <input
                     type="radio"
                     name="role"
-                    value={r}
-                    checked={role === r}
-                    onChange={() => setRole(r)}
+                    value={value}
+                    checked={selected}
+                    onChange={() => setRole(value)}
+                    className="sr-only"
                   />
-                  {r === "student" ? "Student" : "Educator"}
+                  <Icon className={cn("h-4 w-4", selected ? "text-accent-secondary" : "text-tertiary")} aria-hidden />
+                  <span className="text-sm font-semibold text-primary">{label}</span>
+                  <span className="text-xs text-tertiary">{description}</span>
                 </label>
-              ))}
-            </div>
+              );
+            })}
           </div>
+        </fieldset>
+        <Input
+          id="full_name"
+          label="Full name"
+          required
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          autoComplete="name"
+        />
+        <Input
+          id="email"
+          label="Email"
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          placeholder="you@school.edu"
+        />
+        <PasswordInput
+          id="password"
+          label="Password"
+          required
+          minLength={8}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="new-password"
+          hint="At least 8 characters."
+        />
 
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <Button type="submit" loading={loading} className="w-full">
-            Create account
-          </Button>
-        </form>
+        {error && <Alert tone="danger">{error}</Alert>}
+        <Button type="submit" size="lg" loading={loading} className="mt-2 w-full">
+          {loading ? "Creating account…" : "Create account"}
+        </Button>
+      </form>
 
-        <p className="text-sm text-tertiary mt-4 text-center">
-          Already have an account?{" "}
-          <Link href="/login" className="text-accent-secondary hover:underline">
-            Sign in
-          </Link>
-        </p>
-      </Card>
-    </main>
+      <p className="mt-6 text-center text-sm text-tertiary">
+        Already have an account?{" "}
+        <Link href="/login" className="font-medium text-accent-secondary hover:underline">
+          Sign in
+        </Link>
+      </p>
+    </div>
   );
 }

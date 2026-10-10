@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.models.db import IngestionJob, IngestionJobStatus
+from backend.models.db import Document, DocumentFile, DocumentStatus, IngestionJob, IngestionJobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -15,13 +15,19 @@ STALE_AFTER_SECONDS = 15 * 60
 MAX_ATTEMPTS = 3
 
 
-def enqueue(db: Session, document_id: str) -> IngestionJob:
+def enqueue(db: Session, document_id) -> IngestionJob:
     job = IngestionJob(document_id=document_id, status=IngestionJobStatus.queued)
     db.add(job)
-    db.commit()
-    db.refresh(job)
+    db.flush()
     print(f"[INGESTION QUEUE] Enqueued job {job.id} for document {document_id}")
     return job
+
+
+def _fail_document(db: Session, document_id) -> None:
+    doc = db.get(Document, document_id)
+    if doc is not None and doc.status != DocumentStatus.ready:
+        doc.status = DocumentStatus.failed
+    db.query(DocumentFile).filter(DocumentFile.document_id == document_id).delete(synchronize_session=False)
 
 
 def claim_next(db: Session) -> IngestionJob | None:
@@ -76,6 +82,7 @@ def requeue(db: Session, job_id: str, error: str | None = None) -> None:
     if job.attempts >= MAX_ATTEMPTS:
         job.status = IngestionJobStatus.failed
         job.error = (error or "max attempts exceeded")[:2000]
+        _fail_document(db, job.document_id)
         print(f"[INGESTION QUEUE] Job {job_id} failed permanently after {job.attempts} attempts")
     else:
         job.status = IngestionJobStatus.queued
@@ -119,6 +126,10 @@ def drain_once(session_factory, embedding_model: Any) -> bool:
     try:
         result = process_job(work_db, document_id=document_id, embedding_model=embedding_model)
         mark(work_db, job_id, IngestionJobStatus.done, chunk_count=result.get("chunk_count"))
+    except ValueError as exc:
+        logger.warning("Ingestion job %s failed permanently: %s", job_id, exc)
+        _fail_document(work_db, document_id)
+        mark(work_db, job_id, IngestionJobStatus.failed, error=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Ingestion job %s failed", job_id)
         requeue(work_db, job_id, error=str(exc))

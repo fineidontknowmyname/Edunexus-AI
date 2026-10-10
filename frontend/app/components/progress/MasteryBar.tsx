@@ -1,24 +1,13 @@
+import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 import type { MasteryTrend } from "../../lib/types";
+import { ProgressBar } from "../ui/Stat";
 
-const TREND_ARROW: Record<MasteryTrend, string> = {
-  improving: "↑",
-  declining: "↓",
-  stable: "→",
-  not_started: "",
+const TREND: Record<MasteryTrend, { label: string; className: string; icon: typeof ArrowRight | null }> = {
+  improving: { label: "Improving", className: "text-success", icon: ArrowUpRight },
+  declining: { label: "Declining", className: "text-danger", icon: ArrowDownRight },
+  stable: { label: "Stable", className: "text-tertiary", icon: ArrowRight },
+  not_started: { label: "Not started", className: "text-tertiary", icon: null },
 };
-
-const TREND_COLOR: Record<MasteryTrend, string> = {
-  improving: "text-success",
-  declining: "text-danger",
-  stable: "text-tertiary",
-  not_started: "text-tertiary",
-};
-
-function barColor(score: number): string {
-  if (score >= 0.7) return "bg-success";
-  if (score >= 0.4) return "bg-warning";
-  return "bg-danger";
-}
 
 export function MasteryBar({
   topic,
@@ -32,19 +21,24 @@ export function MasteryBar({
   attempts: number;
 }) {
   const pct = Math.round(score * 100);
+  const t = TREND[trend] ?? TREND.stable;
+  const Icon = t.icon;
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-primary">{topic}</span>
-        <span className="flex items-center gap-1 text-secondary">
-          {pct}%
-          <span className={TREND_COLOR[trend]}>{TREND_ARROW[trend]}</span>
-          <span className="text-xs text-tertiary">({attempts} attempt{attempts === 1 ? "" : "s"})</span>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="min-w-0 truncate font-medium text-primary">{topic}</span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className={`inline-flex items-center gap-0.5 text-xs ${t.className}`}>
+            {Icon && <Icon className="h-3.5 w-3.5" aria-hidden />}
+            {t.label}
+          </span>
+          <span className="w-10 text-right font-semibold tabular-nums text-primary">{pct}%</span>
         </span>
       </div>
-      <div className="w-full h-2 bg-surface-muted rounded-full overflow-hidden">
-        <div className={`h-full ${barColor(score)}`} style={{ width: `${pct}%` }} />
-      </div>
+      <ProgressBar value={score} label={`${topic} mastery`} />
+      <span className="text-xs text-tertiary">
+        {attempts} attempt{attempts === 1 ? "" : "s"}
+      </span>
     </div>
   );
 }

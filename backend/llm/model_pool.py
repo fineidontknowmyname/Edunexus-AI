@@ -1,3 +1,4 @@
+import threading
 import time
 from typing import Tuple
 
@@ -9,6 +10,7 @@ from backend.llm.ollama_provider import OllamaProvider
 
 class ModelPool:
     def __init__(self):
+        self._lock = threading.Lock()
         settings = get_settings()
         self.is_production = (
             settings.environment.lower() == "production"
@@ -43,27 +45,24 @@ class ModelPool:
         if not self.is_production or self.dev_provider is not None:
             return self.dev_provider, 0
 
-        self._reset_window_if_needed(0)
-        self._reset_window_if_needed(1)
-
-        capacity_primary = self.tpm_limits[0] - self.tpm_used[0]
-        capacity_secondary = self.tpm_limits[1] - self.tpm_used[1]
+        with self._lock:
+            self._reset_window_if_needed(0)
+            self._reset_window_if_needed(1)
+            capacity_primary = self.tpm_limits[0] - self.tpm_used[0]
+            capacity_secondary = self.tpm_limits[1] - self.tpm_used[1]
 
         if capacity_primary >= capacity_secondary and capacity_primary > 0:
-            print(f"[MODEL POOL] Routing to primary (headroom={capacity_primary})")
             return self.primary_provider, 0
-        elif capacity_secondary > 0:
-            print(f"[MODEL POOL] Primary near capacity — routing to secondary (headroom={capacity_secondary})")
+        if capacity_secondary > 0:
             return self.secondary_provider, 1
-        else:
-            print("[MODEL POOL WARNING] Both models near capacity — forcing primary anyway")
-            return self.primary_provider, 0
+        print("[MODEL POOL WARNING] Both models near capacity — forcing primary anyway")
+        return self.primary_provider, 0
 
     def record_usage(self, model_idx: int, tokens: int) -> None:
         if self.is_production and 0 <= model_idx < len(self.tpm_used):
-            self._reset_window_if_needed(model_idx)
-            self.tpm_used[model_idx] += tokens
-            print(f"[MODEL POOL] model_idx={model_idx} used {tokens} tokens this window (total={self.tpm_used[model_idx]}/{self.tpm_limits[model_idx]})")
+            with self._lock:
+                self._reset_window_if_needed(model_idx)
+                self.tpm_used[model_idx] += tokens
 
 
 model_pool = ModelPool()

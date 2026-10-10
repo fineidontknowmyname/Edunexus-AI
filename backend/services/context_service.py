@@ -2,6 +2,7 @@ import json
 from datetime import date, timedelta
 from typing import Any
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.core.prerequisites import get_prerequisites, load_prerequisite_map
@@ -69,7 +70,10 @@ def assemble_student_context(db: Session, student_id: str, class_id: str) -> dic
     )
     misconceptions = [{"topic": m.topic, "description": m.description} for m in misconception_rows]
 
-    pattern_rows = db.query(InteractionPattern).filter(InteractionPattern.student_id == student_id).all()
+    pattern_rows = db.query(InteractionPattern).filter(
+        InteractionPattern.student_id == student_id,
+        or_(InteractionPattern.class_id == class_id, InteractionPattern.class_id.is_(None)),
+    ).all()
     interaction_patterns = {
         p.topic: {
             "questions_asked": p.questions_asked,

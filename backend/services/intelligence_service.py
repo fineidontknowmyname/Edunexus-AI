@@ -23,16 +23,29 @@ def apply_rules(
     session_mode: str,
     prerequisite_gaps: list[str],
     learning_tag: str | None = None,
+    personalized: bool = True,
+    context_tier: str | None = None,
 ) -> list[str]:
+    from backend.services.rag_service import SIMILARITY_CURRICULUM_THRESHOLD
+
     rules: list[str] = []
 
-    if top_similarity < 0.55:
+    if top_similarity < SIMILARITY_CURRICULUM_THRESHOLD:
         rules.append(
             "This question may not be covered in the uploaded curriculum. Answer from general knowledge "
             "and note in your own words that the student should verify it independently — the UI already "
             "shows a 'General knowledge' badge, so do not prefix your answer with a literal tag like "
             "'[General Knowledge]'."
         )
+
+    if not personalized:
+        if context_tier and context_tier != "strong":
+            rules.append("Start from fundamentals. Do not assume prior mastery.")
+        if session_mode == "study":
+            rules.append("Ask a guiding question first. Do not answer directly.")
+        if learning_tag and learning_tag in _LEARNING_TAG_GUIDANCE:
+            rules.append(_LEARNING_TAG_GUIDANCE[learning_tag])
+        return rules
 
     if query_topic:
         mastery_entry = student_context["mastery"].get(query_topic)
@@ -78,5 +91,4 @@ def apply_rules(
     if learning_tag and learning_tag in _LEARNING_TAG_GUIDANCE:
         rules.append(_LEARNING_TAG_GUIDANCE[learning_tag])
 
-    print(f"[INTELLIGENCE] {len(rules)} rule(s) triggered for topic={query_topic!r} mode={session_mode} tag={learning_tag!r}: {rules}")
     return rules

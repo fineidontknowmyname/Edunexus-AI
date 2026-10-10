@@ -3,13 +3,15 @@ import os
 import tempfile
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from backend.api import access
 from backend.api.dependencies import CurrentUser, RequireEducator
+from backend.core.config import get_settings
 from backend.core.database import get_db
 from backend.models import schemas
-from backend.models.db import Chunk, Document
+from backend.models.db import Chunk, Class, Document
 from backend.pipeline.parser import SUPPORTED_EXTENSIONS, extract_text
 from backend.services import misconception_service, subject_service, topic_graph_service
 
@@ -58,25 +60,35 @@ def list_subjects(db: DbDep, _user: CurrentUser):
 async def draft_topic_graph(
     subject_id: str,
     db: DbDep,
+    current_user: CurrentUser,
     _educator: Annotated[None, RequireEducator],
     file: UploadFile = File(...),
 ):
-    if subject_service.get_subject(db, subject_id) is None:
-        raise HTTPException(status_code=404, detail=f"Subject '{subject_id}' not found.")
+    access.owned_subject(db, subject_id, current_user)
 
-    filename = file.filename or ""
+    filename = os.path.basename(file.filename or "")
     ext = os.path.splitext(filename)[1].lower()
     if ext not in SUPPORTED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type '{ext}'.")
 
+    max_bytes = get_settings().max_upload_mb * 1024 * 1024
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"File is larger than the {get_settings().max_upload_mb} MB upload limit.")
+    if not content:
+        raise HTTPException(status_code=400, detail="The uploaded file is empty.")
+
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
     try:
-        tmp.write(await file.read())
+        tmp.write(content)
         tmp.flush()
         tmp.close()
         syllabus_text = extract_text(file_path=tmp.name, filename=filename)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:  # noqa: BLE001
+        logger.exception("Syllabus parsing failed for %s", filename)
+        raise HTTPException(status_code=400, detail="That file couldn't be read. Check it isn't corrupted or password-protected.")
     finally:
         if os.path.exists(tmp.name):
             os.remove(tmp.name)
@@ -91,9 +103,8 @@ async def draft_topic_graph(
 
 @router.get("/subjects/{subject_id}/topic-graph")
 def read_topic_graph(subject_id: str, db: DbDep, _user: CurrentUser):
-    if subject_service.get_subject(db, subject_id) is None:
-        raise HTTPException(status_code=404, detail=f"Subject '{subject_id}' not found.")
-    return {"subject_id": subject_id, "topics": topic_graph_service.read_graph(db, subject_id)}
+    subject = access.existing_subject(db, subject_id)
+    return {"subject_id": str(subject.id), "topics": topic_graph_service.read_graph(db, str(subject.id))}
 
 
 @router.put("/subjects/{subject_id}/topic-graph")
@@ -104,6 +115,7 @@ def confirm_topic_graph(
     current_user: CurrentUser,
     _educator: Annotated[None, RequireEducator],
 ):
+    access.owned_subject(db, subject_id, current_user)
     try:
         rows = topic_graph_service.confirm(
             db,
@@ -121,8 +133,10 @@ def rename_topic(
     subject_id: str,
     payload: schemas.TopicRename,
     db: DbDep,
+    current_user: CurrentUser,
     _educator: Annotated[None, RequireEducator],
 ):
+    access.owned_subject(db, subject_id, current_user)
     try:
         topic_graph_service.rename_topic(db, subject_id, payload.old_topic, payload.new_topic)
     except ValueError as exc:
@@ -131,16 +145,25 @@ def rename_topic(
 
 
 @router.get("/subjects/{subject_id}/unclassified", response_model=list[schemas.UnclassifiedChunk])
-def list_unclassified(subject_id: str, db: DbDep, _educator: Annotated[None, RequireEducator]):
+def list_unclassified(
+    subject_id: str,
+    db: DbDep,
+    current_user: CurrentUser,
+    _educator: Annotated[None, RequireEducator],
+):
+    subject = access.existing_subject(db, subject_id)
     rows = (
         db.query(Chunk, Document.title)
         .join(Document, Chunk.document_id == Document.id)
+        .join(Class, Document.class_id == Class.id)
         .filter(
-            Chunk.subject_id == subject_id,
+            Chunk.subject_id == subject.id,
             Chunk.topic.is_(None),
             Document.deleted == False,  # noqa: E712
+            Class.educator_id == current_user.id,
         )
         .order_by(Document.title, Chunk.chunk_index)
+        .limit(500)
         .all()
     )
     return [
@@ -158,8 +181,7 @@ def list_unclassified(subject_id: str, db: DbDep, _educator: Annotated[None, Req
 
 @router.get("/subjects/{subject_id}/misconception-rules")
 def read_misconception_rules(subject_id: str, db: DbDep, _user: CurrentUser):
-    if subject_service.get_subject(db, subject_id) is None:
-        raise HTTPException(status_code=404, detail=f"Subject '{subject_id}' not found.")
+    subject_id = str(access.existing_subject(db, subject_id).id)
     rows = misconception_service.list_rules(db, subject_id)
     return {
         "subject_id": subject_id,
@@ -178,10 +200,9 @@ def read_misconception_rules(subject_id: str, db: DbDep, _user: CurrentUser):
 
 @router.post("/subjects/{subject_id}/misconception-rules/draft")
 async def draft_misconception_rules(
-    subject_id: str, db: DbDep, _educator: Annotated[None, RequireEducator]
+    subject_id: str, db: DbDep, current_user: CurrentUser, _educator: Annotated[None, RequireEducator]
 ):
-    if subject_service.get_subject(db, subject_id) is None:
-        raise HTTPException(status_code=404, detail=f"Subject '{subject_id}' not found.")
+    access.owned_subject(db, subject_id, current_user)
     try:
         rules = await misconception_service.draft_rules_from_topics(db, subject_id)
     except ValueError as exc:
@@ -197,8 +218,7 @@ def confirm_misconception_rules(
     current_user: CurrentUser,
     _educator: Annotated[None, RequireEducator],
 ):
-    if subject_service.get_subject(db, subject_id) is None:
-        raise HTTPException(status_code=404, detail=f"Subject '{subject_id}' not found.")
+    access.owned_subject(db, subject_id, current_user)
     try:
         count = misconception_service.replace_rules(
             db, subject_id, [r.model_dump() for r in payload.rules], str(current_user.id)
@@ -213,11 +233,10 @@ def set_chunk_topic(
     chunk_id: str,
     payload: schemas.ChunkTopicPatch,
     db: DbDep,
+    current_user: CurrentUser,
     _educator: Annotated[None, RequireEducator],
 ):
-    chunk = db.get(Chunk, chunk_id)
-    if chunk is None:
-        raise HTTPException(status_code=404, detail=f"Chunk '{chunk_id}' not found.")
+    chunk = access.owned_chunk(db, chunk_id, current_user)
     if chunk.subject_id is not None:
         valid = topic_graph_service.read_graph(db, str(chunk.subject_id))
         if payload.topic not in {t["topic"] for t in valid}:

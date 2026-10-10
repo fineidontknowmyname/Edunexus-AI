@@ -4,7 +4,9 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError
+from pydantic import ValidationError
 
 from backend.core.config import get_settings
 from backend.models.schemas import TokenData
@@ -51,5 +53,5 @@ def decode_access_token(token: str) -> TokenData | None:
         if user_id is None:
             return None
         return TokenData(user_id=UUID(user_id), role=role)
-    except JWTError:
+    except (PyJWTError, ValueError, ValidationError):
         return None

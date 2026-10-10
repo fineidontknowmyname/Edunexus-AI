@@ -15,12 +15,8 @@ if %errorlevel%==0 (
     echo   Already running - skipping.
 ) else (
     echo   Starting in a new window...
-    start "EduNexus Backend" cmd /k "cd /d %~dp0 && call backend\venv\Scripts\activate.bat && uvicorn backend.main:app --app-dir . --port %BACKEND_PORT%"
+    start "EduNexus Backend" cmd /k "cd /d %~dp0backend && call venv\Scripts\activate.bat && alembic upgrade head && cd .. && uvicorn backend.main:app --app-dir . --port %BACKEND_PORT%"
 )
-
-echo.
-echo Starting ingestion worker...
-start "EduNexus Ingestion Worker" cmd /k "cd /d %~dp0 && call backend\venv\Scripts\activate.bat && python -m backend.worker"
 
 echo.
 echo Checking frontend on port %FRONTEND_PORT%...

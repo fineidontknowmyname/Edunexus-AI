@@ -137,8 +137,24 @@ def _parse_docx(path: Path) -> str:
     return combined
 
 
+BINARY_CONTROL_RATIO = 0.05
+
+
+def _looks_binary(raw: bytes) -> bool:
+    sample = raw[:8192]
+    if not sample:
+        return False
+    if b"\x00" in sample:
+        return True
+    control = sum(1 for b in sample if b < 32 and b not in (9, 10, 12, 13))
+    return control / len(sample) > BINARY_CONTROL_RATIO
+
+
 def _parse_txt(path: Path) -> str:
     print(f"[TXT PARSER] Reading plain text file: {path}")
+
+    if _looks_binary(path.read_bytes()):
+        raise ValueError("This .txt file contains binary data, not text. Upload a PDF, PPTX, DOCX or a plain text file.")
 
     try:
         text = path.read_text(encoding="utf-8")

@@ -12,9 +12,7 @@ settings = get_settings()
 
 
 def _cookie_attrs() -> dict:
-    if settings.environment.lower() == "production":
-        return {"secure": True, "samesite": "none"}
-    return {"secure": False, "samesite": "lax"}
+    return {"secure": settings.is_production, "samesite": "lax"}
 
 
 def set_auth_cookies(

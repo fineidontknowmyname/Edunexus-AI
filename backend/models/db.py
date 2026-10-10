@@ -12,6 +12,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -161,7 +162,7 @@ class Document(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(500), nullable=False)
     filename = Column(String(500), nullable=False)
-    file_path = Column(String(1000), nullable=False)
+    file_path = Column(String(1000), nullable=True)
     subject = Column(String(255), nullable=True)
     subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
     unit = Column(Integer, nullable=True)
@@ -178,6 +179,19 @@ class Document(Base):
     class_ = relationship("Class", back_populates="documents")
     uploaded_by = relationship("User", back_populates="uploaded_documents")
     chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan")
+    file = relationship("DocumentFile", back_populates="document", uselist=False, cascade="all, delete-orphan")
+
+
+class DocumentFile(Base):
+    __tablename__ = "document_files"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    data = Column(LargeBinary, nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False, unique=True)
+    document = relationship("Document", back_populates="file")
 
 
 class Chunk(Base):
@@ -209,9 +223,11 @@ class ResponseCache(Base):
     query_embedding = Column(Vector(EMBEDDING_DIM), nullable=False)
     subject = Column(String(255), nullable=True)
     subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=True, index=True)
     chapter = Column(Integer, nullable=True)
     context_tier = Column(Enum(ContextTier), nullable=False)
     learning_tag = Column(String(50), nullable=True)
+    session_mode = Column(String(20), nullable=True)
     response_text = Column(Text, nullable=False)
     chunk_ids_used = Column(ARRAY(UUID(as_uuid=True)), nullable=True)
     source_type = Column(Enum(SourceType), nullable=True)
@@ -247,6 +263,7 @@ class TopicMastery(Base):
 
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=False)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True, index=True)
     student = relationship("User", back_populates="topic_masteries")
 
 
@@ -261,6 +278,7 @@ class Misconception(Base):
 
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=False)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True, index=True)
     source_quiz_attempt_id = Column(UUID(as_uuid=True), ForeignKey("quiz_attempts.id"), nullable=True)
 
 
@@ -326,6 +344,8 @@ class InteractionPattern(Base):
     last_asked_at = Column(DateTime, default=datetime.utcnow)
 
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=True, index=True)
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True, index=True)
 
 
 class TopicBehavior(Base):

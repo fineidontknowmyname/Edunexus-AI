@@ -1,352 +1,463 @@
 "use client";
 
-import { DragEvent, FormEvent, useCallback, useEffect, useState } from "react";
-import { apiFetch, ApiError } from "../../lib/api";
+import { DragEvent, FormEvent, Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { CheckCircle2, FileText, FileUp, Loader2, Plus, School, Trash2, UploadCloud, XCircle } from "lucide-react";
+import { apiFetch, errorMessage } from "../../lib/api";
+import { useApi } from "../../lib/hooks/useApi";
 import { usePoll } from "../../lib/hooks/usePoll";
+import { useClassParam, useClasses } from "../../lib/hooks/useClasses";
+import { UPLOAD_MAX_BYTES } from "../../lib/constants";
+import { formatBytes, formatRelative } from "../../lib/format";
 import type { ClassRow, DocumentRow, JobStatus, Subject, UploadJobResponse } from "../../lib/types";
-import { Card } from "../../components/ui/Card";
-import { Input } from "../../components/ui/Input";
+import { Card, CardHeader } from "../../components/ui/Card";
+import { Input, Select } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
-import { Badge } from "../../components/ui/Badge";
+import { Alert, EmptyState, ErrorState, PageSkeleton, SkeletonText } from "../../components/ui/Feedback";
+import { ConfirmDialog } from "../../components/ui/Modal";
+import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
+import { ClassPicker } from "../../components/layout/ClassPicker";
+import { DocumentStatusBadge } from "../../components/educator/DocumentStatusBadge";
 import { SyllabusChecklist } from "../../components/progress/SyllabusChecklist";
+import { cn } from "../../lib/cn";
 
-const STATUS_TONE: Record<DocumentRow["status"], "gray" | "blue" | "green" | "red"> = {
-  pending: "gray",
-  processing: "blue",
-  ready: "green",
-  failed: "red",
-};
+const ACCEPTED = [".pdf", ".pptx", ".docx", ".txt"];
+
+function validateFile(file: File): string | null {
+  const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+  if (!ACCEPTED.includes(ext)) return `“${file.name}” isn't a supported file type. Use PDF, PPTX, DOCX or TXT.`;
+  if (file.size > UPLOAD_MAX_BYTES) {
+    return `“${file.name}” is ${formatBytes(file.size)}. The maximum upload size is ${formatBytes(UPLOAD_MAX_BYTES)}. Try splitting it into smaller chapters.`;
+  }
+  if (file.size === 0) return `“${file.name}” is empty.`;
+  return null;
+}
 
 export default function UploadPage() {
-  const [classes, setClasses] = useState<ClassRow[]>([]);
-  const [classId, setClassId] = useState<string>("");
-  const [classesLoading, setClassesLoading] = useState(true);
+  return (
+    <Suspense fallback={<PageContainer><PageSkeleton /></PageContainer>}>
+      <UploadPageInner />
+    </Suspense>
+  );
+}
 
-  const [documents, setDocuments] = useState<DocumentRow[]>([]);
-  const [docsLoading, setDocsLoading] = useState(false);
+function UploadPageInner() {
+  const classes = useClasses();
+  const [classId, setClassId] = useClassParam(classes.data);
+  const subjects = useApi<Subject[]>("/subjects");
 
-  const [newClassName, setNewClassName] = useState("");
-  const [creatingClass, setCreatingClass] = useState(false);
+  if (classes.error) {
+    return (
+      <PageContainer>
+        <PageHeader title="Curriculum" />
+        <ErrorState message={classes.error} onRetry={classes.reload} />
+      </PageContainer>
+    );
+  }
+  if (!classes.data) {
+    return (
+      <PageContainer>
+        <PageSkeleton />
+      </PageContainer>
+    );
+  }
 
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [subjectId, setSubjectId] = useState<string>("");
+  const activeClass = classes.data.find((c) => c.id === classId) ?? null;
 
-  const [file, setFile] = useState<File | null>(null);
-  const [dragActive, setDragActive] = useState(false);
-  const [title, setTitle] = useState("");
-  const [unit, setUnit] = useState(1);
-  const [chapter, setChapter] = useState(1);
-  const [chapterName, setChapterName] = useState("");
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Curriculum"
+        description="Upload chapters and notes. The tutor answers from these first, and quizzes are generated from them."
+        actions={<ClassPicker classes={classes.data} value={classId} onChange={setClassId} />}
+      />
 
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+      {classes.data.length === 0 ? (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <EmptyState
+            icon={<School className="h-5 w-5" />}
+            title="Create your first class"
+            description="Classes group your students and their course material. Create one to start uploading."
+          />
+          <CreateClassCard subjects={subjects.data ?? []} onCreated={(c) => { classes.reload(); setClassId(c.id); }} />
+        </div>
+      ) : activeClass ? (
+        <ClassMaterials key={activeClass.id} activeClass={activeClass} subjects={subjects.data ?? []} onClassCreated={(c) => { classes.reload(); setClassId(c.id); }} />
+      ) : null}
+    </PageContainer>
+  );
+}
 
-  const loadClasses = useCallback(async () => {
-    setClassesLoading(true);
-    try {
-      const rows = await apiFetch<ClassRow[]>("/classes/");
-      setClasses(rows);
-      if (rows.length > 0 && !classId) setClassId(rows[0].id);
-    } finally {
-      setClassesLoading(false);
-    }
-  }, [classId]);
+function CreateClassCard({ subjects, onCreated }: { subjects: Subject[]; onCreated: (c: ClassRow) => void }) {
+  const [name, setName] = useState("");
+  const [subjectId, setSubjectId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadClasses();
-    apiFetch<Subject[]>("/subjects").then((rows) => {
-      setSubjects(rows);
-      if (rows.length > 0) setSubjectId((prev) => prev || rows[0].id);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function handleCreateClass(e: FormEvent) {
+  async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    if (!newClassName.trim()) return;
-    setCreatingClass(true);
+    if (!name.trim()) return;
+    setSaving(true);
+    setError(null);
     try {
       const created = await apiFetch<ClassRow>("/classes/", {
         method: "POST",
-        body: { name: newClassName, subject_id: subjectId || null },
+        body: { name: name.trim(), subject_id: subjectId || subjects[0]?.id || null },
       });
-      setNewClassName("");
-      await loadClasses();
-      setClassId(created.id);
+      setName("");
+      onCreated(created);
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't create the class."));
     } finally {
-      setCreatingClass(false);
+      setSaving(false);
     }
   }
 
-  const loadDocuments = useCallback(async () => {
-    if (!classId) return;
-    setDocsLoading(true);
-    try {
-      const rows = await apiFetch<DocumentRow[]>(`/documents/?class_id=${classId}`);
-      setDocuments(rows);
-    } finally {
-      setDocsLoading(false);
-    }
-  }, [classId]);
-
-  useEffect(() => {
-    loadDocuments();
-  }, [loadDocuments]);
-
-  const { data: jobStatus } = usePoll<JobStatus>(
-    () => apiFetch<JobStatus>(`/documents/status/${jobId}`),
-    {
-      enabled: jobId !== null,
-      intervalMs: 3000,
-      until: (data) => data.status === "ready" || data.status === "failed",
-    }
+  return (
+    <Card>
+      <CardHeader icon={<Plus className="h-4 w-4" />} title="New class" />
+      <form onSubmit={handleCreate} className="flex flex-col gap-3">
+        <Input label="Class name" placeholder="e.g. OS Sem 5, Section A" value={name} onChange={(e) => setName(e.target.value)} required />
+        {subjects.length > 0 && (
+          <Select label="Subject" value={subjectId || subjects[0].id} onChange={(e) => setSubjectId(e.target.value)}>
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </Select>
+        )}
+        {error && <Alert tone="danger">{error}</Alert>}
+        <Button type="submit" variant="secondary" loading={saving} disabled={!name.trim()}>
+          Create class
+        </Button>
+      </form>
+    </Card>
   );
+}
 
+function ClassMaterials({
+  activeClass,
+  subjects,
+  onClassCreated,
+}: {
+  activeClass: ClassRow;
+  subjects: Subject[];
+  onClassCreated: (c: ClassRow) => void;
+}) {
+  const documents = useApi<DocumentRow[]>(`/documents/?class_id=${activeClass.id}`);
+  const [pendingDelete, setPendingDelete] = useState<DocumentRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  const reloadDocs = documents.reload;
+
+  const anyProcessing = (documents.data ?? []).some((d) => d.status === "processing" || d.status === "pending");
   useEffect(() => {
-    if (jobStatus?.status === "ready" || jobStatus?.status === "failed") {
-      loadDocuments();
-    }
-  }, [jobStatus?.status, loadDocuments]);
+    if (!anyProcessing) return;
+    const timer = setInterval(reloadDocs, 4000);
+    return () => clearInterval(timer);
+  }, [anyProcessing, reloadDocs]);
 
-  function handleDrop(e: DragEvent<HTMLDivElement>) {
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    setListError(null);
+    try {
+      await apiFetch(`/documents/${pendingDelete.id}`, { method: "DELETE" });
+      documents.mutate((prev) => prev?.filter((d) => d.id !== pendingDelete.id) ?? null);
+      setPendingDelete(null);
+    } catch (err) {
+      setListError(errorMessage(err, "Couldn't delete that document."));
+      setPendingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <UploadCard activeClass={activeClass} subjects={subjects} onUploaded={reloadDocs} />
+        <div className="flex flex-col gap-6">
+          <SyllabusChecklist classId={activeClass.id} documents={documents.data ?? []} />
+          <CreateClassCard subjects={subjects} onCreated={onClassCreated} />
+        </div>
+      </div>
+
+      <Card padded={false}>
+        <div className="p-5 pb-0 sm:p-6 sm:pb-0">
+          <CardHeader
+            icon={<FileText className="h-4 w-4" />}
+            title="Documents"
+            description={`Course material for ${activeClass.name}.`}
+            actions={anyProcessing ? <span className="inline-flex items-center gap-1.5 text-xs text-info"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />Refreshing while documents index</span> : undefined}
+          />
+        </div>
+        {listError && <Alert tone="danger" className="mx-5 mb-4 sm:mx-6">{listError}</Alert>}
+        {documents.error && !documents.data ? (
+          <div className="p-5 pt-0 sm:p-6 sm:pt-0"><ErrorState message={documents.error} onRetry={documents.reload} /></div>
+        ) : !documents.data ? (
+          <div className="p-5 pt-0 sm:p-6 sm:pt-0"><SkeletonText lines={4} /></div>
+        ) : documents.data.length === 0 ? (
+          <div className="p-5 pt-0 sm:p-6 sm:pt-0">
+            <EmptyState
+              compact
+              icon={<FileUp className="h-5 w-5" />}
+              title="No documents yet"
+              description="Upload your first chapter above. Students can ask about it as soon as it's indexed."
+            />
+          </div>
+        ) : (
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-y border-subtle bg-surface-muted/50 text-left text-xs font-medium uppercase tracking-wide text-tertiary">
+                    <th scope="col" className="px-6 py-2.5 font-medium">Title</th>
+                    <th scope="col" className="px-3 py-2.5 font-medium">Unit / Chapter</th>
+                    <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
+                    <th scope="col" className="px-3 py-2.5 text-right font-medium">Chunks</th>
+                    <th scope="col" className="px-3 py-2.5 font-medium">Added</th>
+                    <th scope="col" className="px-6 py-2.5"><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-subtle">
+                  {documents.data.map((doc) => (
+                    <tr key={doc.id} className="hover:bg-surface-muted/40">
+                      <td className="max-w-xs px-6 py-3">
+                        <p className="truncate font-medium text-primary">{doc.title}</p>
+                        <p className="truncate text-xs text-tertiary">{doc.chapter_name || doc.filename}</p>
+                      </td>
+                      <td className="px-3 py-3 text-secondary">{doc.unit ?? "—"} / {doc.chapter ?? "—"}</td>
+                      <td className="px-3 py-3"><DocumentStatusBadge status={doc.status} /></td>
+                      <td className="px-3 py-3 text-right tabular-nums text-secondary">{doc.chunk_count}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-tertiary">{formatRelative(doc.created_at)}</td>
+                      <td className="px-6 py-3 text-right">
+                        <Button variant="ghost" size="icon" aria-label={`Delete ${doc.title}`} onClick={() => setPendingDelete(doc)}>
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="divide-y divide-subtle border-t border-subtle md:hidden">
+              {documents.data.map((doc) => (
+                <li key={doc.id} className="flex items-start justify-between gap-3 px-5 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-primary">{doc.title}</p>
+                    <p className="text-xs text-tertiary">
+                      Unit {doc.unit ?? "—"} · Ch {doc.chapter ?? "—"} · {doc.chunk_count} chunks
+                    </p>
+                    <div className="mt-1.5"><DocumentStatusBadge status={doc.status} /></div>
+                  </div>
+                  <Button variant="ghost" size="icon" aria-label={`Delete ${doc.title}`} onClick={() => setPendingDelete(doc)}>
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Card>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete this document?"
+        description={pendingDelete ? `“${pendingDelete.title}” and its indexed content will be removed. The tutor will stop citing it.` : undefined}
+        confirmLabel="Delete document"
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+    </>
+  );
+}
+
+function UploadCard({
+  activeClass,
+  subjects,
+  onUploaded,
+}: {
+  activeClass: ClassRow;
+  subjects: Subject[];
+  onUploaded: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [title, setTitle] = useState("");
+  const [subjectId, setSubjectId] = useState(activeClass.subject_id ?? "");
+  const [unit, setUnit] = useState(1);
+  const [chapter, setChapter] = useState(1);
+  const [chapterName, setChapterName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [job, setJob] = useState<{ id: string; title: string } | null>(null);
+
+  const effectiveSubject = subjectId || subjects[0]?.id || "";
+
+  const { data: jobStatus, error: jobError } = usePoll<JobStatus>(job?.id ?? null, () => apiFetch<JobStatus>(`/documents/status/${job?.id}`), {
+    intervalMs: 3000,
+    until: (d) => d.status === "ready" || d.status === "failed",
+  });
+
+  const jobDone = jobStatus?.status === "ready" || jobStatus?.status === "failed";
+  useEffect(() => {
+    if (jobDone) onUploaded();
+  }, [jobDone, onUploaded]);
+
+  function pick(selected: File | null) {
+    setUploadError(null);
+    if (!selected) return;
+    const problem = validateFile(selected);
+    setFileError(problem);
+    setFile(problem ? null : selected);
+    if (!problem && !title) setTitle(selected.name.replace(/\.[^/.]+$/, ""));
+  }
+
+  function handleDrop(e: DragEvent<HTMLLabelElement>) {
     e.preventDefault();
     setDragActive(false);
-    const dropped = e.dataTransfer.files?.[0];
-    if (dropped) {
-      setFile(dropped);
-      if (!title) setTitle(dropped.name.replace(/\.[^/.]+$/, ""));
-    }
+    pick(e.dataTransfer.files?.[0] ?? null);
   }
 
   async function handleUpload(e: FormEvent) {
     e.preventDefault();
-    if (!file || !classId) return;
+    if (!file || submitting) return;
+    const problem = validateFile(file);
+    if (problem) {
+      setFileError(problem);
+      return;
+    }
     setUploadError(null);
     setSubmitting(true);
-    setJobId(null);
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("class_id", classId);
-    formData.append("title", title || file.name);
-    if (subjectId) formData.append("subject_id", subjectId);
+    formData.append("class_id", activeClass.id);
+    formData.append("title", title.trim() || file.name);
+    if (effectiveSubject) formData.append("subject_id", effectiveSubject);
     formData.append("unit", String(unit));
     formData.append("chapter", String(chapter));
     formData.append("chapter_name", chapterName);
 
     try {
-      const result = await apiFetch<UploadJobResponse>("/documents/upload", {
-        method: "POST",
-        body: formData,
-      });
-      setJobId(result.job_id);
+      const result = await apiFetch<UploadJobResponse>("/documents/upload", { method: "POST", body: formData });
+      setJob({ id: result.job_id, title: title.trim() || file.name });
       setFile(null);
+      setTitle("");
+      setChapterName("");
+      setChapter((c) => c + 1);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      onUploaded();
     } catch (err) {
-      setUploadError(err instanceof ApiError ? err.message : "Upload failed.");
+      setUploadError(errorMessage(err, "Upload failed."));
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleDelete(documentId: string) {
-    await apiFetch(`/documents/${documentId}`, { method: "DELETE" });
-    loadDocuments();
-  }
+  const step = !job ? 0 : !jobStatus || jobStatus.status === "processing" ? 1 : jobStatus.status === "ready" ? 2 : -1;
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-primary">Curriculum Upload</h1>
+    <Card>
+      <CardHeader icon={<UploadCloud className="h-4 w-4" />} title="Upload a chapter" description={`Adds to ${activeClass.name}. PDF, PPTX, DOCX or TXT, up to ${formatBytes(UPLOAD_MAX_BYTES)}.`} />
+      <form onSubmit={handleUpload} className="flex flex-col gap-4">
+        <label
+          htmlFor="file-input"
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragActive(true);
+          }}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={handleDrop}
+          className={cn(
+            "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus",
+            dragActive ? "border-accent-secondary bg-accent-secondary/8" : fileError ? "border-danger/50" : "border-strong hover:border-accent-secondary/60 hover:bg-surface-muted/50"
+          )}
+        >
+          <input
+            ref={fileInputRef}
+            id="file-input"
+            type="file"
+            accept={ACCEPTED.join(",")}
+            className="sr-only"
+            onChange={(e) => pick(e.target.files?.[0] ?? null)}
+          />
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted text-secondary" aria-hidden>
+            <FileUp className="h-5 w-5" />
+          </span>
+          {file ? (
+            <span className="text-sm">
+              <span className="font-medium text-primary">{file.name}</span>
+              <span className="text-tertiary"> · {formatBytes(file.size)}</span>
+              <span className="mt-0.5 block text-xs text-accent-secondary">Click to choose a different file</span>
+            </span>
+          ) : (
+            <span className="text-sm text-secondary">
+              <span className="font-medium text-accent-secondary">Choose a file</span> or drag it here
+            </span>
+          )}
+        </label>
+        {fileError && <Alert tone="danger">{fileError}</Alert>}
 
-      <Card>
-        <h2 className="font-semibold text-primary mb-3">Class</h2>
-        {classesLoading ? (
-          <p className="text-sm text-tertiary">Loading classes…</p>
-        ) : classes.length > 0 ? (
-          <select
-            className="w-full px-3 py-2 border border-strong rounded-md text-sm bg-surface text-primary"
-            value={classId}
-            onChange={(e) => setClassId(e.target.value)}
-          >
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} {c.subject ? `— ${c.subject}` : ""}
-              </option>
+        <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Chapter 3: Process Scheduling" />
+        {subjects.length === 0 ? (
+          <Alert tone="warning" title="No subjects yet">
+            Create one on the{" "}
+            <Link href="/subjects" className="font-medium underline">Subjects</Link> page so topics can be tagged.
+          </Alert>
+        ) : (
+          <Select label="Subject" value={effectiveSubject} onChange={(e) => setSubjectId(e.target.value)}>
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
-          </select>
-        ) : (
-          <p className="text-sm text-tertiary mb-3">
-            You have no classes yet — create one to start uploading curriculum.
-          </p>
+          </Select>
         )}
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Unit" type="number" min={1} value={unit} onChange={(e) => setUnit(Number(e.target.value))} />
+          <Input label="Chapter" type="number" min={1} value={chapter} onChange={(e) => setChapter(Number(e.target.value))} />
+        </div>
+        <Input label="Chapter name" value={chapterName} onChange={(e) => setChapterName(e.target.value)} placeholder="e.g. Process Scheduling" hint="Shown in the syllabus checklist." />
 
-        <form onSubmit={handleCreateClass} className="flex gap-2 mt-3">
-          <Input
-            placeholder="New class name (e.g. OS Sem 5 - Section A)"
-            value={newClassName}
-            onChange={(e) => setNewClassName(e.target.value)}
-            className="flex-1"
-          />
-          <Button type="submit" variant="secondary" loading={creatingClass}>
-            Create class
-          </Button>
-        </form>
-      </Card>
+        {uploadError && <Alert tone="danger" title="Upload failed">{uploadError}</Alert>}
 
-      <Card>
-        <h2 className="font-semibold text-primary mb-3">Upload document</h2>
-        <form onSubmit={handleUpload} className="flex flex-col gap-4">
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragActive(true);
-            }}
-            onDragLeave={() => setDragActive(false)}
-            onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-              dragActive ? "border-accent-secondary bg-accent-secondary/10" : "border-strong"
-            }`}
-            onClick={() => document.getElementById("file-input")?.click()}
-          >
-            <input
-              id="file-input"
-              type="file"
-              accept=".pdf,.pptx,.docx,.txt"
-              className="hidden"
-              onChange={(e) => {
-                const selected = e.target.files?.[0] ?? null;
-                setFile(selected);
-                if (selected && !title) setTitle(selected.name.replace(/\.[^/.]+$/, ""));
-              }}
-            />
-            {file ? (
-              <p className="text-sm text-secondary">
-                {file.name} <span className="text-tertiary">({(file.size / 1024).toFixed(0)} KB)</span>
-              </p>
-            ) : (
-              <p className="text-sm text-tertiary">
-                Drag & drop a PDF, PPTX, or DOCX file here, or click to browse
-              </p>
-            )}
-          </div>
+        <Button type="submit" disabled={!file} loading={submitting} icon={<UploadCloud className="h-4 w-4" aria-hidden />}>
+          {submitting ? "Uploading…" : "Upload and index"}
+        </Button>
+      </form>
 
-          <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-secondary">Subject</label>
-            {subjects.length === 0 ? (
-              <p className="text-sm text-tertiary">
-                No subjects yet — create one on the{" "}
-                <a href="/subjects" className="text-accent-secondary underline">
-                  Subjects
-                </a>{" "}
-                page first.
-              </p>
-            ) : (
-              <select
-                className="px-3 py-2 border border-strong rounded-md text-sm bg-surface text-primary"
-                value={subjectId}
-                onChange={(e) => setSubjectId(e.target.value)}
-              >
-                {subjects.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Unit"
-              type="number"
-              min={1}
-              value={unit}
-              onChange={(e) => setUnit(Number(e.target.value))}
-            />
-            <Input
-              label="Chapter"
-              type="number"
-              min={1}
-              value={chapter}
-              onChange={(e) => setChapter(Number(e.target.value))}
-            />
-          </div>
-          <Input
-            label="Chapter name"
-            value={chapterName}
-            onChange={(e) => setChapterName(e.target.value)}
-            placeholder="e.g. Process Scheduling"
-          />
-
-          {uploadError && <p className="text-sm text-danger">{uploadError}</p>}
-
-          <Button type="submit" disabled={!file || !classId} loading={submitting}>
-            Upload
-          </Button>
-        </form>
-
-        {jobStatus && (
-          <div className="mt-4 flex items-center gap-2 text-sm">
-            <span className="text-secondary">Ingestion status:</span>
-            <Badge tone={STATUS_TONE[jobStatus.status === "processing" ? "processing" : jobStatus.status]}>
-              {jobStatus.status === "processing" ? "Processing…" : jobStatus.status}
-            </Badge>
-            {jobStatus.status === "ready" && (
-              <span className="text-tertiary">
-                Ready — {jobStatus.chunk_count ?? 0} chunks indexed. You can now ask questions about this content.
-              </span>
-            )}
-            {jobStatus.status === "failed" && (
-              <span className="text-danger">{jobStatus.detail}</span>
-            )}
-          </div>
-        )}
-      </Card>
-
-      <Card>
-        <h2 className="font-semibold text-primary mb-3">Documents</h2>
-        {docsLoading ? (
-          <p className="text-sm text-tertiary">Loading…</p>
-        ) : documents.length === 0 ? (
-          <p className="text-sm text-tertiary">No documents uploaded yet for this class.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-tertiary border-b border-subtle">
-                <th className="py-2 font-medium">Title</th>
-                <th className="py-2 font-medium">Unit / Chapter</th>
-                <th className="py-2 font-medium">Status</th>
-                <th className="py-2 font-medium">Chunks</th>
-                <th className="py-2 font-medium"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {documents.map((doc) => (
-                <tr key={doc.id} className="border-b border-subtle">
-                  <td className="py-2 text-primary">{doc.title}</td>
-                  <td className="py-2 text-secondary">
-                    {doc.unit ?? "—"} / {doc.chapter ?? "—"}
-                  </td>
-                  <td className="py-2">
-                    <Badge tone={STATUS_TONE[doc.status]}>{doc.status}</Badge>
-                  </td>
-                  <td className="py-2 text-secondary">{doc.chunk_count}</td>
-                  <td className="py-2 text-right">
-                    <button
-                      onClick={() => handleDelete(doc.id)}
-                      className="text-xs text-danger hover:underline"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
-
-      {classId && <SyllabusChecklist classId={classId} documents={documents} />}
-    </div>
+      {job && (
+        <div className="mt-5 rounded-lg border border-subtle bg-surface-muted/50 p-4" aria-live="polite">
+          <p className="truncate text-sm font-medium text-primary">{job.title}</p>
+          <ol className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+            {["Uploaded", "Indexing", "Ready"].map((label, i) => {
+              const done = step > i || (step === 2 && i === 2);
+              const current = step === i;
+              return (
+                <li key={label} className="flex items-center gap-2">
+                  <span className={cn("inline-flex items-center gap-1 font-medium", done ? "text-success" : current ? "text-info" : "text-tertiary")}>
+                    {done ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : current ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <span className="h-3.5 w-3.5 rounded-full border border-strong" aria-hidden />}
+                    {label}
+                  </span>
+                  {i < 2 && <span className="h-px w-5 bg-strong" aria-hidden />}
+                </li>
+              );
+            })}
+          </ol>
+          {jobStatus?.status === "ready" && (
+            <p className="mt-2 text-xs text-secondary">{jobStatus.chunk_count ?? 0} passages indexed. Students can ask about this now.</p>
+          )}
+          {jobStatus?.status === "failed" && (
+            <p className="mt-2 flex items-start gap-1.5 text-xs text-danger">
+              <XCircle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+              {jobStatus.detail || "Indexing failed. Try re-uploading the file."}
+            </p>
+          )}
+          {jobError && !jobDone && <p className="mt-2 text-xs text-warning">Status check failed: {jobError}. Retrying…</p>}
+        </div>
+      )}
+    </Card>
   );
 }

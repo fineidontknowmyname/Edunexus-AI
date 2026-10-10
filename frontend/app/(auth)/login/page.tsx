@@ -3,10 +3,11 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useAuthActions } from "../../lib/hooks/useAuth";
-import { ApiError } from "../../lib/api";
-import { Card } from "../../components/ui/Card";
+import { errorMessage } from "../../lib/api";
 import { Input } from "../../components/ui/Input";
+import { PasswordInput } from "../../components/ui/PasswordInput";
 import { Button } from "../../components/ui/Button";
+import { Alert } from "../../components/ui/Feedback";
 
 export default function LoginPage() {
   const { login } = useAuthActions();
@@ -22,50 +23,47 @@ export default function LoginPage() {
     try {
       await login(email, password);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Login failed. Please try again.");
-    } finally {
+      setError(errorMessage(err, "Login failed. Please try again."));
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-app p-6">
-      <Card className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-primary mb-1">EduNexus AI</h1>
-        <p className="text-sm text-tertiary mb-6">Sign in to your account</p>
+    <div className="w-full max-w-sm">
+      <h1 className="text-2xl font-semibold tracking-tight text-primary">Welcome back</h1>
+      <p className="mt-1.5 text-sm text-tertiary">Sign in to continue to EduNexus AI.</p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Input
-            id="email"
-            label="Email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
-          <Input
-            id="password"
-            label="Password"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-          />
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <Button type="submit" loading={loading} className="w-full">
-            Sign in
-          </Button>
-        </form>
+      <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+        <Input
+          id="email"
+          label="Email"
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          placeholder="you@school.edu"
+        />
+        <PasswordInput
+          id="password"
+          label="Password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+        />
+        {error && <Alert tone="danger">{error}</Alert>}
+        <Button type="submit" size="lg" loading={loading} className="mt-2 w-full">
+          {loading ? "Signing in…" : "Sign in"}
+        </Button>
+      </form>
 
-        <p className="text-sm text-tertiary mt-4 text-center">
-          Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-accent-secondary hover:underline">
-            Register
-          </Link>
-        </p>
-      </Card>
-    </main>
+      <p className="mt-6 text-center text-sm text-tertiary">
+        New to EduNexus?{" "}
+        <Link href="/register" className="font-medium text-accent-secondary hover:underline">
+          Create an account
+        </Link>
+      </p>
+    </div>
   );
 }

@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from backend.llm.prompts import MISCONCEPTION_PROMPT
-from backend.models.db import Misconception, MisconceptionRule
+from backend.models.db import Class, Misconception, MisconceptionRule
 
 MISCONCEPTION_MAP: dict[str, list[dict[str, Any]]] = {
     "SJF": [
@@ -209,9 +209,9 @@ async def detect_misconception_ai(
     )
 
     provider, model_idx = get_llm_provider()
-    print(f"[MISCONCEPTION] No rule-map match — falling back to AI evaluation (~175 tokens)")
+    print("[MISCONCEPTION] No rule-map match — falling back to AI evaluation")
     try:
-        response_text = await provider.generate(prompt, max_tokens=100)
+        response_text = await provider.generate(prompt, max_tokens=350)
     except Exception as e:
         print(f"[MISCONCEPTION ERROR] AI fallback call failed: {e}")
         return None
@@ -263,10 +263,12 @@ def record_misconception(
         print(f"[MISCONCEPTION] Already logged and unresolved for student={student_id} topic={topic} — skipping duplicate")
         return
 
+    class_row = db.get(Class, class_id)
     db.add(
         Misconception(
             student_id=student_id,
             class_id=class_id,
+            subject_id=class_row.subject_id if class_row else None,
             topic=topic,
             description=description,
             source_quiz_attempt_id=source_quiz_attempt_id,
@@ -277,7 +279,7 @@ def record_misconception(
     print(f"[MISCONCEPTION SUCCESS] Logged for student={student_id} topic={topic}: {description}")
 
 
-def resolve_misconceptions_for_correct_answer(db: Session, student_id: str, class_id: str, topic: str) -> None:
+def resolve_misconceptions_for_topic(db: Session, student_id: str, class_id: str, topic: str, reason: str) -> int:
     updated = (
         db.query(Misconception)
         .filter(
@@ -286,8 +288,13 @@ def resolve_misconceptions_for_correct_answer(db: Session, student_id: str, clas
             Misconception.topic == topic,
             Misconception.resolved == False,  # noqa: E712
         )
-        .update({"resolved": True})
+        .update({"resolved": True}, synchronize_session=False)
     )
     if updated:
         db.commit()
-        print(f"[MISCONCEPTION] Resolved {updated} misconception(s) for student={student_id} topic={topic} (correct answer given)")
+        print(f"[MISCONCEPTION] Resolved {updated} misconception(s) for student={student_id} topic={topic} ({reason})")
+    return updated
+
+
+def resolve_misconceptions_for_correct_answer(db: Session, student_id: str, class_id: str, topic: str) -> int:
+    return resolve_misconceptions_for_topic(db, student_id, class_id, topic, "correct answer given")

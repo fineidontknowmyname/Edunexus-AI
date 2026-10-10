@@ -167,6 +167,7 @@ class RecommendationRead(BaseModel):
     routing: str
     learning_tag: str | None
     mode: str
+    reason: str | None = None
     sections: list[dict[str, Any]] = []
     videos: list[dict[str, Any]] = []
     socratic_seed_message: str | None = None
@@ -259,8 +260,9 @@ class ChatSessionDetail(ChatSessionRead):
 class ChatRequest(BaseModel):
     session_id: UUID | None = None
     class_id: UUID | None = None
-    message: str = Field(min_length=1)
+    message: str = Field(min_length=1, max_length=4000)
     mode: SessionMode = SessionMode.study
+    topic: str | None = Field(default=None, max_length=500)
 
 
 class ChatMessageFlag(BaseModel):

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from backend.api.dependencies import CurrentUser
 from backend.core import cookies
 from backend.core.database import get_db
-from backend.core.rate_limit import rate_limit
+from backend.core.rate_limit import check, hit, rate_limit
 from backend.core.security import create_access_token
 from backend.models import schemas
 from backend.services import auth_service
@@ -19,6 +19,11 @@ DbDep = Annotated[Session, Depends(get_db)]
 RegisterRateLimit = Depends(rate_limit("auth-register", max_requests=5, window_seconds=60))
 LoginRateLimit = Depends(rate_limit("auth-login", max_requests=10, window_seconds=60))
 RefreshRateLimit = Depends(rate_limit("auth-refresh", max_requests=20, window_seconds=60))
+FAILED_LOGINS_PER_ACCOUNT = 8
+FAILED_LOGIN_WINDOW_SECONDS = 900
+LogoutRateLimit = Depends(rate_limit("auth-logout", max_requests=20, window_seconds=60))
+PasswordRateLimit = Depends(rate_limit("auth-change-password", max_requests=5, window_seconds=300))
+ProfileRateLimit = Depends(rate_limit("auth-profile", max_requests=20, window_seconds=60))
 
 
 @router.post("/register", response_model=schemas.UserRead, status_code=201, dependencies=[RegisterRateLimit])
@@ -34,7 +39,14 @@ def register(payload: schemas.UserCreate, db: DbDep):
 
 @router.post("/login", response_model=schemas.LoginResponse, dependencies=[LoginRateLimit])
 def login(payload: schemas.UserLogin, db: DbDep, response: Response):
-    result = auth_service.login_user(db=db, email=payload.email, password=payload.password)
+    account = payload.email.lower()
+    check("auth-login-failures", account, FAILED_LOGINS_PER_ACCOUNT, FAILED_LOGIN_WINDOW_SECONDS)
+    try:
+        result = auth_service.login_user(db=db, email=payload.email, password=payload.password)
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            hit("auth-login-failures", account, FAILED_LOGINS_PER_ACCOUNT, FAILED_LOGIN_WINDOW_SECONDS)
+        raise
     user = result["user"]
     csrf_token = secrets.token_urlsafe(32)
     cookies.set_auth_cookies(
@@ -56,7 +68,7 @@ def refresh(request: Request, response: Response, db: DbDep):
     return {"user": user}
 
 
-@router.post("/logout", response_model=schemas.MessageResponse)
+@router.post("/logout", response_model=schemas.MessageResponse, dependencies=[LogoutRateLimit])
 def logout(request: Request, response: Response, db: DbDep):
     raw_refresh = request.cookies.get(cookies.REFRESH_COOKIE)
     if raw_refresh is not None:
@@ -70,17 +82,23 @@ def me(current_user: CurrentUser):
     return current_user
 
 
-@router.patch("/me", response_model=schemas.UserRead)
+@router.patch("/me", response_model=schemas.UserRead, dependencies=[ProfileRateLimit])
 def update_me(payload: schemas.ProfileUpdate, db: DbDep, current_user: CurrentUser):
     return auth_service.update_profile(db=db, user=current_user, full_name=payload.full_name)
 
 
-@router.post("/change-password", response_model=schemas.MessageResponse)
-def change_password(payload: schemas.ChangePasswordRequest, db: DbDep, current_user: CurrentUser):
+@router.post("/change-password", response_model=schemas.MessageResponse, dependencies=[PasswordRateLimit])
+def change_password(
+    payload: schemas.ChangePasswordRequest, db: DbDep, current_user: CurrentUser, response: Response
+):
     auth_service.change_password(
         db=db,
         user=current_user,
         current_password=payload.current_password,
         new_password=payload.new_password,
     )
-    return {"message": "Password changed successfully."}
+    access_token, refresh_token = auth_service.issue_session(db, current_user)
+    cookies.set_auth_cookies(
+        response, access_token, refresh_token, secrets.token_urlsafe(32), current_user.role.value
+    )
+    return {"message": "Password changed. Other devices have been signed out."}

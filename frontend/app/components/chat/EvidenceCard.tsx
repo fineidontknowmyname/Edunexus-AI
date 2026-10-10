@@ -1,14 +1,17 @@
+import { BookOpenCheck, Globe } from "lucide-react";
 import type { SourceType } from "../../lib/types";
 import { Badge } from "../ui/Badge";
 
 export function EvidenceCard({ sourceType, citationCount }: { sourceType: SourceType; citationCount: number }) {
   if (sourceType === "curriculum") {
     return (
-      <div className="mt-2 flex items-center gap-2 text-xs">
-        <Badge tone="green">From your curriculum</Badge>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <Badge tone="green" icon={<BookOpenCheck className="h-3 w-3" aria-hidden />}>
+          From your curriculum
+        </Badge>
         {citationCount > 0 && (
           <span className="text-tertiary">
-            {citationCount} source{citationCount === 1 ? "" : "s"} referenced
+            Grounded in {citationCount} passage{citationCount === 1 ? "" : "s"} from your course materials
           </span>
         )}
       </div>
@@ -16,9 +19,11 @@ export function EvidenceCard({ sourceType, citationCount }: { sourceType: Source
   }
 
   return (
-    <div className="mt-2 flex items-center gap-2 text-xs">
-      <Badge tone="amber">General knowledge</Badge>
-      <span className="text-tertiary">Not in your uploaded materials — verify independently</span>
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <Badge tone="amber" icon={<Globe className="h-3 w-3" aria-hidden />}>
+        General knowledge
+      </Badge>
+      <span className="text-tertiary">Not found in your course materials, so double-check it</span>
     </div>
   );
 }

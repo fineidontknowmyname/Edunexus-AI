@@ -4,7 +4,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from backend.models.db import Class, Document, Quiz, QuizAttempt, QuizQuestion, ReviewStatus
+from backend.models.db import Class, Quiz, QuizQuestion, ReviewStatus
 from backend.services import context_service, misconception_service, rag_service, routing_service
 
 QUIZ_GENERATION_PROMPT_TEMPLATE = (
@@ -54,10 +54,8 @@ async def generate_quiz(
 
     seed_vector = embed_single(f"{subject or 'curriculum'} chapter {chapter}", model=embedding_model)
     chunks_with_sim = rag_service.retrieve_chunks(
-        db, subject, seed_vector, top_k=6, chapter_scope=[chapter], subject_id=subject_id
+        db, subject, seed_vector, top_k=6, chapter_scope=[chapter], subject_id=subject_id, class_id=class_id
     )
-    if not chunks_with_sim:
-        chunks_with_sim = rag_service.retrieve_chunks(db, subject, seed_vector, top_k=6, subject_id=subject_id)
 
     content = "\n\n".join(chunk.text for chunk, _sim in chunks_with_sim)
     if not content.strip():
@@ -153,25 +151,35 @@ TOPIC_PASS_THRESHOLD = 0.5
 def available_questions_for_student(
     db: Session, quiz: Quiz, student_id: str, class_id: str
 ) -> list[QuizQuestion]:
-    approved_questions = [q for q in quiz.questions if q.status == ReviewStatus.approved]
+    locked = routing_service.intervene_topics(db, student_id, class_id)
     return [
         q
-        for q in approved_questions
-        if routing_service.get_topic_routing(db, student_id, class_id, q.topic or "General")
-        != routing_service.INTERVENE
+        for q in quiz.questions
+        if q.status == ReviewStatus.approved and (q.topic or "General") not in locked
     ]
 
 
+def _normalize_answer(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return " ".join(str(value).split()).casefold()
+
+
 async def score_attempt(
-    db: Session, quiz: Quiz, student_id: str, class_id: str, answers: dict[str, str]
+    db: Session,
+    quiz: Quiz,
+    student_id: str,
+    class_id: str,
+    answers: dict[str, str],
+    source_attempt_id: str | None = None,
 ) -> dict[str, Any]:
     print(f"[QUIZ SCORE] Scoring attempt for quiz={quiz.id} student={student_id}")
 
     approved_questions = available_questions_for_student(db, quiz, student_id, class_id)
     if not approved_questions:
         raise ValueError(
-            "No questions are available on this quiz right now — topics with an unresolved "
-            "misconception must be worked through before they're quizzed again."
+            "No questions are available on this quiz right now. Topics with an unresolved "
+            "misconception are unlocked by working through them in a guided (Socratic) chat session."
         )
 
     class_row = db.get(Class, class_id)
@@ -184,7 +192,7 @@ async def score_attempt(
 
     for question in approved_questions:
         chosen = answers.get(str(question.id))
-        is_correct = chosen == question.correct_answer
+        is_correct = chosen is not None and _normalize_answer(chosen) == _normalize_answer(question.correct_answer)
         topic = question.topic or "General"
 
         topic_total[topic] = topic_total.get(topic, 0) + 1
@@ -208,7 +216,9 @@ async def score_attempt(
                 if ai_result:
                     description = ai_result["description"]
             if description:
-                misconception_service.record_misconception(db, student_id, class_id, topic, description, None)
+                misconception_service.record_misconception(
+                    db, student_id, class_id, topic, description, source_attempt_id
+                )
 
         per_question_results.append({
             "question_id": str(question.id),

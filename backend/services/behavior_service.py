@@ -26,7 +26,9 @@ _FOLLOW_UP_PATTERNS = re.compile(
 FOLLOW_UP_MAX_WORDS = 8
 
 
-def classify_question_type(message: str) -> str:
+def classify_question_type(message: str) -> str | None:
+    if not message or not message.strip():
+        return None
     if _EXAMPLE_PATTERNS.search(message):
         return "example"
     if _DIRECT_PATTERNS.search(message):
@@ -67,6 +69,9 @@ def record_turn(
 ) -> str | None:
     if not topic or not subject_id:
         return None
+    qt = classify_question_type(message)
+    if qt is None:
+        return None
 
     row = (
         db.query(TopicBehavior)
@@ -94,7 +99,6 @@ def record_turn(
     if is_follow_up(message, last_role):
         row.follow_up_count += 1
 
-    qt = classify_question_type(message)
     if qt == "example":
         row.qt_example += 1
     elif qt == "direct":

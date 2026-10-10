@@ -26,7 +26,7 @@ async def verify(answer_text: str, chunk_texts: list[str]) -> bool:
 
     provider, model_idx = model_pool.get_provider()
     try:
-        out = await provider.generate(prompt, max_tokens=20)
+        out = await provider.generate(prompt, max_tokens=250)
     except Exception as exc:  # noqa: BLE001
         print(f"[VERIFY] check skipped (LLM error): {exc}")
         return True

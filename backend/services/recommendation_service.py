@@ -6,15 +6,17 @@ import httpx
 from sqlalchemy.orm import Session
 
 from backend.core.config import get_settings
-from backend.models.db import Chunk, Subject, VideoRecommendationCache
+from backend.models.db import Chunk, Document, MasteryTrend, Subject, TopicMastery, VideoRecommendationCache
 from backend.services import behavior_service, routing_service, topic_graph_service
 
 VIDEO_CACHE_TTL_DAYS = 30
 GUIDED_LEARNING_TAGS = {"needs-repetition"}
+STALLED_MIN_ATTEMPTS = 2
+STALLED_MASTERY_CEILING = 0.6
 
 
 def _curriculum_sections(
-    db: Session, subject_id: str, topic: str, embedding_model: Any, top_k: int = 5
+    db: Session, class_id: str, subject_id: str, topic: str, embedding_model: Any, top_k: int = 5
 ) -> list[dict[str, Any]]:
     names, vectors = topic_graph_service.topic_anchors(db, subject_id, embedding_model)
     if topic not in names:
@@ -24,7 +26,13 @@ def _curriculum_sections(
     distance_expr = Chunk.embedding.cosine_distance(anchor_vector)
     rows = (
         db.query(Chunk, distance_expr.label("distance"))
-        .filter(Chunk.subject_id == subject_id, Chunk.topic == topic)
+        .join(Document, Chunk.document_id == Document.id)
+        .filter(
+            Document.class_id == class_id,
+            Document.deleted == False,  # noqa: E712
+            Chunk.subject_id == subject_id,
+            Chunk.topic == topic,
+        )
         .order_by(distance_expr)
         .limit(top_k)
         .all()
@@ -98,13 +106,32 @@ def get_recommendation(
 ) -> dict[str, Any]:
     routing = routing_service.get_topic_routing(db, student_id, class_id, topic)
     learning_tag = behavior_service.get_learning_tag(db, student_id, subject_id, topic) if subject_id else None
+    mastery = (
+        db.query(TopicMastery)
+        .filter(TopicMastery.student_id == student_id, TopicMastery.class_id == class_id, TopicMastery.topic == topic)
+        .first()
+    )
+    stalled = (
+        mastery is not None
+        and mastery.attempt_count >= STALLED_MIN_ATTEMPTS
+        and mastery.mastery_score < STALLED_MASTERY_CEILING
+        and mastery.trend in (MasteryTrend.stable, MasteryTrend.declining)
+    )
 
-    if learning_tag in GUIDED_LEARNING_TAGS:
-        print(f"[RECOMMENDATION] student={student_id} topic={topic!r} tag={learning_tag!r} -> ai_session")
+    reason = None
+    if routing == routing_service.INTERVENE:
+        reason = "There's an open misconception on this topic. A guided session will unlock it for quizzes again."
+    elif learning_tag in GUIDED_LEARNING_TAGS:
+        reason = "You've been coming back to this topic, so a step-by-step guided session should help."
+    elif stalled:
+        reason = "Your scores on this topic haven't moved after a few attempts, so let's work through it together."
+
+    if reason is not None:
         return {
             "routing": routing,
             "learning_tag": learning_tag,
             "mode": "ai_session",
+            "reason": reason,
             "sections": [],
             "videos": [],
             "socratic_seed_message": topic,
@@ -114,17 +141,14 @@ def get_recommendation(
     videos: list[dict[str, Any]] = []
     if subject_id:
         subject = db.get(Subject, subject_id)
-        sections = _curriculum_sections(db, subject_id, topic, embedding_model)
+        sections = _curriculum_sections(db, class_id, subject_id, topic, embedding_model)
         videos = _get_cached_videos(db, subject_id, subject.name if subject else topic, topic)
 
-    print(
-        f"[RECOMMENDATION] student={student_id} topic={topic!r} tag={learning_tag!r} -> "
-        f"static ({len(sections)} sections, {len(videos)} videos)"
-    )
     return {
         "routing": routing,
         "learning_tag": learning_tag,
         "mode": "static",
+        "reason": None,
         "sections": sections,
         "videos": videos,
         "socratic_seed_message": None,

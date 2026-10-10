@@ -2,47 +2,40 @@ services:
   - type: web
     name: edunexus-backend
     runtime: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: uvicorn backend.main:app --app-dir . --host 0.0.0.0 --port $PORT
+    plan: free
+    region: singapore
+    buildCommand: >-
+      pip install -r backend/requirements.txt &&
+      python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/all-MiniLM-L6-v2')"
+    startCommand: >-
+      cd backend && alembic upgrade head && cd .. &&
+      uvicorn backend.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /api/ping
+    autoDeploy: true
     envVars:
+      - key: ENVIRONMENT
+        value: production
       - key: DATABASE_URL
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      - key: GROQ_PRIMARY_MODEL
-        value: openai/gpt-oss-20b
-      - key: GROQ_SECONDARY_MODEL
-        value: openai/gpt-oss-120b
-      - key: LLM_PROVIDER
-        value: groq
-      - key: EMBEDDING_MODEL
-        value: all-MiniLM-L6-v2
+      - key: YOUTUBE_API_KEY
+        sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: ENVIRONMENT
-        value: production
       - key: CORS_ORIGINS
         sync: false
-
-  - type: worker
-    name: edunexus-ingestion-worker
-    runtime: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: python -m backend.worker
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
+      - key: LLM_PROVIDER
+        value: groq
       - key: GROQ_PRIMARY_MODEL
         value: openai/gpt-oss-20b
       - key: GROQ_SECONDARY_MODEL
         value: openai/gpt-oss-120b
-      - key: LLM_PROVIDER
-        value: groq
-      - key: EMBEDDING_MODEL
-        value: all-MiniLM-L6-v2
-      - key: ENVIRONMENT
-        value: production
+      - key: RUN_INGESTION_IN_PROCESS
+        value: "true"
       - key: INGESTION_POLL_INTERVAL_SECONDS
-        value: "45"
+        value: "300"
+      - key: MAX_UPLOAD_MB
+        value: "20"
+      - key: FASTEMBED_CACHE_PATH
+        value: /opt/render/project/src/.fastembed_cache

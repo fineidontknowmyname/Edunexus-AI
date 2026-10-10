@@ -70,7 +70,7 @@ def register_user(
     }
 
 
-def _create_refresh_token(db: Session, user_id: UUID) -> str:
+def _create_refresh_token(db: Session, user_id: UUID, commit: bool = True) -> str:
     raw = generate_refresh_token()
     db.add(
         RefreshToken(
@@ -79,7 +79,8 @@ def _create_refresh_token(db: Session, user_id: UUID) -> str:
             user_id=user_id,
         )
     )
-    db.commit()
+    if commit:
+        db.commit()
     return raw
 
 
@@ -128,10 +129,11 @@ def login_user(db: Session, email: str, password: str) -> dict:
 def rotate_refresh_token(db: Session, raw_token: str) -> tuple[User, str]:
     token_hash = hash_refresh_token(raw_token)
     row: RefreshToken | None = (
-        db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+        db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).with_for_update().first()
     )
 
     if row is None or row.expires_at < datetime.utcnow():
+        db.rollback()
         print("[AUTH ERROR] Refresh rejected — token missing or expired")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session.")
 
@@ -145,12 +147,13 @@ def rotate_refresh_token(db: Session, raw_token: str) -> tuple[User, str]:
 
     user = db.get(User, row.user_id)
     if user is None or not user.is_active:
+        db.rollback()
         print(f"[AUTH ERROR] Refresh rejected — user {row.user_id} not found or inactive")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session.")
 
     row.revoked_at = datetime.utcnow()
+    new_raw = _create_refresh_token(db, user.id, commit=False)
     db.commit()
-    new_raw = _create_refresh_token(db, user.id)
     print(f"[AUTH SUCCESS] Refresh OK for user {user.id}")
     return user, new_raw
 
@@ -187,7 +190,14 @@ def change_password(db: Session, user: User, current_password: str, new_password
 
     user.hashed_password = hash_password(new_password)
     db.commit()
-    print(f"[AUTH SUCCESS] Password changed for user {user.id}")
+    _revoke_all_for_user(db, user.id)
+    print(f"[AUTH SUCCESS] Password changed for user {user.id}; other sessions signed out")
+
+
+def issue_session(db: Session, user: User) -> tuple[str, str]:
+    access_token = create_access_token(user_id=user.id, role=user.role.value)
+    refresh_token = _create_refresh_token(db, user.id)
+    return access_token, refresh_token
 
 
 def get_user_by_id(db: Session, user_id: UUID) -> User:
