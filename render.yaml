@@ -32,7 +32,7 @@ services:
       - key: GROQ_SECONDARY_MODEL
         value: openai/gpt-oss-120b
       - key: RUN_INGESTION_IN_PROCESS
-        value: "true"
+        value: "false"
       - key: INGESTION_POLL_INTERVAL_SECONDS
         value: "300"
       - key: MAX_UPLOAD_MB
