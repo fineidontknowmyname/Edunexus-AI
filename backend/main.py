@@ -26,6 +26,7 @@ from backend.core.config import get_cors_origins, get_settings, validate_product
 from backend.core.csrf import CSRFMiddleware
 from backend.core.database import engine
 from backend.core.security_headers import SecurityHeadersMiddleware
+from backend.core.trailing_slash import TrailingSlashMiddleware
 from backend.pipeline.embedder import get_embedding_model
 from backend.services import ingestion_runner
 
@@ -67,6 +68,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# TrailingSlashMiddleware is added last so it becomes the *outermost* layer.
+# Starlette builds the stack in reverse-add order, meaning the last
+# add_middleware() call wraps all earlier ones.  The CSRF middleware therefore
+# receives an already-normalised path.
+app.add_middleware(TrailingSlashMiddleware)
 
 app.include_router(auth_router,      prefix="/api/v1")
 app.include_router(chat_router,      prefix="/api/v1")
