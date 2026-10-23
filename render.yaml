@@ -3,7 +3,7 @@ services:
     name: edunexus-backend
     runtime: python
     plan: free
-    region: singapore
+    region: ohio
     buildCommand: >-
       pip install -r backend/requirements.txt &&
       python -c "import os; from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/all-MiniLM-L6-v2', cache_dir=os.environ.get('FASTEMBED_CACHE_PATH', '/opt/render/project/src/.fastembed_cache'))"

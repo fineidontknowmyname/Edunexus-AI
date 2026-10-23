@@ -24,6 +24,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from fastapi.middleware.cors import CORSMiddleware
+
 from backend.core.trailing_slash import TrailingSlashMiddleware
 
 
@@ -33,7 +35,7 @@ from backend.core.trailing_slash import TrailingSlashMiddleware
 
 def _make_app() -> FastAPI:
     """Return a small FastAPI app that mirrors the relevant EduNexus routes."""
-    app = FastAPI()
+    app = FastAPI(redirect_slashes=False)
 
     # Route declared WITHOUT trailing slash (mirrors /api/v1/auth/register).
     @app.post("/auth/register")
@@ -44,6 +46,9 @@ def _make_app() -> FastAPI:
     @app.get("/classes/")
     def list_classes():
         return {"route": "classes"}
+
+    # Add other middlewares below TrailingSlashMiddleware to mirror production stack.
+    app.add_middleware(CORSMiddleware, allow_origins=["*"])
 
     # Add the middleware as the outermost layer (last add_middleware call).
     app.add_middleware(TrailingSlashMiddleware)

@@ -12,13 +12,8 @@ handler returns) at the URL it originally requested.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from starlette.routing import Match
 from starlette.types import ASGIApp, Receive, Scope, Send
-
-if TYPE_CHECKING:
-    pass
 
 
 class TrailingSlashMiddleware:
@@ -28,59 +23,44 @@ class TrailingSlashMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        # Only touch HTTP/HTTPS requests that carry a path.
-        if scope["type"] not in ("http", "websocket"):
+        # Only touch HTTP/WebSocket requests that carry a non-root path.
+        if scope["type"] not in ("http", "websocket") or scope.get("path") in (None, "", "/"):
             await self.app(scope, receive, send)
             return
 
-        path: str = scope.get("path", "")
+        path: str = scope["path"]
+        alt: str = path.rstrip("/") if path.endswith("/") else path + "/"
 
-        # Ask the router whether the current path is a full match.
-        # ``self.app`` is the Starlette/FastAPI application; its ``router``
-        # attribute holds the registered routes.
-        router = getattr(self.app, "router", None)
-        if router is None or not path:
+        # Retrieve router routes from scope["app"], self.app, or traversing inner apps.
+        routes = None
+        for candidate in (scope.get("app"), self.app):
+            curr = candidate
+            while curr is not None:
+                router = getattr(curr, "router", None)
+                if router is not None and getattr(router, "routes", None):
+                    routes = router.routes
+                    break
+                curr = getattr(curr, "app", None)
+            if routes:
+                break
+
+        if not routes:
             await self.app(scope, receive, send)
             return
 
-        # Build a minimal probe scope to check route matches without
-        # mutating the real scope yet.
-        def _matches(test_path: str) -> bool:
-            probe = {**scope, "path": test_path}
-            match, _ = router.routes and _best_match(router, probe) or (Match.NONE, None)
-            return match == Match.FULL
+        def exists(p: str) -> bool:
+            probe = {**scope, "path": p}
+            return any(r.matches(probe)[0] in (Match.FULL, Match.PARTIAL) for r in routes)
 
-        def _best_match(rtr, probe_scope):
-            """Return the best (match, child) across all routes."""
-            best = Match.NONE
-            for route in rtr.routes:
-                m, _ = route.matches(probe_scope)
-                if m == Match.FULL:
-                    return Match.FULL, route
-                if m == Match.PARTIAL:
-                    best = Match.PARTIAL
-            return best, None
-
-        current_matches = _matches(path)
-
-        if not current_matches:
-            # Try the opposite slash form.
-            if path.endswith("/"):
-                alt_path = path.rstrip("/") or "/"
+        if not exists(path) and exists(alt):
+            scope = dict(scope)
+            scope["path"] = alt
+            raw_path: bytes = scope.get("raw_path", path.encode())
+            # Replace only the path portion of raw_path (keep query string if present).
+            if b"?" in raw_path:
+                _, qs = raw_path.split(b"?", 1)
+                scope["raw_path"] = alt.encode() + b"?" + qs
             else:
-                alt_path = path + "/"
-
-            if _matches(alt_path):
-                # Rewrite path in scope so downstream sees the canonical form.
-                scope = dict(scope)
-                scope["path"] = alt_path
-                raw_path: bytes = scope.get("raw_path", path.encode())
-                # Replace only the path portion of raw_path (keep query string).
-                # raw_path may include the query string separated by b"?".
-                if b"?" in raw_path:
-                    _, qs = raw_path.split(b"?", 1)
-                    scope["raw_path"] = alt_path.encode() + b"?" + qs
-                else:
-                    scope["raw_path"] = alt_path.encode()
+                scope["raw_path"] = alt.encode()
 
         await self.app(scope, receive, send)
