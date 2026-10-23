@@ -135,6 +135,7 @@ class Class(Base):
     subject = Column(String(255), nullable=True)
     subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
     semester = Column(Integer, nullable=True)
+    join_code = Column(String(10), nullable=False, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     educator_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -146,6 +147,9 @@ class Class(Base):
 
 class ClassEnrollment(Base):
     __tablename__ = "class_enrollments"
+    __table_args__ = (
+        UniqueConstraint("class_id", "student_id", name="uq_class_enrollments_class_student"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=False)

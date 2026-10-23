@@ -19,8 +19,16 @@ export interface ClassRow {
   subject: string | null;
   subject_id: string | null;
   semester: number | null;
+  join_code?: string;
   created_at: string;
   educator_id: string;
+}
+
+export interface ClassBrowseRow {
+  id: string;
+  name: string;
+  subject: string | null;
+  semester: number | null;
 }
 
 export interface Category {

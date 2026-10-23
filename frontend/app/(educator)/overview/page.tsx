@@ -177,7 +177,7 @@ export default function OverviewPage() {
                       {[cls.subject, cls.semester ? `Semester ${cls.semester}` : null].filter(Boolean).join(" · ") || "No subject set"}
                     </p>
                   </div>
-                  {s && s.atRisk.length > 0 && <Badge tone="red" dot>{s.atRisk.length} at risk</Badge>}
+                  <div className="flex flex-col items-end gap-1">{s && s.atRisk.length > 0 && <Badge tone="red" dot>{s.atRisk.length} at risk</Badge>}{cls.join_code && <Badge tone="blue" className="font-mono text-[0.6875rem]">Code: {cls.join_code}</Badge>}</div>
                 </div>
                 {!s ? (
                   <SkeletonText lines={2} className="mt-4" />

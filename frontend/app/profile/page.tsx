@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, KeyRound, LogOut, School, UserRound } from "lucide-react";
+import { ArrowRight, KeyRound, LogOut, Plus, School, Trash2, UserRound } from "lucide-react";
 import { apiFetch, errorMessage } from "../lib/api";
 import { useAuth, useAuthActions } from "../lib/hooks/useAuth";
 import { useApi } from "../lib/hooks/useApi";
@@ -17,6 +17,8 @@ import { Alert, EmptyState, ErrorState, PageSkeleton, SkeletonText } from "../co
 import { PageContainer, PageHeader } from "../components/ui/PageHeader";
 import { StatCard } from "../components/ui/Stat";
 import { Avatar } from "../components/layout/UserMenu";
+import { ConfirmDialog, Modal } from "../components/ui/Modal";
+import { JoinClassPanel } from "../components/layout/JoinClassPanel";
 
 function NameForm({ user }: { user: User }) {
   const [fullName, setFullName] = useState(user.full_name);
@@ -126,6 +128,11 @@ export default function ProfilePage() {
   const { logout } = useAuthActions();
   const classes = useApi<ClassRow[]>(user ? "/classes/" : null);
 
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [leavingClass, setLeavingClass] = useState<ClassRow | null>(null);
+  const [leaveLoading, setLeaveLoading] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+
   if (loading) return <PageContainer width="narrow"><PageSkeleton cards={3} /></PageContainer>;
   if (!user) {
     return (
@@ -136,6 +143,30 @@ export default function ProfilePage() {
   }
 
   const isEducator = user.role === "educator";
+
+  async function handleConfirmLeave() {
+    if (!leavingClass) return;
+    setLeaveLoading(true);
+    setLeaveError(null);
+    try {
+      await apiFetch(`/classes/${leavingClass.id}/enroll`, { method: "DELETE" });
+      if (typeof window !== "undefined") {
+        try {
+          const active = localStorage.getItem("edunexus_active_class");
+          if (active === leavingClass.id) {
+            localStorage.removeItem("edunexus_active_class");
+            window.dispatchEvent(new Event("edunexus-active-class-change"));
+          }
+        } catch {}
+      }
+      setLeavingClass(null);
+      classes.reload();
+    } catch (err) {
+      setLeaveError(errorMessage(err, "Couldn't leave class."));
+    } finally {
+      setLeaveLoading(false);
+    }
+  }
 
   return (
     <PageContainer width="narrow">
@@ -169,7 +200,27 @@ export default function ProfilePage() {
       </div>
 
       <Card>
-        <CardHeader icon={<School className="h-4 w-4" />} title={isEducator ? "Classes you teach" : "Your classes"} />
+        <CardHeader
+          icon={<School className="h-4 w-4" />}
+          title={isEducator ? "Classes you teach" : "Your classes"}
+          actions={
+            !isEducator && classes.data && classes.data.length > 0 ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Plus className="h-3.5 w-3.5" aria-hidden />}
+                onClick={() => setJoinOpen(true)}
+              >
+                Join class
+              </Button>
+            ) : undefined
+          }
+        />
+        {leaveError && (
+          <Alert tone="danger" className="mb-4" onDismiss={() => setLeaveError(null)}>
+            {leaveError}
+          </Alert>
+        )}
         {classes.error ? (
           <ErrorState message={classes.error} onRetry={classes.reload} />
         ) : !classes.data ? (
@@ -179,29 +230,63 @@ export default function ProfilePage() {
             compact
             title={isEducator ? "You haven't created a class yet" : "You're not enrolled in a class yet"}
             action={
-              <Link href={isEducator ? "/upload" : "/chat"} className="text-sm font-medium text-accent-secondary hover:underline">
-                {isEducator ? "Create a class" : "Join a class"}
-              </Link>
+              isEducator ? (
+                <Link href="/upload" className="text-sm font-medium text-accent-secondary hover:underline">
+                  Create a class
+                </Link>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Plus className="h-4 w-4" aria-hidden />}
+                  onClick={() => setJoinOpen(true)}
+                >
+                  Join a class
+                </Button>
+              )
             }
           />
         ) : (
-          <ul className="flex flex-col divide-y divide-subtle">
-            {classes.data.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-primary">{c.name}</p>
-                  {c.subject && <p className="truncate text-xs text-tertiary">{c.subject}</p>}
-                </div>
-                <Link
-                  href={isEducator ? `/insights?class_id=${c.id}` : "/chat"}
-                  className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-accent-secondary hover:underline"
-                >
-                  {isEducator ? "Insights" : "Open chat"}
-                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-col gap-3">
+            <ul className="flex flex-col divide-y divide-subtle">
+              {classes.data.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-primary">{c.name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {c.subject && <span className="truncate text-xs text-tertiary">{c.subject}</span>}
+                      {isEducator && c.join_code && (
+                        <Badge tone="blue" className="font-mono text-[0.6875rem]">
+                          Join code: {c.join_code}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={isEducator ? `/insights?class_id=${c.id}` : "/chat"}
+                      className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-accent-secondary hover:underline"
+                    >
+                      {isEducator ? "Insights" : "Open chat"}
+                      <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                    </Link>
+                    {!isEducator && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-tertiary hover:text-danger hover:bg-danger/10"
+                        onClick={() => setLeavingClass(c)}
+                        aria-label={`Leave ${c.name}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                        <span className="hidden sm:inline">Leave</span>
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </Card>
 
@@ -210,6 +295,38 @@ export default function ProfilePage() {
           Sign out
         </Button>
       </div>
+
+      <Modal
+        open={joinOpen}
+        onClose={() => setJoinOpen(false)}
+        title="Join a class"
+        description="Select a class and enter the join code provided by your teacher."
+      >
+        <JoinClassPanel
+          compact
+          onJoined={() => {
+            classes.reload();
+            setJoinOpen(false);
+          }}
+        />
+      </Modal>
+
+      <ConfirmDialog
+        open={leavingClass !== null}
+        title="Leave class?"
+        description={
+          leavingClass
+            ? `Are you sure you want to leave "${leavingClass.name}"? Your quizzes, progress and chat history will be kept, and you can re-enroll anytime with the teacher's code.`
+            : undefined
+        }
+        confirmLabel="Leave class"
+        tone="danger"
+        loading={leaveLoading}
+        onConfirm={handleConfirmLeave}
+        onCancel={() => {
+          if (!leaveLoading) setLeavingClass(null);
+        }}
+      />
     </PageContainer>
   );
 }

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import case, func, or_, true
+from sqlalchemy import case, func, or_, select, true
 from sqlalchemy.orm import Session
 
 from backend.models.db import (
@@ -29,6 +29,9 @@ def _subject_scope(column, subject_id):
 
 
 def get_class_heatmap(db: Session, class_id: str, subject_id: str | None = None) -> list[dict[str, Any]]:
+    # Only include students who are *currently* enrolled so that a student who
+    # left the class no longer skews the educator's heatmap.
+    enrolled_ids = select(ClassEnrollment.student_id).where(ClassEnrollment.class_id == class_id)
     rows = (
         db.query(
             TopicMastery.topic,
@@ -36,7 +39,11 @@ def get_class_heatmap(db: Session, class_id: str, subject_id: str | None = None)
             func.count(func.distinct(TopicMastery.student_id)).label("student_count"),
             func.sum(case((TopicMastery.mastery_score < STRUGGLING_THRESHOLD, 1), else_=0)).label("struggling"),
         )
-        .filter(TopicMastery.class_id == class_id, _subject_scope(TopicMastery.subject_id, subject_id))
+        .filter(
+            TopicMastery.class_id == class_id,
+            TopicMastery.student_id.in_(enrolled_ids),
+            _subject_scope(TopicMastery.subject_id, subject_id),
+        )
         .group_by(TopicMastery.topic)
         .all()
     )
@@ -54,6 +61,9 @@ def get_class_heatmap(db: Session, class_id: str, subject_id: str | None = None)
 
 
 def get_common_misconceptions(db: Session, class_id: str, subject_id: str | None = None) -> list[dict[str, Any]]:
+    # Only include students who are *currently* enrolled so that a student who
+    # left the class no longer appears in the educator's misconception summary.
+    enrolled_ids = select(ClassEnrollment.student_id).where(ClassEnrollment.class_id == class_id)
     rows = (
         db.query(
             Misconception.topic,
@@ -62,6 +72,7 @@ def get_common_misconceptions(db: Session, class_id: str, subject_id: str | None
         )
         .filter(
             Misconception.class_id == class_id,
+            Misconception.student_id.in_(enrolled_ids),
             Misconception.resolved == False,  # noqa: E712
             _subject_scope(Misconception.subject_id, subject_id),
         )

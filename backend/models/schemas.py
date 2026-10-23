@@ -63,13 +63,36 @@ class ClassCreate(BaseModel):
 
 
 class ClassRead(_OrmBase):
+    """Full class representation returned to educators (includes join_code and educator_id)."""
+
     id: UUID
     name: str
     subject: str | None
     subject_id: UUID | None = None
     semester: int | None
+    join_code: str
     created_at: datetime
     educator_id: UUID
+
+
+class ClassBrowseRead(_OrmBase):
+    """Stripped representation returned to students browsing classes.
+
+    Omits educator_id (unnecessary data exposure) and join_code (the code must
+    be obtained from the educator out-of-band; sending it in the browse list
+    would defeat the access-control purpose).
+    """
+
+    id: UUID
+    name: str
+    subject: str | None
+    semester: int | None
+
+
+class EnrollRequest(BaseModel):
+    """Body required when a student enrolls in a class."""
+
+    join_code: str
 
 
 class CategoryCreate(BaseModel):
