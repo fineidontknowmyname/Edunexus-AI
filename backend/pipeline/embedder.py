@@ -1,7 +1,10 @@
 import logging
+import os
 import time
 from functools import lru_cache
 from typing import Any
+
+from backend.core.config import get_settings
 
 try:
     from fastembed import TextEmbedding
@@ -23,10 +26,12 @@ def get_embedding_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
 
     try:
         t0 = time.time()
-        model = TextEmbedding(model_name=model_name)
+        settings = get_settings()
+        cache_dir = settings.fastembed_cache_path or os.environ.get("FASTEMBED_CACHE_PATH") or None
+        model = TextEmbedding(model_name=model_name, cache_dir=cache_dir)
         elapsed = time.time() - t0
-        print(f"[EMBEDDER MODEL SUCCESS] Model '{model_name}' loaded in {elapsed:.2f}s")
-        logger.info("Embedding model '%s' loaded in %.2fs", model_name, elapsed)
+        print(f"[EMBEDDER MODEL SUCCESS] Model '{model_name}' loaded in {elapsed:.2f}s (cache_dir={cache_dir or 'default'})")
+        logger.info("Embedding model '%s' loaded in %.2fs (cache_dir=%s)", model_name, elapsed, cache_dir)
         return model
     except Exception as e:
         print(f"[EMBEDDER ERROR] Failed to load model '{model_name}': {e}")

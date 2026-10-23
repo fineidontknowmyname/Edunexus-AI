@@ -6,7 +6,7 @@ services:
     region: singapore
     buildCommand: >-
       pip install -r backend/requirements.txt &&
-      python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/all-MiniLM-L6-v2')"
+      python -c "import os; from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/all-MiniLM-L6-v2', cache_dir=os.environ.get('FASTEMBED_CACHE_PATH', '/opt/render/project/src/.fastembed_cache'))"
     startCommand: >-
       alembic -c backend/alembic.ini upgrade head &&
       uvicorn backend.main:app --host 0.0.0.0 --port $PORT

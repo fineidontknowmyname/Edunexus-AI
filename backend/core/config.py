@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     run_ingestion_in_process: bool = True
     ingestion_poll_interval_seconds: int = 300
     max_upload_mb: int = 20
+    fastembed_cache_path: str = ""
 
     model_config = SettingsConfigDict(
         env_file=_ENV_FILE,
