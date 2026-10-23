@@ -1,0 +1,568 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-23T10:15:00.754131+00:00",
+  "application": "EduNexus (FastAPI backend + Next.js frontend)",
+  "measurement_scope": "HTTP timings and outcomes are measured at this client. For deployed runs, no local CPU/RAM samples are used as a proxy for Render. Render resource metrics appear only when supplied through --render-metrics-csv.",
+  "configuration": {
+    "urls": [
+      "https://edunexusai-backend-fzqh.onrender.com/api/ping",
+      "https://edunexusai-backend-fzqh.onrender.com/api/health"
+    ],
+    "timeout_seconds": 10,
+    "warm_requests": 3,
+    "requested_rates_rps": [
+      1
+    ],
+    "concurrency": 2,
+    "stage_duration_seconds": 15,
+    "concurrency_levels": null,
+    "per_user_rps": 0.2,
+    "stability_duration_seconds": 0,
+    "stability_concurrency": 1,
+    "cold_start_idle_minutes": 0,
+    "render_service_id": null,
+    "client_platform": "Windows-11-10.0.26300-SP0",
+    "target_is_deployed": true
+  },
+  "cold_start": {
+    "first_request": {
+      "latency_ms": 1745.843,
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    "warm_mean_ms": 597.572,
+    "warm_p50_ms": 451.478,
+    "warm_samples": [
+      {
+        "latency_ms": 451.478,
+        "status": 200,
+        "ok": true,
+        "error": null
+      },
+      {
+        "latency_ms": 406.005,
+        "status": 200,
+        "ok": true,
+        "error": null
+      },
+      {
+        "latency_ms": 935.234,
+        "status": 200,
+        "ok": true,
+        "error": null
+      }
+    ],
+    "classification": "ordinary_first_request_unverified",
+    "idle_wait_minutes": null,
+    "operator_evidence_note": null,
+    "verified_by_render": false,
+    "note": "Confirmed only when the script waited at least 15 minutes and imported Render event/log evidence has a startup marker. Otherwise this is not a verified cold start."
+  },
+  "stages": [
+    {
+      "target_rps": 1,
+      "concurrency_limit": 2,
+      "duration_seconds": 15.001,
+      "started_at": "2026-10-23T10:14:45.752137+00:00",
+      "ended_at": "2026-10-23T10:15:00.753773+00:00",
+      "requests": 15,
+      "throughput_rps": 1.0,
+      "successes": 15,
+      "failures": 0,
+      "error_counts": {},
+      "http_status_counts": {
+        "200": 15
+      },
+      "per_endpoint": {
+        "https://edunexusai-backend-fzqh.onrender.com/api/ping": {
+          "requests": 8,
+          "successes": 8,
+          "failures": 0,
+          "error_counts": {},
+          "http_status_counts": {
+            "200": 8
+          },
+          "latency_ms": {
+            "p50": 404.827,
+            "p95": 558.153,
+            "p99": 581.116
+          }
+        },
+        "https://edunexusai-backend-fzqh.onrender.com/api/health": {
+          "requests": 7,
+          "successes": 7,
+          "failures": 0,
+          "error_counts": {},
+          "http_status_counts": {
+            "200": 7
+          },
+          "latency_ms": {
+            "p50": 396.948,
+            "p95": 592.064,
+            "p99": 657.62
+          }
+        }
+      },
+      "stability": {
+        "early_half_p50_ms": 398.955,
+        "late_half_p50_ms": 396.736,
+        "p50_change_percent": -0.56,
+        "note": "Compared first and second halves of completed requests; descriptive only, not a causal diagnosis."
+      },
+      "latency_ms": {
+        "min": 371.822,
+        "mean": 434.1,
+        "p50": 397.975,
+        "p95": 613.003,
+        "p99": 661.808,
+        "max": 674.009
+      },
+      "resource_samples": []
+    }
+  ],
+  "estimated_max_sustainable_rps": null,
+  "concurrency_stages": [],
+  "stability_stage": null,
+  "endpoint_discovery": {
+    "available": true,
+    "url": "https://edunexusai-backend-fzqh.onrender.com/api/openapi.json",
+    "get_routes": [
+      {
+        "path": "/api/v1/auth/me",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/chat/sessions",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/chat/history",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/classes/",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/classes/browse",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/context/class/{class_id}",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/documents/status/{job_id}",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/documents/",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/insights/class/{class_id}",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/insights/students/at-risk",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/insights/questions/trending",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/insights/flags",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/progress/dashboard",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/progress/path",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/progress/routing",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/progress/student/{student_id}",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/quizzes/pending",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/quizzes/available",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/quizzes/attempts/mine",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/quizzes/{quiz_id}",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/recommendations",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/reflections/clusters",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/categories",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/subjects",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/subjects/{subject_id}/topic-graph",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/subjects/{subject_id}/unclassified",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/v1/subjects/{subject_id}/misconception-rules",
+        "authentication_declared": true,
+        "safe_for_automatic_probe": false
+      },
+      {
+        "path": "/api/ping",
+        "authentication_declared": false,
+        "safe_for_automatic_probe": true
+      },
+      {
+        "path": "/api/health",
+        "authentication_declared": false,
+        "safe_for_automatic_probe": true
+      }
+    ],
+    "note": "OpenAPI discovery is metadata only; discovered routes are not called. Authenticated/data-dependent routes need explicit endpoint selection and credentials, which this script does not collect."
+  },
+  "endpoint_coverage": {
+    "tested": [
+      "https://edunexusai-backend-fzqh.onrender.com/api/ping",
+      "https://edunexusai-backend-fzqh.onrender.com/api/health"
+    ],
+    "safe_representative_choices": {
+      "/api/ping": "lightweight process/HTTP health; Render health check route",
+      "/api/health": "read-only database SELECT and pgvector operator plus embedding model loaded state",
+      "/api/openapi.json": "metadata-only endpoint discovery; not a representative load endpoint"
+    },
+    "fastembed": "Health reports whether the FastEmbed model is loaded, but this app exposes no identified safe unauthenticated GET that executes embedding inference. Inference latency and CPU/RAM therefore remain unmeasured unless a separately authorized, non-destructive endpoint is supplied.",
+    "authenticated_routes": "OpenAPI-discovered routes are listed, not automatically called. Select only read-only routes and provide credentials through a separately reviewed mechanism; this script does not accept or print secrets."
+  },
+  "sustainability_method": "Not estimated: provide --max-rps for a rate ramp.",
+  "render_metrics": {
+    "status": "NOT MEASURED",
+    "reason": "No Render API credentials/service ID or CSV evidence was supplied.",
+    "how_to_collect": "Supply --render-service-id srv-... and RENDER_API_KEY, or collect Dashboard Metrics plus Events/logs into the documented CSV. Render API time series resolution is at least 30 seconds; short phases may have no datapoints."
+  },
+  "resource_measurements": {
+    "status": "NOT MEASURED",
+    "reason": "No Render CPU/RAM series supplied. Local machine metrics are never substituted.",
+    "how_to_collect": "Render Dashboard > backend service > Metrics: record CPU and memory for startup, idle, normal load, peak load, and sustained load. Events/logs provide restarts and startup markers. CSV headers: timestamp,phase,cpu_percent,cpu_cores,memory_mb,restart_count,event,message,source."
+  },
+  "service_restart_detection": {
+    "client_detection": "The script records request failures, timeouts, and latency shifts, which can be consistent with a restart but cannot identify a restart conclusively.",
+    "status": "unavailable_without_render_event_or_log_samples",
+    "check": "Compare the run window with Render service Events and logs; include restart_count in supplied metrics CSV if recorded."
+  },
+  "deployment_readiness": {
+    "measured": {
+      "latency_percentiles_ms": {
+        "min": 371.822,
+        "mean": 434.1,
+        "p50": 397.975,
+        "p95": 613.003,
+        "p99": 661.808,
+        "max": 674.009
+      },
+      "throughput_rps": 1.0,
+      "failures": 0
+    },
+    "render_free_constraints": {
+      "measured_peak_memory_mb": null,
+      "memory_limit_mb": 512,
+      "memory_headroom_mb": null,
+      "peak_cpu_raw": null,
+      "peak_cpu_unit": null,
+      "peak_cpu_percent_of_allocation": null,
+      "cpu": "Render free web service plan is 0.1 CPU and 512 MB RAM; shared-plan CPU contention can affect latency. This is plan metadata, not measured usage.",
+      "spin_down": "Free services spin down after 15 consecutive minutes without inbound traffic and commonly take about one minute to spin back up.",
+      "usage": "750 free instance hours per workspace/month; free services also count toward outbound bandwidth and build-pipeline included usage. Render may restart services; free web services are single-instance and not intended for production.",
+      "rps_limit": "No guaranteed sustainable RPS is stated here; capacity is application-, dependency-, and traffic-dependent."
+    },
+    "other_constraints_and_notes": [
+      "Vercel functions have plan-dependent duration, memory, and invocation constraints; this backend benchmark does not measure Vercel frontend quotas.",
+      "EduNexus backend startup loads the FastEmbed embedding model, which can increase startup time and memory use. The configured Render health check uses /api/ping; /api/health additionally probes database/vector connectivity.",
+      "Client measurements cannot isolate frontend, proxy, database, model, or provider latency. Test endpoints that are safe and representative; GET-only requests are used."
+    ]
+  },
+  "assessment": {
+    "overall_status": "NOT MEASURED",
+    "checks": {
+      "baseline_http": {
+        "status": "PASS",
+        "requests": 15,
+        "failures": 0,
+        "note": "PASS/FAIL here means the measured baseline requests returned expected responses; it does not assert a latency SLO."
+      },
+      "resource_memory": {
+        "status": "NOT MEASURED",
+        "peak_mb": null,
+        "limit_mb": 512,
+        "headroom_mb": null,
+        "headroom_percent": null
+      },
+      "resource_cpu": {
+        "status": "NOT MEASURED",
+        "peak_raw": null,
+        "unit": null,
+        "peak_percent_of_allocation": null,
+        "allocation_cores": 0.1
+      },
+      "resource_phases": {
+        "startup": {
+          "status": "NOT MEASURED",
+          "sample": null
+        },
+        "idle": {
+          "status": "NOT MEASURED",
+          "sample": null
+        },
+        "normal_load": {
+          "status": "NOT MEASURED",
+          "sample": null
+        },
+        "peak_load": {
+          "status": "NOT MEASURED",
+          "sample": null
+        },
+        "sustained_load": {
+          "status": "NOT MEASURED",
+          "sample": null
+        }
+      },
+      "startup_and_cold_start": {
+        "status": "NOT MEASURED",
+        "cold_start_status": "NOT MEASURED",
+        "application_startup_log_interval_status": "NOT MEASURED",
+        "cold_start": {
+          "first_request": {
+            "latency_ms": 1745.843,
+            "status": 200,
+            "ok": true,
+            "error": null
+          },
+          "warm_mean_ms": 597.572,
+          "warm_p50_ms": 451.478,
+          "warm_samples": [
+            {
+              "latency_ms": 451.478,
+              "status": 200,
+              "ok": true,
+              "error": null
+            },
+            {
+              "latency_ms": 406.005,
+              "status": 200,
+              "ok": true,
+              "error": null
+            },
+            {
+              "latency_ms": 935.234,
+              "status": 200,
+              "ok": true,
+              "error": null
+            }
+          ],
+          "classification": "ordinary_first_request_unverified",
+          "idle_wait_minutes": null,
+          "operator_evidence_note": null,
+          "verified_by_render": false,
+          "note": "Confirmed only when the script waited at least 15 minutes and imported Render event/log evidence has a startup marker. Otherwise this is not a verified cold start."
+        },
+        "embedding_startup_interval_seconds": null,
+        "startup_interval_definition": "Render log timestamp from '[STARTUP] Loading embedding model...' to '[STARTUP] EduNexus AI ready.'; includes intervening app lifespan work and is not an isolated model-only duration."
+      },
+      "concurrency": {
+        "1": {
+          "status": "NOT MEASURED",
+          "measured": null,
+          "units": {
+            "throughput": "requests/second",
+            "latency": "milliseconds"
+          }
+        },
+        "2": {
+          "status": "NOT MEASURED",
+          "measured": null,
+          "units": {
+            "throughput": "requests/second",
+            "latency": "milliseconds"
+          }
+        },
+        "5": {
+          "status": "NOT MEASURED",
+          "measured": null,
+          "units": {
+            "throughput": "requests/second",
+            "latency": "milliseconds"
+          }
+        },
+        "10": {
+          "status": "NOT MEASURED",
+          "measured": null,
+          "units": {
+            "throughput": "requests/second",
+            "latency": "milliseconds"
+          }
+        }
+      },
+      "endpoints": {
+        "https://edunexusai-backend-fzqh.onrender.com/api/ping": {
+          "status": "PASS",
+          "measured": {
+            "requests": 8,
+            "successes": 8,
+            "failures": 0,
+            "error_counts": {},
+            "http_status_counts": {
+              "200": 8
+            },
+            "latency_ms": {
+              "p50": 404.827,
+              "p95": 558.153,
+              "p99": 581.116
+            }
+          }
+        },
+        "https://edunexusai-backend-fzqh.onrender.com/api/health": {
+          "status": "PASS",
+          "measured": {
+            "requests": 7,
+            "successes": 7,
+            "failures": 0,
+            "error_counts": {},
+            "http_status_counts": {
+              "200": 7
+            },
+            "latency_ms": {
+              "p50": 396.948,
+              "p95": 592.064,
+              "p99": 657.62
+            }
+          }
+        }
+      },
+      "highest_tested_clean_concurrency": {
+        "status": "NOT MEASURED",
+        "users": null,
+        "note": "Highest tested level with zero request failures only; not a capacity guarantee or universal RPS limit."
+      },
+      "maximum_sustainable_rps": {
+        "status": "NOT MEASURED",
+        "estimate_rps": null,
+        "note": "A bounded estimate across tested rate steps only; not a universal or guaranteed service limit."
+      },
+      "sustained_stability": {
+        "status": "NOT MEASURED",
+        "result": null
+      },
+      "service_restarts": {
+        "status": "NOT MEASURED",
+        "events": [],
+        "max_imported_restart_count": null,
+        "logs_coverage_asserted_complete": false
+      },
+      "workspace_usage_limits": {
+        "status": "NOT MEASURED",
+        "note": "Check current free instance-hours, bandwidth, and build-minute consumption in Render Dashboard billing/usage."
+      },
+      "fastembed_inference": {
+        "status": "NOT MEASURED",
+        "reason": "No safe authorized inference endpoint was supplied."
+      }
+    },
+    "status_semantics": {
+      "PASS": "Evidence was collected and meets a documented platform limit or explicit check rule.",
+      "WARNING": "Evidence is incomplete or noteworthy; no universal latency/RPS threshold is implied.",
+      "FAIL": "A measured error or documented resource limit breach occurred.",
+      "NOT MEASURED": "Required source data or test run was absent; never treated as passing."
+    }
+  },
+  "official_render_free_limits": {
+    "status": "DOCUMENTED PLATFORM LIMITS; ACCOUNT USAGE REMAINS ACCOUNT-SPECIFIC",
+    "web_service_compute": {
+      "cpu_cores": 0.1,
+      "memory_mb": 512,
+      "source": "Render compute plans"
+    },
+    "spin_down": {
+      "idle_minutes": 15,
+      "typical_wake_seconds": 60
+    },
+    "monthly_instance_hours": 750,
+    "bandwidth_and_build_minutes": "Count against workspace included usage; included amounts and current consumption must be checked in Render Dashboard. No universal bandwidth amount asserted.",
+    "other": [
+      "Free services may be restarted by Render.",
+      "A Free web service is single-instance and cannot scale beyond one instance.",
+      "Free services have ephemeral filesystem and no persistent disk.",
+      "Free services are not recommended for production by Render.",
+      "Free web services can be suspended after unusually high service-initiated public traffic.",
+      "If using Render Free Postgres: 1 GB storage, 30-day expiry, no backups, and no managed connection pooling."
+    ],
+    "no_universal_rps_or_latency_limit": true,
+    "source_urls": [
+      "https://render.com/docs/compute-plans",
+      "https://render.com/docs/free",
+      "https://render.com/docs/service-metrics",
+      "https://api-docs.render.com/reference/get-cpu",
+      "https://api-docs.render.com/reference/get-memory"
+    ]
+  },
+  "application_recommendations": [
+    "No universal latency or RPS pass threshold is imposed. Set app-specific SLOs before interpreting performance as acceptable.",
+    "Verify FastEmbed startup memory and cold-start effect from Render logs/metrics. A model-loaded health field is not embedding-inference latency.",
+    "Use read-only authenticated GET routes only with explicit test credentials supplied through a secure process; this script does not accept credentials for EduNexus endpoints."
+  ],
+  "resource_measurement": "Deployed service CPU/RAM come only from Render Public API metrics or explicitly imported Render evidence; local psutil/process metrics are never substituted for deployed targets."
+}
