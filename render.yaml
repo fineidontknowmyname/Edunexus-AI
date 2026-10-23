@@ -9,10 +9,12 @@ services:
       python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/all-MiniLM-L6-v2')"
     startCommand: >-
       alembic -c backend/alembic.ini upgrade head &&
-      uvicorn backend.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+      uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/ping
     autoDeploy: true
     envVars:
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
       - key: ENVIRONMENT
         value: production
       - key: DATABASE_URL
