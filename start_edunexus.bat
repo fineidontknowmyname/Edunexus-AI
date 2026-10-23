@@ -15,7 +15,7 @@ if %errorlevel%==0 (
     echo   Already running - skipping.
 ) else (
     echo   Starting in a new window...
-    start "EduNexus Backend" cmd /k "cd /d %~dp0backend && call venv\Scripts\activate.bat && alembic upgrade head && cd .. && uvicorn backend.main:app --app-dir . --port %BACKEND_PORT%"
+    start "EduNexus Backend" cmd /k "cd /d %~dp0 && call backend\.venv\Scripts\activate.bat && alembic -c backend\alembic.ini upgrade head && uvicorn backend.main:app --port %BACKEND_PORT% --reload"
 )
 
 echo.
