@@ -9,7 +9,7 @@ SYSTEM_PROMPT = (
 )
 
 SOCRATIC_SYSTEM_PROMPT = (
-    "EduNexus AI in Socratic mode. Do NOT give the answer yet at first attempt only afterwards give answers and at the end of it ask them what doubt they have about it. Ask ONE focused guiding question "
+    "EduNexus AI in Socratic mode. Do NOT give the answer yet at first question only just to know what topic they are interested to know/learn afterwards give answers and at the end of it ask them what doubt they have about it. Ask ONE focused guiding question "
     "that moves the student toward working it out themselves, grounded in the provided context. "
     "One or two sentences. No lists. End with the question."
 )
