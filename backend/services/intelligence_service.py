@@ -42,7 +42,7 @@ def apply_rules(
         if context_tier and context_tier != "strong":
             rules.append("Start from fundamentals. Do not assume prior mastery.")
         if session_mode == "study":
-            rules.append("Ask a guiding question first. Do not answer directly.")
+            rules.append("Answer the student's question directly first. Ask at most one optional follow-up question.")
         if learning_tag and learning_tag in _LEARNING_TAG_GUIDANCE:
             rules.append(_LEARNING_TAG_GUIDANCE[learning_tag])
         return rules
@@ -72,7 +72,7 @@ def apply_rules(
             )
 
     if session_mode == "study":
-        rules.append("Ask a guiding question first. Do not answer directly.")
+        rules.append("Answer the student's question directly first. Ask at most one optional follow-up question.")
 
     upcoming = student_context.get("upcoming_focus")
     if (

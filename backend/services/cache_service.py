@@ -86,3 +86,31 @@ def store_cache(
         )
     )
     db.commit()
+
+
+def invalidate_cache(
+    db: Session,
+    session_mode: str | None = None,
+    class_id: str | None = None,
+) -> int:
+    query = db.query(ResponseCache)
+    if session_mode:
+        query = query.filter(ResponseCache.session_mode == session_mode)
+    if class_id:
+        query = query.filter(ResponseCache.class_id == class_id)
+    count = query.delete(synchronize_session=False)
+    db.commit()
+    return count
+
+
+def purge_question_only_cache(db: Session) -> int:
+    rows = db.query(ResponseCache).all()
+    count = 0
+    for r in rows:
+        text = (r.response_text or "").strip()
+        if text.endswith("?") or "what aspect" in text.lower() or "which part" in text.lower():
+            db.delete(r)
+            count += 1
+    if count:
+        db.commit()
+    return count

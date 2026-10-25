@@ -111,8 +111,29 @@ def _prepare(db: Session, turn: _Turn, embedding_model) -> None:
     turn.subject = class_context["subject"]
     turn.subject_id = class_context["subject_id"]
     student_context = context_service.assemble_student_context(db, str(turn.student_id), turn.class_id)
+    history = _recent_history(db, turn.session_id)
+    turn.last_role = history[-1]["role"] if history else None
+
+    session = db.get(ChatSession, turn.session_id)
+    stored_topic = None
+    if session and session.socratic_state:
+        try:
+            state_dict = json.loads(session.socratic_state)
+            if isinstance(state_dict, dict):
+                stored_topic = state_dict.get("topic")
+        except (json.JSONDecodeError, TypeError):
+            stored_topic = None
+
+    prev_user_msg = next((m["content"] for m in reversed(history) if m["role"] == "user"), None)
 
     turn.query_topic = _resolve_topic(db, turn, embedding_model)
+    is_short_or_topicless = bool(prev_user_msg and (len(turn.message.strip().split()) <= 4 or not turn.query_topic))
+    if is_short_or_topicless and not turn.query_topic and stored_topic:
+        turn.query_topic = stored_topic
+
+    retrieval_query = f"{prev_user_msg} {turn.message}".strip() if is_short_or_topicless else turn.message
+    turn.query_vector = embed_single(retrieval_query, model=embedding_model)
+
     if turn.subject_id:
         prerequisite_gaps = context_service.check_prerequisites_for_subject(
             db, student_context, turn.query_topic, turn.subject_id
@@ -120,15 +141,10 @@ def _prepare(db: Session, turn: _Turn, embedding_model) -> None:
     else:
         prerequisite_gaps = context_service.check_prerequisites(student_context, turn.query_topic, turn.subject or "")
 
-    turn.query_vector = embed_single(turn.message, model=embedding_model)
     turn.context_tier = cache_service.compute_context_tier(student_context)
     turn.learning_tag = behavior_service.get_learning_tag(
         db, str(turn.student_id), turn.subject_id, turn.query_topic
     )
-    history = _recent_history(db, turn.session_id)
-    turn.last_role = history[-1]["role"] if history else None
-
-    session = db.get(ChatSession, turn.session_id)
     turn.is_socratic = turn.mode == SessionMode.socratic.value and turn.subject_id is not None
     if turn.is_socratic:
         state = json.loads(session.socratic_state) if session.socratic_state else {}
@@ -158,6 +174,12 @@ def _prepare(db: Session, turn: _Turn, embedding_model) -> None:
         prerequisite_gaps, turn.learning_tag,
         personalized=personalized, context_tier=turn.context_tier,
     )
+
+    last_assistant_msg = next((m["content"] for m in reversed(history) if m["role"] == "assistant"), None)
+    assistant_asked_question = bool(last_assistant_msg and last_assistant_msg.strip().endswith("?"))
+    if assistant_asked_question:
+        rules = [r for r in rules if "question" not in r.lower()]
+        rules.append("Acknowledge their reply, then explain directly.")
 
     system_prompt = rag_service.SYSTEM_PROMPT
     if turn.is_socratic:
@@ -193,6 +215,8 @@ def _finalize(db: Session, turn: _Turn, answer_text: str, verification_failed: b
         else:
             session.socratic_state = json.dumps({"topic": turn.query_topic, "awaiting_attempt": True})
             chunk_ids = []
+    elif turn.query_topic:
+        session.socratic_state = json.dumps({"topic": turn.query_topic})
 
     db.add(ChatMessage(session_id=turn.session_id, role="user", content=turn.message, created_at=now))
     assistant = ChatMessage(
