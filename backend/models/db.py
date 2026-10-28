@@ -11,6 +11,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     String,
@@ -263,6 +264,7 @@ class TopicMastery(Base):
     last_attempt_at = Column(DateTime, nullable=True)
     last_quiz_passed = Column(Boolean, nullable=True)
     trend = Column(Enum(MasteryTrend), default=MasteryTrend.not_started, nullable=False)
+    mastery_v2 = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -471,6 +473,25 @@ class QuizAttempt(Base):
     quiz_id = Column(UUID(as_uuid=True), ForeignKey("quizzes.id"), nullable=False)
     student = relationship("User", back_populates="quiz_attempts")
     quiz = relationship("Quiz", back_populates="attempts")
+
+
+class QuizAttemptAnswer(Base):
+    __tablename__ = "quiz_attempt_answers"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "question_id", name="uq_quiz_attempt_answers_attempt_question"),
+        Index("ix_quiz_attempt_answers_student_topic_key_answered", "student_id", "topic_key", "answered_at"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    attempt_id = Column(UUID(as_uuid=True), ForeignKey("quiz_attempts.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    question_id = Column(UUID(as_uuid=True), ForeignKey("quiz_questions.id"), nullable=False)
+    topic = Column(String(500), nullable=True)
+    topic_key = Column(String(500), nullable=True)
+    is_correct = Column(Boolean, nullable=False)
+    difficulty = Column(String(16), nullable=True)
+    option_count = Column(Integer, nullable=True)
+    answered_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class EducatorNote(Base):

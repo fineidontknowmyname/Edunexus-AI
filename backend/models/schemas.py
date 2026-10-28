@@ -253,12 +253,14 @@ class TopicMasteryRead(_OrmBase):
     trend: MasteryTrend
     last_attempt_at: datetime | None
     student_id: UUID
+    mastery_v2: dict[str, Any] | None = None
 
 
 class TopicMasterySummary(BaseModel):
     topic: str
     mastery_score: float
     trend: MasteryTrend
+    mastery_v2: dict[str, Any] | None = None
 
 
 class ChatMessageRead(_OrmBase):

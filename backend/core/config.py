@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     ingestion_poll_interval_seconds: int = 300
     max_upload_mb: int = 20
     fastembed_cache_path: str = ""
+    mastery_v2_enabled: bool = False
 
     model_config = SettingsConfigDict(
         env_file=_ENV_FILE,

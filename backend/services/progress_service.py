@@ -112,6 +112,74 @@ def update_mastery_after_attempt(
     return updated_topics
 
 
+def update_mastery_v2_after_attempt(
+    db: Session,
+    student_id: str,
+    topics: list[str] | dict[str, Any] | set[str],
+) -> dict[str, Any]:
+    from backend.core.config import get_settings
+    from backend.models.db import QuizAttemptAnswer
+    from backend.services.mastery_v2 import AttemptEvidence, compute_mastery, normalize_topic_key, result_to_dict
+
+    settings = get_settings()
+    if not settings.mastery_v2_enabled:
+        return {}
+
+    v2_results: dict[str, Any] = {}
+    topic_list = list(topics.keys()) if isinstance(topics, dict) else list(topics)
+    for topic in topic_list:
+        topic_key = normalize_topic_key(topic)
+        if not topic_key:
+            continue
+
+        rows = (
+            db.query(
+                QuizAttemptAnswer.question_id,
+                QuizAttemptAnswer.attempt_id,
+                QuizAttemptAnswer.is_correct,
+                QuizAttemptAnswer.answered_at,
+                QuizAttemptAnswer.option_count,
+            )
+            .filter(
+                QuizAttemptAnswer.student_id == student_id,
+                QuizAttemptAnswer.topic_key == topic_key,
+            )
+            .order_by(QuizAttemptAnswer.answered_at.desc())
+            .limit(50)
+            .all()
+        )
+
+        attempts = [
+            AttemptEvidence(
+                question_id=str(r.question_id),
+                session_id=str(r.attempt_id),
+                correct=r.is_correct,
+                timestamp=r.answered_at,
+                option_count=r.option_count,
+                difficulty=None,
+            )
+            for r in rows
+        ]
+
+        mastery_res = compute_mastery(attempts)
+        dict_res = result_to_dict(mastery_res)
+        v2_results[topic] = dict_res
+
+        tm_rows = (
+            db.query(TopicMastery)
+            .filter(
+                TopicMastery.student_id == student_id,
+                TopicMastery.topic == topic,
+            )
+            .all()
+        )
+        for tm_row in tm_rows:
+            tm_row.mastery_v2 = json.dumps(dict_res)
+
+    db.commit()
+    return v2_results
+
+
 def _assign_priority(attempted: bool, score: float, in_scope: bool, days_remaining: int | None) -> int:
     if attempted and score < 0.40:
         return 0

@@ -1,5 +1,7 @@
 import json
 import re
+import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -25,6 +27,56 @@ def _extract_json_array(text: str) -> list[dict[str, Any]]:
     if match:
         return json.loads(match.group(0))
     raise ValueError(f"Could not parse JSON array from LLM output: {text[:200]!r}")
+
+
+def _normalize_answer(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return " ".join(str(value).split()).casefold()
+
+
+def _validate_generated_question(item: Any) -> dict[str, Any] | None:
+    if not isinstance(item, dict):
+        return None
+    try:
+        question_text = item["question"]
+        options = item["options"]
+        correct_answer = item["correct_answer"]
+        raw_difficulty = item.get("difficulty")
+    except KeyError:
+        return None
+
+    if not isinstance(question_text, str) or not question_text.strip():
+        return None
+
+    if not isinstance(options, list) or len(options) != 4:
+        return None
+
+    for opt in options:
+        if not isinstance(opt, str) or not opt.strip():
+            return None
+
+    normalized_options = [_normalize_answer(opt) for opt in options]
+    if len(set(normalized_options)) != 4:
+        return None
+
+    if not isinstance(correct_answer, str) or not correct_answer.strip():
+        return None
+
+    if correct_answer not in options:
+        return None
+
+    if isinstance(raw_difficulty, str) and raw_difficulty.strip().lower() in {"easy", "medium", "hard"}:
+        difficulty = raw_difficulty.strip().lower()
+    else:
+        difficulty = "medium"
+
+    return {
+        "question": question_text,
+        "options": options,
+        "correct_answer": correct_answer,
+        "difficulty": difficulty,
+    }
 
 
 async def generate_quiz(
@@ -86,6 +138,17 @@ async def generate_quiz(
     model_pool.record_usage(model_idx, tokens_used)
     print(f"[QUIZ GEN] Parsed {len(parsed)} questions, ~{tokens_used} tokens used")
 
+    validated_questions: list[dict[str, Any]] = []
+    for item in parsed:
+        cleaned = _validate_generated_question(item)
+        if cleaned is None:
+            print(f"[QUIZ GEN WARNING] Skipping malformed question: {item}")
+            continue
+        validated_questions.append(cleaned)
+
+    if not validated_questions:
+        raise ValueError("No valid questions could be generated from the curriculum content.")
+
     quiz = Quiz(
         title=title,
         unit=unit,
@@ -104,18 +167,11 @@ async def generate_quiz(
     source_chunk_topic = source_chunk.topic if source_chunk else None
 
     created_count = 0
-    for item in parsed:
-        try:
-            question_text = item["question"]
-            options = item["options"]
-            correct_answer = item["correct_answer"]
-            difficulty = item.get("difficulty", "medium")
-            if correct_answer not in options or len(options) != 4:
-                print(f"[QUIZ GEN WARNING] Skipping malformed question: {item}")
-                continue
-        except (KeyError, TypeError):
-            print(f"[QUIZ GEN WARNING] Skipping malformed question: {item}")
-            continue
+    for q_data in validated_questions:
+        question_text = q_data["question"]
+        options = q_data["options"]
+        correct_answer = q_data["correct_answer"]
+        difficulty = q_data["difficulty"]
 
         if subject_id:
             topic = (
@@ -157,12 +213,6 @@ def available_questions_for_student(
         for q in quiz.questions
         if q.status == ReviewStatus.approved and (q.topic or "General") not in locked
     ]
-
-
-def _normalize_answer(value: str | None) -> str | None:
-    if value is None:
-        return None
-    return " ".join(str(value).split()).casefold()
 
 
 async def score_attempt(
@@ -220,11 +270,19 @@ async def score_attempt(
                     db, student_id, class_id, topic, description, source_attempt_id
                 )
 
+        try:
+            options_list = json.loads(question.options) if question.options else []
+        except Exception:
+            options_list = []
+        diff_val = question.difficulty.value if hasattr(question.difficulty, "value") else str(question.difficulty)
         per_question_results.append({
             "question_id": str(question.id),
             "correct": is_correct,
             "correct_answer": question.correct_answer,
             "chosen": chosen,
+            "topic": question.topic,
+            "difficulty": diff_val,
+            "option_count": len(options_list) if options_list else None,
         })
 
     topic_scores = {t: topic_correct.get(t, 0) / topic_total[t] for t in topic_total}
@@ -239,3 +297,30 @@ async def score_attempt(
         "topic_passed": topic_passed,
         "results": per_question_results,
     }
+
+
+def build_answer_rows(
+    attempt_id: str,
+    student_id: str,
+    results: list[dict[str, Any]],
+    answered_at: datetime | None = None,
+) -> list[dict[str, Any]]:
+    from backend.services.mastery_v2 import normalize_topic_key
+
+    timestamp = answered_at or datetime.utcnow()
+    rows = []
+    for item in results:
+        topic = item.get("topic")
+        rows.append({
+            "id": uuid.uuid4(),
+            "attempt_id": uuid.UUID(attempt_id) if isinstance(attempt_id, str) else attempt_id,
+            "student_id": uuid.UUID(student_id) if isinstance(student_id, str) else student_id,
+            "question_id": uuid.UUID(item["question_id"]) if isinstance(item["question_id"], str) else item["question_id"],
+            "topic": topic,
+            "topic_key": normalize_topic_key(topic),
+            "is_correct": bool(item.get("correct", False)),
+            "difficulty": item.get("difficulty"),
+            "option_count": item.get("option_count"),
+            "answered_at": timestamp,
+        })
+    return rows

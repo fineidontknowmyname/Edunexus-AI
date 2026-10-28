@@ -10,7 +10,7 @@ from backend.api.dependencies import CurrentUser, RequireEducator, RequireStuden
 from backend.core.database import get_db
 from backend.core.rate_limit import rate_limit
 from backend.models import schemas
-from backend.models.db import Quiz, QuizAttempt, QuizQuestion, ReviewStatus, User
+from backend.models.db import Quiz, QuizAttempt, QuizAttemptAnswer, QuizQuestion, ReviewStatus, User
 from backend.services import evidence_service, progress_service, quiz_service
 
 router = APIRouter(prefix="/quizzes", tags=["quizzes"])
@@ -256,11 +256,38 @@ async def submit_attempt(
     attempt.completed_at = datetime.utcnow()
     db.commit()
 
+    try:
+        with db.begin_nested():
+            answer_rows = quiz_service.build_answer_rows(
+                attempt_id=str(attempt.id),
+                student_id=str(current_user.id),
+                results=result["results"],
+                answered_at=attempt.completed_at,
+            )
+            for row in answer_rows:
+                db.add(QuizAttemptAnswer(**row))
+            db.flush()
+    except Exception as exc:
+        print(f"[QUIZ WARNING] Failed to persist per-question answers for attempt {attempt.id}: {exc}")
+
     updated_mastery = progress_service.update_mastery_after_attempt(
         db, str(current_user.id), str(quiz.class_id), result["topic_scores"],
         topic_passed=result.get("topic_passed"),
     )
     evidence_service.update_engagement(db, current_user.id)
+
+    from backend.core.config import get_settings
+
+    if get_settings().mastery_v2_enabled:
+        try:
+            v2_out = progress_service.update_mastery_v2_after_attempt(
+                db, str(current_user.id), result["topic_scores"]
+            )
+            for topic_name, v2_data in v2_out.items():
+                if topic_name in updated_mastery:
+                    updated_mastery[topic_name]["mastery_v2"] = v2_data
+        except Exception as exc:
+            print(f"[QUIZ WARNING] Failed to compute mastery v2 for student {current_user.id}: {exc}")
 
     return {
         "attempt_id": str(attempt.id),
