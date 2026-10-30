@@ -51,6 +51,15 @@ def enrolled_class(db: Session, class_id, user: User) -> Class:
     return row
 
 
+def user_class_access(db: Session, class_id, user: User) -> Class:
+    row = db.get(Class, parse_uuid(class_id, "Class"))
+    if row is None:
+        raise _not_found("Class")
+    if row.educator_id == user.id or is_enrolled(db, row.id, user.id):
+        return row
+    raise _not_found("Class")
+
+
 def student_class_id(db: Session, user: User, requested_class_id) -> str:
     if requested_class_id:
         return str(enrolled_class(db, requested_class_id, user).id)

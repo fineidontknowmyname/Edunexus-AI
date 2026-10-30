@@ -21,6 +21,7 @@ from backend.api.progress import router as progress_router
 from backend.api.quizzes import router as quizzes_router
 from backend.api.recommendations import router as recommendations_router
 from backend.api.reflections import router as reflections_router
+from backend.api.resources import router as resources_router
 from backend.api.subjects import router as subjects_router
 from backend.core.config import get_cors_origins, get_settings, validate_production_settings
 from backend.core.csrf import CSRFMiddleware
@@ -85,6 +86,7 @@ app.include_router(progress_router,  prefix="/api/v1")
 app.include_router(quizzes_router,   prefix="/api/v1")
 app.include_router(recommendations_router, prefix="/api/v1")
 app.include_router(reflections_router,     prefix="/api/v1")
+app.include_router(resources_router,       prefix="/api/v1")
 app.include_router(subjects_router,  prefix="/api/v1")
 
 

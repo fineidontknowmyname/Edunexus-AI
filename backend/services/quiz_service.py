@@ -1,7 +1,7 @@
 import json
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -304,10 +304,12 @@ def build_answer_rows(
     student_id: str,
     results: list[dict[str, Any]],
     answered_at: datetime | None = None,
+    class_id: str | None = None,
 ) -> list[dict[str, Any]]:
     from backend.services.mastery_v2 import normalize_topic_key
 
-    timestamp = answered_at or datetime.utcnow()
+    timestamp = answered_at or datetime.now(timezone.utc)
+    class_uuid = uuid.UUID(class_id) if isinstance(class_id, str) else class_id
     rows = []
     for item in results:
         topic = item.get("topic")
@@ -315,6 +317,7 @@ def build_answer_rows(
             "id": uuid.uuid4(),
             "attempt_id": uuid.UUID(attempt_id) if isinstance(attempt_id, str) else attempt_id,
             "student_id": uuid.UUID(student_id) if isinstance(student_id, str) else student_id,
+            "class_id": class_uuid,
             "question_id": uuid.UUID(item["question_id"]) if isinstance(item["question_id"], str) else item["question_id"],
             "topic": topic,
             "topic_key": normalize_topic_key(topic),
