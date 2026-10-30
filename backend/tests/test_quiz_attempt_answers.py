@@ -77,3 +77,23 @@ def test_build_answer_rows_missing_topic_and_empty():
     assert rows[0]["topic_key"] is None
     assert rows[0]["difficulty"] is None
     assert rows[0]["option_count"] is None
+    assert rows[0]["class_id"] is None
+
+
+def test_build_answer_rows_with_class_id():
+    attempt_id = str(uuid.uuid4())
+    student_id = str(uuid.uuid4())
+    class_id = str(uuid.uuid4())
+    q_id = str(uuid.uuid4())
+    results = [
+        {
+            "question_id": q_id,
+            "correct": True,
+            "correct_answer": "A",
+            "chosen": "A",
+            "topic": "Deadlocks",
+        }
+    ]
+    rows = build_answer_rows(attempt_id, student_id, results, class_id=class_id)
+    assert len(rows) == 1
+    assert rows[0]["class_id"] == uuid.UUID(class_id)

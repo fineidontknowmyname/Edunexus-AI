@@ -45,6 +45,11 @@ class ReviewStatus(str, enum.Enum):
     rejected = "rejected"
 
 
+class ResourceType(str, enum.Enum):
+    youtube = "youtube"
+    notes = "notes"
+
+
 class QuestionDifficulty(str, enum.Enum):
     easy = "easy"
     medium = "medium"
@@ -480,11 +485,13 @@ class QuizAttemptAnswer(Base):
     __table_args__ = (
         UniqueConstraint("attempt_id", "question_id", name="uq_quiz_attempt_answers_attempt_question"),
         Index("ix_quiz_attempt_answers_student_topic_key_answered", "student_id", "topic_key", "answered_at"),
+        Index("ix_quiz_attempt_answers_student_class_topic_answered", "student_id", "class_id", "topic_key", "answered_at"),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     attempt_id = Column(UUID(as_uuid=True), ForeignKey("quiz_attempts.id", ondelete="CASCADE"), nullable=False)
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=True, index=True)
     question_id = Column(UUID(as_uuid=True), ForeignKey("quiz_questions.id"), nullable=False)
     topic = Column(String(500), nullable=True)
     topic_key = Column(String(500), nullable=True)
@@ -551,3 +558,83 @@ class RefreshToken(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+
+
+class LearningResource(Base):
+    __tablename__ = "learning_resources"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic = Column(String(500), nullable=False, index=True)
+    title = Column(String(500), nullable=False)
+    resource_type = Column(Enum(ResourceType), nullable=False)
+    url = Column(Text, nullable=True)
+    content = Column(Text, nullable=True)
+    status = Column(Enum(ReviewStatus), default=ReviewStatus.pending_review, nullable=False, index=True)
+    helpful_count = Column(Integer, default=0, nullable=False)
+    report_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    uploaded_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    class_ = relationship("Class")
+    uploaded_by = relationship("User")
+    votes = relationship("ResourceVote", back_populates="resource", cascade="all, delete-orphan")
+    reports = relationship("ResourceReport", back_populates="resource", cascade="all, delete-orphan")
+
+
+class ResourceReport(Base):
+    __tablename__ = "resource_reports"
+    __table_args__ = (
+        UniqueConstraint("resource_id", "student_id", name="uq_resource_reports_resource_student"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    resource_id = Column(UUID(as_uuid=True), ForeignKey("learning_resources.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    resource = relationship("LearningResource", back_populates="reports")
+    student = relationship("User")
+
+
+class ResourceVote(Base):
+    __tablename__ = "resource_votes"
+    __table_args__ = (
+        UniqueConstraint("resource_id", "student_id", name="uq_resource_votes_resource_student"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    vote_type = Column(String(16), default="helpful", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    resource_id = Column(UUID(as_uuid=True), ForeignKey("learning_resources.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    resource = relationship("LearningResource", back_populates="votes")
+    student = relationship("User")
+
+
+class RecommendationLog(Base):
+    __tablename__ = "recommendation_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic = Column(String(500), nullable=False, index=True)
+    mode = Column(String(64), nullable=False)
+    reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    outcome_score_before = Column(Float, nullable=True)
+    outcome_score_after = Column(Float, nullable=True)
+    outcome_delta = Column(Float, nullable=True)
+
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    outcome_attempt_id = Column(UUID(as_uuid=True), ForeignKey("quiz_attempts.id", ondelete="SET NULL"), nullable=True)
+
+    student = relationship("User")
+    class_ = relationship("Class")
+    outcome_attempt = relationship("QuizAttempt")
+

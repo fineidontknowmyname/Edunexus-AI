@@ -86,3 +86,45 @@ def test_failure_fallback_does_not_break_submission():
 
     # v1 dictionary is unmodified and fully intact
     assert v1_updated_mastery["Process Scheduling"]["mastery_score"] == 0.85
+
+
+def test_update_mastery_v2_with_class_id_scoping():
+    mock_db = MagicMock()
+    mock_settings = Settings(database_url="sqlite://", mastery_v2_enabled=True)
+
+    # Mock query chain for QuizAttemptAnswer and TopicMastery
+    q_answers = MagicMock()
+    q_tm = MagicMock()
+
+    # When query(QuizAttemptAnswer) -> q_answers; when query(TopicMastery) -> q_tm
+    def query_router(*args):
+        # Inspect the class queried
+        from backend.models.db import QuizAttemptAnswer, TopicMastery
+        if args and args[0] is QuizAttemptAnswer or hasattr(args[0], "class_") and args[0].class_ is QuizAttemptAnswer:
+            return q_answers
+        return q_tm
+
+    mock_db.query.side_effect = query_router
+    q_answers.filter.return_value = q_answers
+    q_answers.order_by.return_value = q_answers
+    q_answers.limit.return_value = q_answers
+    q_answers.all.return_value = []
+
+    mock_tm_row = MagicMock()
+    mock_tm_row.mastery_v2 = None
+    q_tm.filter.return_value = q_tm
+    q_tm.all.return_value = [mock_tm_row]
+
+    with patch("backend.core.config.get_settings", return_value=mock_settings):
+        res = progress_service.update_mastery_v2_after_attempt(
+            db=mock_db,
+            student_id="stu_123",
+            topics=["Deadlocks"],
+            class_id="class_abc",
+        )
+
+    assert "Deadlocks" in res
+    assert mock_tm_row.mastery_v2 is not None
+    # Verify commit called
+    mock_db.commit.assert_called_once()
+

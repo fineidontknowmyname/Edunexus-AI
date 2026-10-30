@@ -348,16 +348,48 @@ export interface RecommendationVideo {
   title: string;
   channel: string;
   url: string;
+  helpful_count?: number;
+}
+
+export interface RecommendationNote {
+  resource_id: string;
+  title: string;
+  content: string;
+  content_length?: number;
+  truncated?: boolean;
+  author_role: string;
+  helpful_count?: number;
 }
 
 export type RoutingLabel = "reinforce" | "advance" | "intervene";
 
 export interface RecommendationResponse {
+  id?: string | null;
   routing: RoutingLabel;
   learning_tag: string | null;
-  mode: "static" | "ai_session";
+  mode: "static" | "ai_session" | "diagnostic" | "verification" | "advance" | "initial_assessment";
   sections: RecommendationSection[];
   videos: RecommendationVideo[];
+  notes?: RecommendationNote[];
   socratic_seed_message: string | null;
   reason?: string | null;
+}
+
+export interface LearningResourceRow {
+  id: string;
+  class_id: string;
+  topic: string;
+  title: string;
+  resource_type: "youtube" | "notes";
+  url?: string | null;
+  content?: string | null;
+  content_length?: number | null;
+  truncated?: boolean;
+  status: "pending_review" | "approved" | "rejected";
+  helpful_count: number;
+  report_count: number;
+  has_voted: boolean;
+  uploaded_by_id: string;
+  uploaded_by_name?: string | null;
+  created_at: string;
 }

@@ -1,8 +1,9 @@
 from datetime import datetime
+import json
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from backend.models.db import MasteryTrend, ReviewStatus, SessionMode, UserRole
 
@@ -187,12 +188,14 @@ class ReflectionClusterRead(_OrmBase):
 
 
 class RecommendationRead(BaseModel):
+    id: str | None = None
     routing: str
     learning_tag: str | None
     mode: str
     reason: str | None = None
     sections: list[dict[str, Any]] = []
     videos: list[dict[str, Any]] = []
+    notes: list[dict[str, Any]] = []
     socratic_seed_message: str | None = None
 
 
@@ -244,6 +247,21 @@ class DocumentCreate(BaseModel):
     subject: str | None = None
 
 
+def _parse_mastery_v2(v: Any) -> dict[str, Any] | None:
+    if v is None:
+        return None
+    if isinstance(v, dict):
+        return v
+    if isinstance(v, str):
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            return None
+    return None
+
+
 class TopicMasteryRead(_OrmBase):
     id: UUID
     topic: str
@@ -255,12 +273,22 @@ class TopicMasteryRead(_OrmBase):
     student_id: UUID
     mastery_v2: dict[str, Any] | None = None
 
+    @field_validator("mastery_v2", mode="before")
+    @classmethod
+    def _validate_mastery_v2(cls, v: Any) -> dict[str, Any] | None:
+        return _parse_mastery_v2(v)
+
 
 class TopicMasterySummary(BaseModel):
     topic: str
     mastery_score: float
     trend: MasteryTrend
     mastery_v2: dict[str, Any] | None = None
+
+    @field_validator("mastery_v2", mode="before")
+    @classmethod
+    def _validate_mastery_v2(cls, v: Any) -> dict[str, Any] | None:
+        return _parse_mastery_v2(v)
 
 
 class ChatMessageRead(_OrmBase):
@@ -359,3 +387,35 @@ class MessageResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+class LearningResourceCreate(BaseModel):
+    class_id: str
+    topic: str
+    title: str
+    resource_type: str
+    url: str | None = None
+    content: str | None = None
+
+
+class LearningResourceRead(BaseModel):
+    id: str
+    class_id: str
+    topic: str
+    title: str
+    resource_type: str
+    url: str | None = None
+    content: str | None = None
+    content_length: int | None = None
+    truncated: bool = False
+    status: str
+    helpful_count: int
+    report_count: int
+    has_voted: bool = False
+    uploaded_by_id: str
+    uploaded_by_name: str | None = None
+    created_at: datetime
+
+
+class LearningResourceReview(BaseModel):
+    status: str

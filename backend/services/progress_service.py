@@ -112,10 +112,34 @@ def update_mastery_after_attempt(
     return updated_topics
 
 
+def _first_answers_only(rows: list[Any]) -> list[Any]:
+    if not rows:
+        return []
+
+    def _sort_key(r: Any) -> tuple[bool, Any]:
+        val = r.get("answered_at") if isinstance(r, dict) else getattr(r, "answered_at", None)
+        return (val is None, val)
+
+    sorted_asc = sorted(rows, key=_sort_key)
+    seen_qids: set[Any] = set()
+    result: list[Any] = []
+
+    for r in sorted_asc:
+        qid = r.get("question_id") if isinstance(r, dict) else getattr(r, "question_id", None)
+        if qid is None:
+            result.append(r)
+        elif qid not in seen_qids:
+            seen_qids.add(qid)
+            result.append(r)
+
+    return result
+
+
 def update_mastery_v2_after_attempt(
     db: Session,
     student_id: str,
     topics: list[str] | dict[str, Any] | set[str],
+    class_id: str | None = None,
 ) -> dict[str, Any]:
     from backend.core.config import get_settings
     from backend.models.db import QuizAttemptAnswer
@@ -132,7 +156,7 @@ def update_mastery_v2_after_attempt(
         if not topic_key:
             continue
 
-        rows = (
+        q = (
             db.query(
                 QuizAttemptAnswer.question_id,
                 QuizAttemptAnswer.attempt_id,
@@ -144,10 +168,16 @@ def update_mastery_v2_after_attempt(
                 QuizAttemptAnswer.student_id == student_id,
                 QuizAttemptAnswer.topic_key == topic_key,
             )
-            .order_by(QuizAttemptAnswer.answered_at.desc())
+        )
+        if class_id is not None:
+            q = q.filter(QuizAttemptAnswer.class_id == class_id)
+
+        rows = (
+            q.order_by(QuizAttemptAnswer.answered_at.desc())
             .limit(50)
             .all()
         )
+        first_rows = _first_answers_only(rows)
 
         attempts = [
             AttemptEvidence(
@@ -158,21 +188,24 @@ def update_mastery_v2_after_attempt(
                 option_count=r.option_count,
                 difficulty=None,
             )
-            for r in rows
+            for r in first_rows
         ]
 
         mastery_res = compute_mastery(attempts)
         dict_res = result_to_dict(mastery_res)
         v2_results[topic] = dict_res
 
-        tm_rows = (
+        tm_query = (
             db.query(TopicMastery)
             .filter(
                 TopicMastery.student_id == student_id,
                 TopicMastery.topic == topic,
             )
-            .all()
         )
+        if class_id is not None:
+            tm_query = tm_query.filter(TopicMastery.class_id == class_id)
+
+        tm_rows = tm_query.all()
         for tm_row in tm_rows:
             tm_row.mastery_v2 = json.dumps(dict_res)
 
@@ -265,9 +298,29 @@ def get_dashboard(db: Session, student_id: str, class_id: str) -> dict[str, Any]
 
     print(f"[PROGRESS] Dashboard built for student={student_id}: {len(mastery)} topics tracked, {len(stale_topics)} stale")
 
+    v2_by_topic: dict[str, Any] = {}
+    try:
+        from backend.core.config import get_settings
+        if get_settings().mastery_v2_enabled:
+            from backend.models.schemas import _parse_mastery_v2
+            from backend.services.mastery_v2 import apply_staleness
+            for row in mastery_rows:
+                raw_v2 = getattr(row, "mastery_v2", None)
+                if raw_v2:
+                    parsed_v2 = _parse_mastery_v2(raw_v2)
+                    v2_by_topic[row.topic] = apply_staleness(parsed_v2)
+    except Exception as exc:
+        print(f"[PROGRESS WARNING] Failed to parse mastery_v2 for dashboard: {exc}")
+
     return {
         "mastery": [
-            {"topic": topic, "score": v["score"], "trend": v["trend"], "attempts": v["attempts"]}
+            {
+                "topic": topic,
+                "score": v["score"],
+                "trend": v["trend"],
+                "attempts": v["attempts"],
+                "mastery_v2": v2_by_topic.get(topic),
+            }
             for topic, v in mastery.items()
         ],
         "engagement": engagement,

@@ -263,6 +263,7 @@ async def submit_attempt(
                 student_id=str(current_user.id),
                 results=result["results"],
                 answered_at=attempt.completed_at,
+                class_id=str(quiz.class_id),
             )
             for row in answer_rows:
                 db.add(QuizAttemptAnswer(**row))
@@ -276,12 +277,25 @@ async def submit_attempt(
     )
     evidence_service.update_engagement(db, current_user.id)
 
+    try:
+        from backend.services import recommendation_service
+        recommendation_service.link_quiz_attempt_to_recommendations(
+            db,
+            student_id=str(current_user.id),
+            class_id=str(quiz.class_id),
+            attempt_id=str(attempt.id),
+            topic_scores=result["topic_scores"],
+            updated_mastery=updated_mastery,
+        )
+    except Exception as exc:
+        print(f"[QUIZ WARNING] Failed to link attempt to recommendations: {exc}")
+
     from backend.core.config import get_settings
 
     if get_settings().mastery_v2_enabled:
         try:
             v2_out = progress_service.update_mastery_v2_after_attempt(
-                db, str(current_user.id), result["topic_scores"]
+                db, str(current_user.id), result["topic_scores"], class_id=str(quiz.class_id)
             )
             for topic_name, v2_data in v2_out.items():
                 if topic_name in updated_mastery:
