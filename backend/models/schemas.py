@@ -392,7 +392,8 @@ class ErrorResponse(BaseModel):
 class LearningResourceCreate(BaseModel):
     class_id: str
     topic: str
-    title: str
+    topic_id: str | None = None
+    title: str = ""
     resource_type: str
     url: str | None = None
     content: str | None = None
@@ -402,6 +403,8 @@ class LearningResourceRead(BaseModel):
     id: str
     class_id: str
     topic: str
+    topic_id: str | None = None
+    subject_id: str | None = None
     title: str
     resource_type: str
     url: str | None = None
@@ -415,7 +418,67 @@ class LearningResourceRead(BaseModel):
     uploaded_by_id: str
     uploaded_by_name: str | None = None
     created_at: datetime
+    video_id: str | None = None
+    channel: str | None = None
+    duration: str | None = None
+    thumbnail: str | None = None
+    source: str | None = None
+    embeddable: bool = True
 
 
 class LearningResourceReview(BaseModel):
     status: str
+
+
+class ProgressRecommendationItem(BaseModel):
+    id: str
+    title: str
+    resource_type: str
+    url: str | None = None
+    content: str | None = None
+    source: str
+    channel: str | None = None
+    duration: str | None = None
+    thumbnail: str | None = None
+    action: str
+    action_label: str
+    topic: str
+
+
+class WeakTopicRecommendationGroup(BaseModel):
+    topic: str
+    topic_id: str | None = None
+    mastery_score: float
+    attempts: int
+    evidence_state: str
+    mastery_band: str
+    resources: list[ProgressRecommendationItem]
+
+
+class InsufficientEvidenceTopic(BaseModel):
+    topic: str
+    topic_id: str | None = None
+    mastery_score: float
+    attempts: int
+    evidence_state: str
+    reason: str
+
+
+class ProgressRecommendationsResponse(BaseModel):
+    class_id: str
+    class_name: str
+    subject_id: str | None = None
+    subject_name: str | None = None
+    weak_topics: list[WeakTopicRecommendationGroup]
+    insufficient_evidence_topics: list[InsufficientEvidenceTopic]
+    all_topics_strong: bool
+    total_tracked_topics: int
+
+
+class SyllabusStatusRead(BaseModel):
+    subject_id: str
+    subject_name: str
+    status: str
+    topic_count: int
+    topics: list[dict[str, Any]]
+    updated_at: str | None = None

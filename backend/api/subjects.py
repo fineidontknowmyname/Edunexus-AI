@@ -62,49 +62,100 @@ async def draft_topic_graph(
     db: DbDep,
     current_user: CurrentUser,
     _educator: Annotated[None, RequireEducator],
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = File(None),
 ):
     access.owned_subject(db, subject_id, current_user)
 
-    filename = os.path.basename(file.filename or "")
-    ext = os.path.splitext(filename)[1].lower()
-    if ext not in SUPPORTED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type '{ext}'.")
+    upload_list: list[UploadFile] = []
+    if files and isinstance(files, (list, tuple)):
+        upload_list.extend([f for f in files if getattr(f, "filename", None)])
+    elif files and hasattr(files, "filename") and files.filename:
+        upload_list.append(files)
+
+    if file and hasattr(file, "filename") and file.filename and file not in upload_list:
+        upload_list.append(file)
+
+    if not upload_list:
+        raise HTTPException(
+            status_code=400,
+            detail="No syllabus file was provided. Please upload a PDF, Word document (.docx), or syllabus images (.jpg, .png).",
+        )
 
     max_bytes = get_settings().max_upload_mb * 1024 * 1024
-    content = await file.read(max_bytes + 1)
-    if len(content) > max_bytes:
-        raise HTTPException(status_code=413, detail=f"File is larger than the {get_settings().max_upload_mb} MB upload limit.")
-    if not content:
-        raise HTTPException(status_code=400, detail="The uploaded file is empty.")
+    extracted_sections: list[str] = []
 
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
-    try:
-        tmp.write(content)
-        tmp.flush()
-        tmp.close()
-        syllabus_text = extract_text(file_path=tmp.name, filename=filename)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception:  # noqa: BLE001
-        logger.exception("Syllabus parsing failed for %s", filename)
-        raise HTTPException(status_code=400, detail="That file couldn't be read. Check it isn't corrupted or password-protected.")
-    finally:
-        if os.path.exists(tmp.name):
-            os.remove(tmp.name)
+    for f_idx, upload_item in enumerate(upload_list, start=1):
+        filename = os.path.basename(upload_item.filename or f"syllabus_page_{f_idx}")
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in SUPPORTED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type '{ext}' for file '{filename}'. Supported formats: {', '.join(SUPPORTED_EXTENSIONS)}",
+            )
+
+        content = await upload_item.read(max_bytes + 1)
+        if len(content) > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File '{filename}' exceeds the {get_settings().max_upload_mb} MB upload limit.",
+            )
+        if not content:
+            raise HTTPException(status_code=400, detail=f"The uploaded file '{filename}' is empty.")
+
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+        try:
+            tmp.write(content)
+            tmp.flush()
+            tmp.close()
+            text = extract_text(file_path=tmp.name, filename=filename)
+            header = f"[Page/Document {f_idx}: {filename}]" if len(upload_list) > 1 else ""
+            extracted_sections.append(f"{header}\n{text}".strip())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except Exception:
+            logger.exception("Syllabus parsing failed for %s", filename)
+            raise HTTPException(
+                status_code=400,
+                detail=f"That file ('{filename}') couldn't be read. Check that it isn't corrupted, blank, or password-protected.",
+            )
+        finally:
+            if os.path.exists(tmp.name):
+                os.remove(tmp.name)
+
+    combined_text = "\n\n".join(extracted_sections)
+    if not combined_text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="No readable syllabus text could be extracted from the uploaded file(s).",
+        )
 
     try:
-        topics = await topic_graph_service.draft_from_syllabus(syllabus_text)
+        topics = await topic_graph_service.draft_from_syllabus(combined_text)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=f"Topic drafting failed: {exc}")
 
-    return {"subject_id": subject_id, "topics": topics}
+    return {
+        "subject_id": subject_id,
+        "topics": topics,
+        "files_processed": len(upload_list),
+        "total_extracted_characters": len(combined_text),
+    }
 
 
 @router.get("/subjects/{subject_id}/topic-graph")
 def read_topic_graph(subject_id: str, db: DbDep, _user: CurrentUser):
     subject = access.existing_subject(db, subject_id)
     return {"subject_id": str(subject.id), "topics": topic_graph_service.read_graph(db, str(subject.id))}
+
+
+@router.get("/subjects/{subject_id}/syllabus/status")
+def get_syllabus_status(subject_id: str, db: DbDep, _user: CurrentUser):
+    subject = access.existing_subject(db, subject_id)
+    try:
+        return topic_graph_service.get_syllabus_status(db, str(subject.id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 @router.put("/subjects/{subject_id}/topic-graph")

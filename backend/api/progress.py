@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from backend.api import access
 from backend.api.dependencies import CurrentUser, RequireEducator, RequireStudent
 from backend.core.database import get_db
-from backend.services import context_service, insights_service, progress_service, routing_service
+from backend.services import context_service, insights_service, progress_service, recommendation_service, routing_service
 
 router = APIRouter(prefix="/progress", tags=["progress"])
 
@@ -44,6 +44,23 @@ def routing(
 ):
     resolved_class_id = access.student_class_id(db, current_user, class_id)
     return routing_service.get_routing_map(db, str(current_user.id), resolved_class_id)
+
+
+@router.get("/recommendations")
+def progress_recommendations(
+    db: DbDep,
+    current_user: CurrentUser,
+    _student: Annotated[None, RequireStudent],
+    class_id: str | None = None,
+):
+    """
+    Returns personalized learning recommendations directly on the student Progress page
+    based on empirical assessment performance.
+    """
+    resolved_class_id = access.student_class_id(db, current_user, class_id)
+    return recommendation_service.get_progress_recommendations(
+        db, str(current_user.id), resolved_class_id
+    )
 
 
 @router.get("/student/{student_id}")

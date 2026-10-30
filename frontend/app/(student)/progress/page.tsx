@@ -11,9 +11,14 @@ import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
 import { StatCard } from "../../components/ui/Stat";
 import { StudentClassGate } from "../../components/layout/StudentClassGate";
 import { LearningGraph } from "../../components/progress/LearningGraph";
+import { RecommendedLearningSection } from "../../components/progress/RecommendedLearningSection";
 
 export default function ProgressPage() {
-  return <StudentClassGate>{(activeClass, picker) => <Progress key={activeClass.id} activeClass={activeClass} picker={picker} />}</StudentClassGate>;
+  return (
+    <StudentClassGate>
+      {(activeClass, picker) => <Progress key={activeClass.id} activeClass={activeClass} picker={picker} />}
+    </StudentClassGate>
+  );
 }
 
 function Progress({ activeClass, picker }: { activeClass: ClassRow; picker: (className?: string) => React.ReactNode }) {
@@ -92,6 +97,9 @@ function Progress({ activeClass, picker }: { activeClass: ClassRow; picker: (cla
         <CardHeader icon={<BarChart3 className="h-4 w-4" />} title="Mastery by topic" description="Weakest topics first." />
         <LearningGraph mastery={d.mastery} />
       </Card>
+
+      {/* Dedicated Personalised Recommendations for Weak Topics */}
+      <RecommendedLearningSection classId={activeClass.id} />
     </PageContainer>
   );
 }

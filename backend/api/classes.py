@@ -228,3 +228,74 @@ def leave_class(
         f"Learning data preserved."
     )
     return Response(status_code=204)
+
+
+# ── Class curation topics (dynamically derived from approved syllabus) ────────
+
+@router.get("/{class_id}/curation-topics")
+def get_class_curation_topics(
+    class_id: str,
+    db: DbDep,
+    current_user: CurrentUser,
+):
+    """Return approved syllabus topics for the subject linked to this class.
+
+    Never falls back to hardcoded Operating Systems topics. If the class has
+    no linked subject or the subject has no approved syllabus, returns an
+    informative empty state so the UI can prompt the faculty to upload one.
+    """
+    class_row = access.user_class_access(db, class_id, current_user)
+    from backend.models.db import PrerequisiteMap, Subject
+
+    if not class_row.subject_id:
+        return {
+            "class_id": str(class_row.id),
+            "class_name": class_row.name,
+            "subject_id": None,
+            "subject_name": class_row.subject or "Unassigned",
+            "status": "no_subject",
+            "topics": [],
+            "message": "This class is not linked to a registered subject. Please link a subject in Syllabus Management.",
+        }
+
+    subject = db.get(Subject, class_row.subject_id)
+    subject_name = subject.name if subject else (class_row.subject or "Unknown")
+
+    rows = (
+        db.query(PrerequisiteMap)
+        .filter(PrerequisiteMap.subject_id == class_row.subject_id)
+        .order_by(PrerequisiteMap.created_at, PrerequisiteMap.topic)
+        .all()
+    )
+
+    if not rows:
+        return {
+            "class_id": str(class_row.id),
+            "class_name": class_row.name,
+            "subject_id": str(class_row.subject_id),
+            "subject_name": subject_name,
+            "status": "no_syllabus",
+            "topics": [],
+            "message": f"No approved syllabus topics found for '{subject_name}'. Upload and approve a syllabus in Syllabus Management.",
+        }
+
+    topics = [
+        {
+            "id": str(r.id),
+            "topic": r.topic,
+            "description": r.description or "",
+            "requires": list(r.requires or []),
+            "related_concepts": list(r.related_concepts or []),
+        }
+        for r in rows
+    ]
+
+    return {
+        "class_id": str(class_row.id),
+        "class_name": class_row.name,
+        "subject_id": str(class_row.subject_id),
+        "subject_name": subject_name,
+        "status": "approved",
+        "topics": topics,
+        "message": None,
+    }

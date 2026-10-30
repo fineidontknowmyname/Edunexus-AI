@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  BookOpen,
   ClipboardCheck,
   FileText,
   FileUp,
@@ -19,11 +21,14 @@ import { firstName, formatRelative, percent, plural } from "../../lib/format";
 import type { AtRiskStudent, ClassInsightsResponse, ClassRow, DocumentRow, PendingQuiz } from "../../lib/types";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
+import { Select } from "../../components/ui/Input";
 import { ButtonLink } from "../../components/ui/Button";
 import { EmptyState, ErrorState, PageSkeleton, Skeleton, SkeletonText } from "../../components/ui/Feedback";
 import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
 import { ProgressBar, StatCard } from "../../components/ui/Stat";
 import { DocumentStatusBadge } from "../../components/educator/DocumentStatusBadge";
+import { EducatorResourceCurationCard } from "../../components/resources/EducatorResourceCurationCard";
+import { EducatorModerationQueue } from "../../components/resources/EducatorModerationQueue";
 
 interface ClassSummary {
   cls: ClassRow;
@@ -56,6 +61,7 @@ function classAverage(insights: ClassInsightsResponse | null): number | null {
 export default function OverviewPage() {
   const { user } = useAuth();
   const classes = useClasses();
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const classKey = classes.data ? classes.data.map((c) => c.id).join(",") : null;
   const summaries = useAsync<ClassSummary[]>(classKey === null ? null : `overview:${classKey}`, () =>
     loadSummaries(classes.data ?? [])
@@ -289,6 +295,57 @@ export default function OverviewPage() {
           )}
         </Card>
       </div>
+
+      {(() => {
+        const activeClass = classes.data.find((c) => c.id === selectedClassId) || classes.data[0] || null;
+        if (!activeClass) return null;
+        return (
+          <section aria-labelledby="curation-heading" className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 id="curation-heading" className="text-base font-semibold text-primary">
+                  Resource Curation & Moderation
+                </h2>
+                <p className="text-xs text-tertiary">
+                  Curate YouTube videos and moderate student submissions for {activeClass.name}{" "}
+                  {activeClass.subject ? `(${activeClass.subject})` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {classes.data.length > 1 && (
+                  <div className="w-full sm:w-56">
+                    <Select
+                      label="Select Class"
+                      srOnlyLabel
+                      value={activeClass.id}
+                      onChange={(e) => setSelectedClassId(e.target.value)}
+                    >
+                      {classes.data.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.subject ? `(${c.subject})` : ""}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
+                <ButtonLink
+                  href="/subjects"
+                  variant="secondary"
+                  size="sm"
+                  icon={<BookOpen className="h-4 w-4" />}
+                >
+                  Syllabus & Topics
+                </ButtonLink>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <EducatorModerationQueue classId={activeClass.id} />
+              <EducatorResourceCurationCard classId={activeClass.id} />
+            </div>
+          </section>
+        );
+      })()}
 
       <Card>
         <CardHeader

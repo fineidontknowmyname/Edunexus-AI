@@ -140,6 +140,7 @@ def read_graph(db: Session, subject_id: str) -> list[dict[str, Any]]:
     )
     return [
         {
+            "id": str(r.id),
             "topic": r.topic,
             "description": r.description,
             "requires": list(r.requires or []),
@@ -147,6 +148,51 @@ def read_graph(db: Session, subject_id: str) -> list[dict[str, Any]]:
         }
         for r in rows
     ]
+
+
+def get_syllabus_status(db: Session, subject_id: str) -> dict[str, Any]:
+    subject = db.get(Subject, subject_id)
+    if subject is None:
+        raise ValueError(f"Subject '{subject_id}' not found.")
+
+    rows = (
+        db.query(PrerequisiteMap)
+        .filter(PrerequisiteMap.subject_id == subject_id)
+        .order_by(PrerequisiteMap.created_at, PrerequisiteMap.topic)
+        .all()
+    )
+
+    if rows:
+        topics = [
+            {
+                "id": str(r.id),
+                "topic": r.topic,
+                "description": r.description,
+                "requires": list(r.requires or []),
+                "related_concepts": list(r.related_concepts or []),
+            }
+            for r in rows
+        ]
+        latest_time = max(
+            [r.updated_at or r.created_at for r in rows if r.updated_at or r.created_at] or [datetime.utcnow()]
+        )
+        return {
+            "subject_id": str(subject.id),
+            "subject_name": subject.name,
+            "status": "approved",
+            "topic_count": len(topics),
+            "topics": topics,
+            "updated_at": latest_time.isoformat() if latest_time else None,
+        }
+
+    return {
+        "subject_id": str(subject.id),
+        "subject_name": subject.name,
+        "status": "missing",
+        "topic_count": 0,
+        "topics": [],
+        "updated_at": None,
+    }
 
 
 def rename_topic(db: Session, subject_id: str, old_topic: str, new_topic: str) -> None:

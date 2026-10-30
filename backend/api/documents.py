@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-SUPPORTED_EXTENSIONS = (".pdf", ".pptx", ".docx", ".txt")
+from backend.pipeline.parser import SUPPORTED_EXTENSIONS
 READ_CHUNK_BYTES = 1024 * 1024
 
 DbDep = Annotated[Session, Depends(get_db)]

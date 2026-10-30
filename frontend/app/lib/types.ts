@@ -349,6 +349,95 @@ export interface RecommendationVideo {
   channel: string;
   url: string;
   helpful_count?: number;
+  duration?: string | null;
+  thumbnail?: string | null;
+  source?: "faculty" | "student_suggested" | "auto" | null;
+  embeddable?: boolean;
+}
+
+export interface CurationTopicItem {
+  id: string;
+  topic: string;
+  description: string | null;
+  requires: string[];
+  related_concepts: string[];
+}
+
+export interface ClassCurationTopicsResponse {
+  class_id: string;
+  subject_id: string | null;
+  subject_name: string | null;
+  status: "approved" | "no_syllabus" | "no_subject";
+  topics: CurationTopicItem[];
+  message: string | null;
+}
+
+export interface SyllabusStatusRead {
+  subject_id: string;
+  status: "approved" | "missing";
+  syllabus_version: number | null;
+  topic_count: number;
+  topics: CurationTopicItem[];
+}
+
+export interface ProgressRecommendationItem {
+  id: string;
+  resource_type: "youtube" | "notes" | "quiz";
+  title: string;
+  url?: string | null;
+  content?: string | null;
+  content_snippet?: string | null;
+  video_id?: string | null;
+  channel?: string | null;
+  duration?: string | null;
+  thumbnail?: string | null;
+  source: "faculty" | "student_suggested" | "auto" | "system" | string;
+  embeddable?: boolean;
+  action: "watch" | "read" | "practise" | string;
+  action_label?: string;
+  action_url?: string | null;
+  badge_label?: string;
+  badge_color?: string;
+  topic?: string;
+}
+
+export interface WeakTopicRecommendationGroup {
+  topic_id?: string | null;
+  topic: string;
+  topic_name?: string;
+  mastery_score: number;
+  mastery_band: string;
+  evidence_state: string;
+  attempts: number;
+  accuracy?: number;
+  resources: ProgressRecommendationItem[];
+  recommendations?: ProgressRecommendationItem[];
+}
+
+export interface InsufficientEvidenceTopic {
+  topic_id?: string | null;
+  topic: string;
+  topic_name?: string;
+  mastery_score?: number;
+  attempts?: number;
+  evidence_state?: string;
+  reason?: string;
+  message?: string;
+  suggested_action?: string;
+  action_url?: string | null;
+}
+
+export interface ProgressRecommendationsResponse {
+  class_id: string;
+  class_name?: string;
+  subject_id?: string | null;
+  subject_name?: string | null;
+  weak_topics: WeakTopicRecommendationGroup[];
+  insufficient_evidence_topics?: InsufficientEvidenceTopic[];
+  insufficient_evidence?: InsufficientEvidenceTopic[];
+  all_topics_strong?: boolean;
+  total_tracked_topics?: number;
+  total_recommended_resources?: number;
 }
 
 export interface RecommendationNote {
@@ -392,4 +481,95 @@ export interface LearningResourceRow {
   uploaded_by_id: string;
   uploaded_by_name?: string | null;
   created_at: string;
+  video_id?: string | null;
+  channel?: string | null;
+  duration?: string | null;
+  thumbnail?: string | null;
+  source?: "faculty" | "student_suggested" | "auto" | null;
+  embeddable?: boolean;
+}
+
+export interface CurationTopicItem {
+  id: string;
+  topic: string;
+  description: string | null;
+  requires: string[];
+  related_concepts: string[];
+}
+
+export interface ClassCurationTopicsResponse {
+  class_id: string;
+  subject_id: string | null;
+  subject_name: string | null;
+  status: "approved" | "no_syllabus" | "no_subject";
+  topics: CurationTopicItem[];
+  message: string | null;
+}
+
+export interface SyllabusStatusRead {
+  subject_id: string;
+  status: "approved" | "missing";
+  syllabus_version: number | null;
+  topic_count: number;
+  topics: CurationTopicItem[];
+}
+
+export interface ProgressRecommendationItem {
+  id: string;
+  resource_type: "youtube" | "notes" | "quiz";
+  title: string;
+  url?: string | null;
+  content?: string | null;
+  content_snippet?: string | null;
+  video_id?: string | null;
+  channel?: string | null;
+  duration?: string | null;
+  thumbnail?: string | null;
+  source: "faculty" | "student_suggested" | "auto" | "system" | string;
+  embeddable?: boolean;
+  action: "watch" | "read" | "practise" | string;
+  action_label?: string;
+  action_url?: string | null;
+  badge_label?: string;
+  badge_color?: string;
+  topic?: string;
+}
+
+export interface WeakTopicRecommendationGroup {
+  topic_id?: string | null;
+  topic: string;
+  topic_name?: string;
+  mastery_score: number;
+  mastery_band: string;
+  evidence_state: string;
+  attempts: number;
+  accuracy?: number;
+  resources: ProgressRecommendationItem[];
+  recommendations?: ProgressRecommendationItem[];
+}
+
+export interface InsufficientEvidenceTopic {
+  topic_id?: string | null;
+  topic: string;
+  topic_name?: string;
+  mastery_score?: number;
+  attempts?: number;
+  evidence_state?: string;
+  reason?: string;
+  message?: string;
+  suggested_action?: string;
+  action_url?: string | null;
+}
+
+export interface ProgressRecommendationsResponse {
+  class_id: string;
+  class_name?: string;
+  subject_id?: string | null;
+  subject_name?: string | null;
+  weak_topics: WeakTopicRecommendationGroup[];
+  insufficient_evidence_topics?: InsufficientEvidenceTopic[];
+  insufficient_evidence?: InsufficientEvidenceTopic[];
+  all_topics_strong?: boolean;
+  total_tracked_topics?: number;
+  total_recommended_resources?: number;
 }

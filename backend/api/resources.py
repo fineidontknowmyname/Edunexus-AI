@@ -25,26 +25,107 @@ from backend.models.db import (
     UserRole,
 )
 
+import json
+from backend.services import youtube_service
+
 router = APIRouter(prefix="/resources", tags=["resources"])
 
 DbDep = Annotated[Session, Depends(get_db)]
 ResourceUploadRateLimit = Depends(rate_limit("resources-upload", max_requests=10, window_seconds=600))
 
-YOUTUBE_REGEX = re.compile(
-    r"^(https?://)?(www\.|m\.)?(youtube\.com/(watch\?.*v=|shorts/)|youtu\.be/)(?P<video_id>[a-zA-Z0-9_-]{11})"
-)
+
+def _enrich_read_model(
+    r: LearningResource,
+    has_voted: bool,
+    uploader_name: str | None,
+    uploader_role: UserRole | None = None,
+    truncate_notes: bool = False,
+) -> schemas.LearningResourceRead:
+    raw_content = r.content
+    content_len = len(raw_content) if raw_content is not None else None
+    truncated = False
+    display_content = raw_content
+
+    video_id = None
+    channel = None
+    duration = None
+    thumbnail = None
+    source = None
+    embeddable = True
+
+    topic_id = None
+    subject_id = None
+
+    if r.resource_type == ResourceType.youtube:
+        parsed_meta: dict[str, Any] | None = None
+        if raw_content:
+            try:
+                parsed_meta = json.loads(raw_content)
+            except Exception:
+                parsed_meta = None
+
+        if isinstance(parsed_meta, dict):
+            video_id = parsed_meta.get("video_id")
+            channel = parsed_meta.get("channel")
+            duration = parsed_meta.get("duration")
+            thumbnail = parsed_meta.get("thumbnail")
+            source = parsed_meta.get("source")
+            embeddable = parsed_meta.get("embeddable", True)
+            topic_id = parsed_meta.get("topic_id")
+            subject_id = parsed_meta.get("subject_id")
+
+        if not video_id and r.url:
+            video_id = youtube_service.extract_video_id(r.url)
+
+        if not source:
+            source = "faculty" if uploader_role in (UserRole.educator, UserRole.admin) else "student_suggested"
+        if not thumbnail and video_id:
+            thumbnail = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+        if not channel:
+            channel = "Faculty Approved" if source == "faculty" else "Student Shared"
+        display_content = None
+    else:
+        if truncate_notes and raw_content is not None and len(raw_content) > 500:
+            display_content = raw_content[:500]
+            truncated = True
+
+    return schemas.LearningResourceRead(
+        id=str(r.id),
+        class_id=str(r.class_id),
+        topic=r.topic,
+        topic_id=topic_id,
+        subject_id=subject_id,
+        title=r.title,
+        resource_type=r.resource_type.value,
+        url=r.url,
+        content=display_content,
+        content_length=content_len,
+        truncated=truncated,
+        status=r.status.value,
+        helpful_count=r.helpful_count,
+        report_count=r.report_count,
+        has_voted=has_voted,
+        uploaded_by_id=str(r.uploaded_by_id),
+        uploaded_by_name=uploader_name,
+        created_at=r.created_at or datetime.now(timezone.utc),
+        video_id=video_id,
+        channel=channel,
+        duration=duration,
+        thumbnail=thumbnail,
+        source=source,
+        embeddable=embeddable,
+    )
 
 
 def _validate_youtube_url(url: str) -> str:
     cleaned = url.strip()
-    match = YOUTUBE_REGEX.match(cleaned)
-    if not match:
+    vid = youtube_service.extract_video_id(cleaned)
+    if not vid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid YouTube URL. Please provide a valid youtube.com or youtu.be link.",
         )
-    video_id = match.group("video_id")
-    return f"https://www.youtube.com/watch?v={video_id}"
+    return youtube_service.build_canonical_youtube_url(vid)
 
 
 @router.post(
@@ -60,12 +141,37 @@ def create_resource(
 ):
     class_row = access.user_class_access(db, payload.class_id, current_user)
 
-    title = payload.title.strip()
-    if not title:
-        raise HTTPException(status_code=400, detail="Title cannot be empty.")
     topic = payload.topic.strip()
     if not topic:
         raise HTTPException(status_code=400, detail="Topic cannot be empty.")
+
+    topic_id = payload.topic_id
+    subject_id = str(class_row.subject_id) if class_row.subject_id else None
+
+    # Validate that topic belongs to subject if class has an approved syllabus
+    if class_row.subject_id:
+        from backend.models.db import PrerequisiteMap
+
+        valid_rows = (
+            db.query(PrerequisiteMap)
+            .filter(PrerequisiteMap.subject_id == class_row.subject_id)
+            .all()
+        )
+        if valid_rows:
+            matching_row = next(
+                (
+                    r for r in valid_rows
+                    if (topic_id and str(r.id) == topic_id) or (r.topic.strip().lower() == topic.lower())
+                ),
+                None,
+            )
+            if matching_row is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Topic '{topic}' is not in the approved syllabus for this subject. Please select a valid syllabus topic.",
+                )
+            topic = matching_row.topic
+            topic_id = str(matching_row.id)
 
     r_type = payload.resource_type.strip().lower()
     if r_type not in (ResourceType.youtube.value, ResourceType.notes.value):
@@ -76,12 +182,33 @@ def create_resource(
 
     canonical_url = None
     notes_content = None
+    title = (payload.title or "").strip()
 
     if r_type == ResourceType.youtube.value:
         if not payload.url or not payload.url.strip():
             raise HTTPException(status_code=400, detail="YouTube URL is required.")
-        canonical_url = _validate_youtube_url(payload.url)
+        video_id = youtube_service.extract_video_id(payload.url)
+        if not video_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid YouTube URL. Please provide a valid youtube.com or youtu.be link.",
+            )
+        video_meta = youtube_service.fetch_youtube_metadata(video_id)
+        if not title:
+            title = video_meta.get("title") or f"Educational Video ({video_id})"
+        source_provenance = (
+            "faculty" if current_user.role in (UserRole.educator, UserRole.admin) else "student_suggested"
+        )
+        video_meta["source"] = source_provenance
+        if topic_id:
+            video_meta["topic_id"] = topic_id
+        if subject_id:
+            video_meta["subject_id"] = subject_id
+        notes_content = json.dumps(video_meta)
+        canonical_url = video_meta.get("url") or youtube_service.build_canonical_youtube_url(video_id)
     else:
+        if not title:
+            raise HTTPException(status_code=400, detail="Title cannot be empty.")
         if not payload.content or not payload.content.strip():
             raise HTTPException(status_code=400, detail="Notes content is required.")
         if len(payload.content) > 50_000:
@@ -114,25 +241,11 @@ def create_resource(
     db.commit()
     db.refresh(resource)
 
-    created_dt = resource.created_at or datetime.now(timezone.utc)
-    content_len = len(resource.content) if resource.content is not None else None
-    return schemas.LearningResourceRead(
-        id=str(resource.id),
-        class_id=str(resource.class_id),
-        topic=resource.topic,
-        title=resource.title,
-        resource_type=resource.resource_type.value,
-        url=resource.url,
-        content=resource.content,
-        content_length=content_len,
-        truncated=False,
-        status=resource.status.value,
-        helpful_count=resource.helpful_count,
-        report_count=resource.report_count,
+    return _enrich_read_model(
+        resource,
         has_voted=False,
-        uploaded_by_id=str(resource.uploaded_by_id),
-        uploaded_by_name=current_user.full_name,
-        created_at=created_dt,
+        uploader_name=current_user.full_name,
+        uploader_role=current_user.role,
     )
 
 
@@ -194,35 +307,18 @@ def list_resources(
     uploader_ids = {r.uploaded_by_id for r in resources}
     uploaders = {u.id: u.full_name for u in db.query(User).filter(User.id.in_(uploader_ids)).all()}
 
-    def _format_list_resource(r: LearningResource) -> schemas.LearningResourceRead:
-        raw_content = r.content
-        content_len = len(raw_content) if raw_content is not None else None
-        truncated = False
-        display_content = raw_content
-        if raw_content is not None and len(raw_content) > 500:
-            display_content = raw_content[:500]
-            truncated = True
+    uploader_roles = {u.id: u.role for u in db.query(User).filter(User.id.in_(uploader_ids)).all()}
 
-        return schemas.LearningResourceRead(
-            id=str(r.id),
-            class_id=str(r.class_id),
-            topic=r.topic,
-            title=r.title,
-            resource_type=r.resource_type.value,
-            url=r.url,
-            content=display_content,
-            content_length=content_len,
-            truncated=truncated,
-            status=r.status.value,
-            helpful_count=r.helpful_count,
-            report_count=r.report_count,
+    return [
+        _enrich_read_model(
+            r,
             has_voted=r.id in voted_ids,
-            uploaded_by_id=str(r.uploaded_by_id),
-            uploaded_by_name=uploaders.get(r.uploaded_by_id),
-            created_at=r.created_at,
+            uploader_name=uploaders.get(r.uploaded_by_id),
+            uploader_role=uploader_roles.get(r.uploaded_by_id),
+            truncate_notes=True,
         )
-
-    return [_format_list_resource(r) for r in resources]
+        for r in resources
+    ]
 
 
 @router.get("/{resource_id}", response_model=schemas.LearningResourceRead)
@@ -253,25 +349,12 @@ def get_resource(
     )
 
     uploader = db.get(User, resource.uploaded_by_id)
-    content_len = len(resource.content) if resource.content is not None else None
 
-    return schemas.LearningResourceRead(
-        id=str(resource.id),
-        class_id=str(resource.class_id),
-        topic=resource.topic,
-        title=resource.title,
-        resource_type=resource.resource_type.value,
-        url=resource.url,
-        content=resource.content,
-        content_length=content_len,
-        truncated=False,
-        status=resource.status.value,
-        helpful_count=resource.helpful_count,
-        report_count=resource.report_count,
+    return _enrich_read_model(
+        resource,
         has_voted=has_voted,
-        uploaded_by_id=str(resource.uploaded_by_id),
-        uploaded_by_name=uploader.full_name if uploader else None,
-        created_at=resource.created_at or datetime.now(timezone.utc),
+        uploader_name=uploader.full_name if uploader else None,
+        uploader_role=uploader.role if uploader else None,
     )
 
 
@@ -300,25 +383,12 @@ def vote_resource(
         db.refresh(resource)
 
     uploader = db.get(User, resource.uploaded_by_id)
-    content_len = len(resource.content) if resource.content is not None else None
 
-    return schemas.LearningResourceRead(
-        id=str(resource.id),
-        class_id=str(resource.class_id),
-        topic=resource.topic,
-        title=resource.title,
-        resource_type=resource.resource_type.value,
-        url=resource.url,
-        content=resource.content,
-        content_length=content_len,
-        truncated=False,
-        status=resource.status.value,
-        helpful_count=resource.helpful_count,
-        report_count=resource.report_count,
+    return _enrich_read_model(
+        resource,
         has_voted=True,
-        uploaded_by_id=str(resource.uploaded_by_id),
-        uploaded_by_name=uploader.full_name if uploader else None,
-        created_at=resource.created_at or datetime.now(timezone.utc),
+        uploader_name=uploader.full_name if uploader else None,
+        uploader_role=uploader.role if uploader else None,
     )
 
 
@@ -380,23 +450,10 @@ def review_resource(
     db.refresh(resource)
 
     uploader = db.get(User, resource.uploaded_by_id)
-    content_len = len(resource.content) if resource.content is not None else None
 
-    return schemas.LearningResourceRead(
-        id=str(resource.id),
-        class_id=str(resource.class_id),
-        topic=resource.topic,
-        title=resource.title,
-        resource_type=resource.resource_type.value,
-        url=resource.url,
-        content=resource.content,
-        content_length=content_len,
-        truncated=False,
-        status=resource.status.value,
-        helpful_count=resource.helpful_count,
-        report_count=resource.report_count,
+    return _enrich_read_model(
+        resource,
         has_voted=False,
-        uploaded_by_id=str(resource.uploaded_by_id),
-        uploaded_by_name=uploader.full_name if uploader else None,
-        created_at=resource.created_at or datetime.now(timezone.utc),
+        uploader_name=uploader.full_name if uploader else None,
+        uploader_role=uploader.role if uploader else None,
     )

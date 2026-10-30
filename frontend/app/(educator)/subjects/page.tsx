@@ -255,16 +255,21 @@ function SubjectEditors({
   const graphDirty = JSON.stringify(topics) !== JSON.stringify(initial.topics);
   const rulesDirty = JSON.stringify(rules) !== JSON.stringify(initial.rules);
 
-  async function handleDraft(file: File) {
+  async function handleDraft(files: File[]) {
+    if (!files.length) return;
     setDrafting(true);
     setGraphMsg(null);
     const form = new FormData();
-    form.append("file", file);
+    files.forEach((f) => form.append("files", f));
+    if (files.length === 1) {
+      form.append("file", files[0]);
+    }
     try {
       const res = await apiFetch<TopicGraphResponse>(`/subjects/${subject.id}/syllabus`, { method: "POST", body: form });
       setTopics(res.topics);
       setEditorKey((k) => k + 1);
-      setGraphMsg({ tone: "success", text: `Drafted ${plural(res.topics.length, "topic")}. Review and edit, then confirm to save.` });
+      const fileNote = files.length > 1 ? ` across ${files.length} pages/files` : "";
+      setGraphMsg({ tone: "success", text: `Drafted ${plural(res.topics.length, "topic")}${fileNote}. Review and edit, then confirm to activate curriculum.` });
     } catch (err) {
       setGraphMsg({ tone: "danger", text: errorMessage(err, "Drafting failed.") });
     } finally {
@@ -341,22 +346,25 @@ function SubjectEditors({
                 ref={fileRef}
                 id="syllabus-file"
                 type="file"
-                accept=".pdf,.pptx,.docx,.txt"
+                multiple
+                accept=".pdf,.docx,.jpg,.jpeg,.png,.pptx,.txt"
                 className="sr-only"
                 disabled={drafting}
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleDraft(f);
+                  const files = e.target.files;
+                  if (files && files.length > 0) handleDraft(Array.from(files));
                   e.target.value = "";
                 }}
               />
               <Button variant="secondary" size="sm" loading={drafting} onClick={() => fileRef.current?.click()} icon={<Sparkles className="h-3.5 w-3.5" aria-hidden />}>
-                {drafting ? "Drafting…" : "Draft from syllabus"}
+                {drafting ? "Extracting & Drafting…" : "Draft from syllabus"}
               </Button>
             </>
           }
         />
-        <p className="-mt-2 mb-4 text-xs text-tertiary">Drafting uses one AI call. Nothing is saved until you confirm.</p>
+        <p className="-mt-2 mb-4 text-xs text-tertiary">
+          Supports PDF, Word (.docx), and syllabus photos/scans/screenshots (.jpg, .jpeg, .png). Nothing is saved or activated until you review, edit and confirm.
+        </p>
 
         <TopicGraphEditor key={editorKey} topics={topics} onChange={setTopics} />
 

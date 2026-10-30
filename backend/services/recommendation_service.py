@@ -52,14 +52,16 @@ def _curriculum_sections(
 
 
 def _library_resources(
-    db: Session, class_id: str, topic: str
+    db: Session, class_id: str, topic: str, subject_name: str | None = None
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Selects faculty-approved and peer-shared resources from the library for this topic and class.
     Ranking order:
-      1. Educator-uploaded resources first
-      2. Helpful count descending
-      3. Recency descending
+      1. Educator-uploaded resources first (source: 'faculty')
+      2. Approved student-shared resources (source: 'student_suggested')
+      3. Helpful count descending
+      4. Recency descending
+      5. Automatically discovered YouTube candidates when no approved videos exist (source: 'auto')
     """
     rows = (
         db.query(LearningResource, User.role)
@@ -84,10 +86,26 @@ def _library_resources(
         if r.resource_type == ResourceType.youtube and r.url:
             match = re.search(r"(?:v=|youtu\.be/|shorts/)([a-zA-Z0-9_-]{11})", r.url)
             vid = match.group(1) if match else str(r.id)
+
+            meta: dict[str, Any] = {}
+            if r.content:
+                try:
+                    meta = json.loads(r.content)
+                except Exception:
+                    meta = {}
+
+            is_educator = role in (UserRole.educator, UserRole.admin)
+            source_tag = meta.get("source") or ("faculty" if is_educator else "student_suggested")
+            channel_name = meta.get("channel") or ("Faculty Approved" if is_educator else "Student Shared")
+
             videos.append({
-                "video_id": vid,
-                "title": r.title,
-                "channel": "Faculty Approved" if role == UserRole.educator else "Student Shared",
+                "video_id": meta.get("video_id") or vid,
+                "title": r.title or meta.get("title", f"Video ({vid})"),
+                "channel": channel_name,
+                "duration": meta.get("duration", "Video"),
+                "thumbnail": meta.get("thumbnail") or f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                "source": source_tag,
+                "embeddable": meta.get("embeddable", True),
                 "url": r.url,
                 "helpful_count": r.helpful_count,
             })
@@ -104,6 +122,12 @@ def _library_resources(
                 "author_role": role.value if hasattr(role, "value") else str(role),
                 "helpful_count": r.helpful_count,
             })
+
+    # When no curated or approved student videos exist, discover automatic candidates
+    if not videos:
+        from backend.services import youtube_service
+        auto_videos = youtube_service.discover_topic_videos(topic, subject_name)
+        videos.extend(auto_videos)
 
     return videos, notes
 
@@ -186,7 +210,9 @@ def get_recommendation(
     sections: list[dict[str, Any]] = []
     if subject_id and embedding_model:
         sections = _curriculum_sections(db, class_id, subject_id, topic, embedding_model)
-    videos, notes = _library_resources(db, class_id, topic)
+    subject_row = db.get(Subject, subject_id) if subject_id else None
+    subject_name = subject_row.name if subject_row else None
+    videos, notes = _library_resources(db, class_id, topic, subject_name)
 
     mode = "static"
     reason: str | None = None
@@ -346,4 +372,219 @@ def link_quiz_attempt_to_recommendations(
         print(f"[OUTCOME TRACKING] Linked attempt {attempt_id} to {linked_count} preceding recommendation(s)")
 
     return linked_count
+
+
+def get_progress_recommendations(
+    db: Session,
+    student_id: str,
+    class_id: str,
+) -> dict[str, Any]:
+    """
+    Computes personalized learning recommendations for the student Progress page
+    based on empirical assessment performance.
+    Identifies weak topics, gathers prioritized multi-modal resources, and distinguishes
+    topics with insufficient evidence.
+    """
+    from backend.models.db import Class, PrerequisiteMap, Quiz, QuizQuestion, ReviewStatus, Subject, TopicMastery
+
+    class_row = db.get(Class, class_id)
+    if not class_row:
+        raise ValueError(f"Class '{class_id}' not found.")
+
+    subject_id = str(class_row.subject_id) if class_row.subject_id else None
+    subject_row = db.get(Subject, class_row.subject_id) if subject_id else None
+    subject_name = subject_row.name if subject_row else (class_row.subject or "Current Subject")
+
+    # Fetch all topic masteries for this student in this class
+    mastery_rows = (
+        db.query(TopicMastery)
+        .filter(TopicMastery.student_id == student_id, TopicMastery.class_id == class_id)
+        .all()
+    )
+    mastery_by_topic = {m.topic: m for m in mastery_rows}
+
+    # Fetch syllabus topics if available
+    syllabus_topic_rows = []
+    if subject_id:
+        syllabus_topic_rows = (
+            db.query(PrerequisiteMap)
+            .filter(PrerequisiteMap.subject_id == class_row.subject_id)
+            .order_by(PrerequisiteMap.created_at, PrerequisiteMap.topic)
+            .all()
+        )
+    topic_id_map = {r.topic: str(r.id) for r in syllabus_topic_rows}
+
+    # All tracked or syllabus topics
+    all_topic_names = set(mastery_by_topic.keys())
+    for st in syllabus_topic_rows:
+        all_topic_names.add(st.topic)
+
+    weak_topics = []
+    insufficient_evidence_topics = []
+    strong_topics = []
+
+    for t_name in all_topic_names:
+        m = mastery_by_topic.get(t_name)
+        v2_info = {}
+        if m and m.mastery_v2:
+            try:
+                v2_info = json.loads(m.mastery_v2) if isinstance(m.mastery_v2, str) else m.mastery_v2
+            except Exception:
+                v2_info = {}
+
+        score = m.mastery_score if m else 0.0
+        attempts = m.attempt_count if m else 0
+        band = v2_info.get("mastery_band", "unknown")
+        evidence = v2_info.get("evidence_state", "none")
+
+        if attempts == 0 or evidence in ("none", "insufficient"):
+            insufficient_evidence_topics.append({
+                "topic": t_name,
+                "topic_id": topic_id_map.get(t_name),
+                "mastery_score": score,
+                "attempts": attempts,
+                "evidence_state": evidence if evidence != "none" else "insufficient",
+                "reason": "Needs assessment attempts to evaluate current understanding.",
+            })
+        elif band == "low" or score < 0.60:
+            weak_topics.append({
+                "topic": t_name,
+                "topic_id": topic_id_map.get(t_name),
+                "mastery_score": round(score, 2),
+                "attempts": attempts,
+                "evidence_state": evidence,
+                "mastery_band": band,
+                "trend": m.trend.value if m else "stable",
+            })
+        elif band == "high" or score >= 0.70:
+            strong_topics.append(t_name)
+
+    # Sort weak topics: lowest mastery first
+    weak_topics.sort(key=lambda x: (x["mastery_score"], -x["attempts"]))
+
+    # Find available quizzes in this class for practice actions
+    approved_quizzes = (
+        db.query(Quiz)
+        .filter(Quiz.class_id == class_id, Quiz.status == ReviewStatus.approved)
+        .all()
+    )
+    quiz_by_topic: dict[str, str] = {}
+    general_quiz_id = str(approved_quizzes[0].id) if approved_quizzes else None
+
+    for q in approved_quizzes:
+        for q_question in q.questions:
+            if q_question.status == ReviewStatus.approved and q_question.topic and q_question.topic not in quiz_by_topic:
+                quiz_by_topic[q_question.topic] = str(q.id)
+
+    # Build resource recommendations for each weak topic
+    grouped_recommendations = []
+    for wt in weak_topics:
+        topic_name = wt["topic"]
+        videos, notes = _library_resources(db, class_id, topic_name, subject_name)
+
+        resources_list = []
+
+        # 1. Faculty-curated YouTube videos first
+        faculty_videos = [v for v in videos if v.get("source") == "faculty"]
+        for v in faculty_videos:
+            resources_list.append({
+                "id": v.get("video_id") or v.get("url"),
+                "title": v.get("title", f"{topic_name} Lecture"),
+                "resource_type": "youtube",
+                "url": v.get("url"),
+                "source": "faculty",
+                "channel": v.get("channel", "Faculty Approved"),
+                "duration": v.get("duration", "Video"),
+                "thumbnail": v.get("thumbnail"),
+                "action": "watch",
+                "action_label": "Watch Video",
+                "topic": topic_name,
+            })
+
+        # 2. Faculty notes / study materials
+        for n in notes:
+            resources_list.append({
+                "id": n.get("resource_id"),
+                "title": n.get("title", f"{topic_name} Notes"),
+                "resource_type": "notes",
+                "content": n.get("content", ""),
+                "source": "faculty" if n.get("author_role") in ("educator", "admin") else "peer",
+                "channel": "Faculty Material" if n.get("author_role") in ("educator", "admin") else "Class Notes",
+                "duration": f"{n.get('content_length', 0)} chars",
+                "action": "read",
+                "action_label": "Read Notes",
+                "topic": topic_name,
+            })
+
+        # 3. Approved student-suggested videos
+        student_videos = [v for v in videos if v.get("source") == "student_suggested"]
+        for v in student_videos:
+            resources_list.append({
+                "id": v.get("video_id") or v.get("url"),
+                "title": v.get("title", f"{topic_name} Student Recommendation"),
+                "resource_type": "youtube",
+                "url": v.get("url"),
+                "source": "student_suggested",
+                "channel": v.get("channel", "Community Shared"),
+                "duration": v.get("duration", "Video"),
+                "thumbnail": v.get("thumbnail"),
+                "action": "watch",
+                "action_label": "Watch Video",
+                "topic": topic_name,
+            })
+
+        # 4. Validated auto-discovered videos (if no faculty/student video)
+        if not faculty_videos and not student_videos:
+            auto_videos = [v for v in videos if v.get("source") == "auto"]
+            for v in auto_videos[:2]:
+                resources_list.append({
+                    "id": v.get("video_id") or v.get("url"),
+                    "title": v.get("title", f"{topic_name} Video"),
+                    "resource_type": "youtube",
+                    "url": v.get("url"),
+                    "source": "auto",
+                    "channel": v.get("channel", "YouTube Educational"),
+                    "duration": v.get("duration", "Video"),
+                    "thumbnail": v.get("thumbnail"),
+                    "action": "watch",
+                    "action_label": "Watch Video",
+                    "topic": topic_name,
+                })
+
+        # 5. Practice activity / Topic quiz for follow-up (always provide at least practice action)
+        practise_quiz_id = quiz_by_topic.get(topic_name) or general_quiz_id
+        quiz_url = f"/quiz/{practise_quiz_id}" if practise_quiz_id else "/quiz"
+        resources_list.append({
+            "id": f"quiz-{practise_quiz_id or 'practice'}-{topic_name}",
+            "title": f"Practice Quiz: {topic_name}",
+            "resource_type": "quiz",
+            "url": quiz_url,
+            "source": "system",
+            "channel": "Assessment Practice",
+            "duration": "Quick Quiz",
+            "action": "practise",
+            "action_label": "Take Quiz",
+            "topic": topic_name,
+        })
+
+        grouped_recommendations.append({
+            "topic": topic_name,
+            "topic_id": wt.get("topic_id"),
+            "mastery_score": wt["mastery_score"],
+            "attempts": wt["attempts"],
+            "evidence_state": wt["evidence_state"],
+            "mastery_band": wt["mastery_band"],
+            "resources": resources_list,
+        })
+
+    return {
+        "class_id": class_id,
+        "class_name": class_row.name,
+        "subject_id": subject_id,
+        "subject_name": subject_name,
+        "weak_topics": grouped_recommendations,
+        "insufficient_evidence_topics": insufficient_evidence_topics,
+        "all_topics_strong": len(grouped_recommendations) == 0 and len(strong_topics) > 0,
+        "total_tracked_topics": len(all_topic_names),
+    }
 

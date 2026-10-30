@@ -21,11 +21,11 @@ import { DocumentStatusBadge } from "../../components/educator/DocumentStatusBad
 import { SyllabusChecklist } from "../../components/progress/SyllabusChecklist";
 import { cn } from "../../lib/cn";
 
-const ACCEPTED = [".pdf", ".pptx", ".docx", ".txt"];
+const ACCEPTED = [".pdf", ".docx", ".jpg", ".jpeg", ".png", ".pptx", ".txt"];
 
 function validateFile(file: File): string | null {
   const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-  if (!ACCEPTED.includes(ext)) return `“${file.name}” isn't a supported file type. Use PDF, PPTX, DOCX or TXT.`;
+  if (!ACCEPTED.includes(ext)) return `“${file.name}” isn't a supported file type. Use PDF, DOCX, images (JPG/PNG), PPTX or TXT.`;
   if (file.size > UPLOAD_MAX_BYTES) {
     return `“${file.name}” is ${formatBytes(file.size)}. The maximum upload size is ${formatBytes(UPLOAD_MAX_BYTES)}. Try splitting it into smaller chapters.`;
   }
