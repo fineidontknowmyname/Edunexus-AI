@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
-import { Clock, PlayCircle, ThumbsUp } from "lucide-react";
+import { PlayCircle, ThumbsUp } from "lucide-react";
 import { Badge, type BadgeTone } from "../ui/Badge";
 import type { RecommendationVideo } from "../../lib/types";
 import { apiFetch } from "../../lib/api";
@@ -66,9 +65,9 @@ export function VideoResourceCard({
   return (
     <div
       onClick={() => onPlay(video)}
-      className="group flex flex-col sm:flex-row items-start gap-3 rounded-xl border border-subtle bg-surface p-3 shadow-card transition-all hover:border-accent-secondary/50 hover:shadow-card-hover cursor-pointer"
+      className="group flex flex-col sm:flex-row items-start gap-3 rounded-[2px] border border-line bg-surface p-3 transition-all hover:border-ink cursor-pointer"
     >
-      <div className="relative aspect-video w-full sm:w-40 shrink-0 overflow-hidden rounded-lg bg-surface-muted">
+      <div className="relative aspect-video w-full sm:w-40 shrink-0 overflow-hidden rounded-[2px] bg-surface2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={thumbUrl}
@@ -80,7 +79,7 @@ export function VideoResourceCard({
           <PlayCircle className="h-9 w-9 text-white drop-shadow-md transition-transform group-hover:scale-110" />
         </div>
         {video.duration && video.duration !== "Video" && (
-          <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 py-0.5 text-[10px] font-medium text-white">
+          <span className="absolute bottom-1 right-1 rounded-[2px] bg-black/80 px-1 py-0.5 font-mono text-[10px] font-medium text-white">
             {video.duration}
           </span>
         )}
@@ -92,15 +91,15 @@ export function VideoResourceCard({
             <Badge tone={provenanceTone} dot>
               {provenanceLabel}
             </Badge>
-            <span className="text-xs text-tertiary">· {video.channel}</span>
+            <span className="font-mono text-[11px] text-muted">· {video.channel}</span>
           </div>
-          <h4 className="text-sm font-semibold text-primary line-clamp-2 group-hover:text-accent-secondary">
+          <h4 className="font-serif text-[15px] text-ink line-clamp-2 group-hover:text-accent-red transition-colors">
             {video.title}
           </h4>
         </div>
 
-        <div className="mt-2.5 flex items-center justify-between text-xs text-tertiary">
-          <span className="inline-flex items-center gap-1 font-medium text-accent-secondary group-hover:underline">
+        <div className="mt-2.5 flex items-center justify-between text-xs text-muted">
+          <span className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.06em] text-accent-red group-hover:underline">
             Watch in player
           </span>
 
@@ -109,10 +108,10 @@ export function VideoResourceCard({
               type="button"
               onClick={handleVote}
               disabled={hasVoted || voting}
-              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 transition-colors ${
+              className={`inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 font-mono text-[11px] transition-colors ${
                 hasVoted
-                  ? "bg-accent-secondary/15 text-accent-secondary font-medium"
-                  : "hover:bg-surface-muted text-tertiary"
+                  ? "border-accent-red bg-accent-red text-white"
+                  : "bg-surface2 text-muted hover:border-ink"
               }`}
               title="Helpful resource"
             >

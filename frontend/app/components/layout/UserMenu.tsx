@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, LogOut, Moon, Sun, UserRound } from "lucide-react";
+import { LogOut, UserRound } from "lucide-react";
 import type { User } from "../../lib/types";
-import { useTheme } from "../../lib/hooks/useTheme";
 import { cn } from "../../lib/cn";
 
 function initials(name: string | undefined): string {
@@ -18,22 +17,22 @@ function initials(name: string | undefined): string {
 }
 
 export function Avatar({ name, className }: { name?: string; className?: string }) {
+  const init = initials(name);
   return (
     <span
       className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-secondary/15 text-xs font-semibold text-accent-secondary",
+        "avatar select-none shrink-0",
         className
       )}
       aria-hidden
     >
-      {initials(name) || <UserRound className="h-4 w-4" />}
+      {init || "ED"}
     </span>
   );
 }
 
 export function UserMenu({ user, onLogout }: { user: User | null; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
-  const { theme, toggleTheme } = useTheme();
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -69,7 +68,7 @@ export function UserMenu({ user, onLogout }: { user: User | null; onLogout: () =
   }, [open]);
 
   const itemClass =
-    "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm text-secondary hover:bg-surface-muted hover:text-primary focus:bg-surface-muted focus:text-primary focus:outline-none";
+    "flex w-full items-center gap-2.5 rounded-[2px] px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.08em] text-muted hover:bg-surface2 hover:text-red focus:bg-surface2 focus:text-red focus:outline-none transition-colors";
 
   return (
     <div ref={rootRef} className="relative">
@@ -81,11 +80,9 @@ export function UserMenu({ user, onLogout }: { user: User | null; onLogout: () =
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         aria-label={user ? `Account menu for ${user.full_name}` : "Account menu"}
-        className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition-colors hover:bg-surface-muted"
+        className="flex items-center gap-2 rounded-full p-0.5 transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red"
       >
         <Avatar name={user?.full_name} />
-        <span className="hidden max-w-[10rem] truncate text-sm font-medium text-primary sm:inline">{user?.full_name ?? ""}</span>
-        <ChevronDown className="h-4 w-4 text-tertiary" aria-hidden />
       </button>
 
       {open && (
@@ -94,24 +91,20 @@ export function UserMenu({ user, onLogout }: { user: User | null; onLogout: () =
           id={menuId}
           role="menu"
           aria-label="Account"
-          className="absolute right-0 z-40 mt-2 w-64 rounded-xl border border-subtle bg-surface-raised p-1.5 shadow-popover"
+          className="absolute right-0 z-40 mt-2 w-64 rounded-[3px] border border-line bg-surface p-2 shadow-shadow animate-[pageIn_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
         >
           {user && (
-            <div className="border-b border-subtle px-2.5 pb-2.5 pt-1.5 mb-1">
-              <p className="truncate text-sm font-semibold text-primary">{user.full_name}</p>
-              <p className="truncate text-xs text-tertiary">{user.email}</p>
-              <p className="mt-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-accent-secondary">{user.role}</p>
+            <div className="border-b border-line px-3 pb-3 pt-2 mb-1">
+              <p className="truncate font-serif text-lg text-ink leading-tight">{user.full_name}</p>
+              <p className="truncate font-mono text-[9px] text-muted mt-0.5">{user.email}</p>
+              <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.1em] text-red">[ {user.role} ]</p>
             </div>
           )}
           <Link href="/profile" role="menuitem" className={itemClass} onClick={() => setOpen(false)}>
-            <UserRound className="h-4 w-4" aria-hidden />
-            Profile &amp; settings
+            <UserRound className="h-3.5 w-3.5" aria-hidden />
+            01 / Profile &amp; Settings
           </Link>
-          <button type="button" role="menuitem" className={itemClass} onClick={toggleTheme}>
-            {theme === "dark" ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
-            {theme === "dark" ? "Light theme" : "Dark theme"}
-          </button>
-          <div className="my-1 border-t border-subtle" />
+          <div className="my-1 border-t border-line" />
           <button
             type="button"
             role="menuitem"
@@ -121,7 +114,7 @@ export function UserMenu({ user, onLogout }: { user: User | null; onLogout: () =
               onLogout();
             }}
           >
-            <LogOut className="h-4 w-4" aria-hidden />
+            <LogOut className="h-3.5 w-3.5 text-red" aria-hidden />
             Sign out
           </button>
         </div>

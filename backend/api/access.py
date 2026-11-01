@@ -91,6 +91,17 @@ def owned_document(db: Session, document_id, user: User) -> Document:
     return doc
 
 
+def accessible_document(db: Session, document_id, user: User) -> Document:
+    doc = db.get(Document, parse_uuid(document_id, "Document"))
+    if doc is None or doc.deleted:
+        raise _not_found("Document")
+    if doc.class_id:
+        user_class_access(db, str(doc.class_id), user)
+    elif doc.uploaded_by_id != user.id:
+        raise _not_found("Document")
+    return doc
+
+
 def owned_job(db: Session, job_id, user: User) -> IngestionJob:
     job = db.get(IngestionJob, parse_uuid(job_id, "Job"))
     if job is None:
@@ -122,6 +133,8 @@ def owned_question(db: Session, question_id, user: User) -> QuizQuestion:
 def enrolled_quiz(db: Session, quiz_id, user: User) -> Quiz:
     quiz = db.get(Quiz, parse_uuid(quiz_id, "Quiz"))
     if quiz is None or quiz.status != ReviewStatus.approved or not is_enrolled(db, quiz.class_id, user.id):
+        raise _not_found("Quiz")
+    if getattr(quiz, "generation_type", None) == "topic_practice" and quiz.created_by_id and quiz.created_by_id != user.id:
         raise _not_found("Quiz")
     return quiz
 

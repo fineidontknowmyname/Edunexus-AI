@@ -6,6 +6,7 @@ from typing import Annotated
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -224,6 +225,37 @@ def create_resource(
         else ReviewStatus.pending_review
     )
 
+    # Avoid duplicate resources when the same submission is repeated
+    dup_query = db.query(LearningResource).filter(
+        LearningResource.class_id == class_row.id,
+        func.lower(func.trim(LearningResource.topic)) == func.lower(topic.strip()),
+        LearningResource.resource_type == ResourceType(r_type),
+    )
+    if canonical_url:
+        dup_query = dup_query.filter(LearningResource.url == canonical_url)
+    elif notes_content:
+        dup_query = dup_query.filter(LearningResource.content == notes_content)
+
+    existing_resource = None
+    try:
+        candidate = dup_query.first()
+        if isinstance(candidate, LearningResource):
+            existing_resource = candidate
+    except Exception:
+        existing_resource = None
+
+    if existing_resource:
+        if current_user.role in (UserRole.educator, UserRole.admin) and existing_resource.status != ReviewStatus.approved:
+            existing_resource.status = ReviewStatus.approved
+            db.commit()
+            db.refresh(existing_resource)
+        return _enrich_read_model(
+            existing_resource,
+            has_voted=False,
+            uploader_name=current_user.full_name,
+            uploader_role=current_user.role,
+        )
+
     resource = LearningResource(
         class_id=class_row.id,
         topic=topic,
@@ -274,7 +306,8 @@ def list_resources(
             raise HTTPException(status_code=400, detail=f"Invalid status '{status_filter}'.")
 
     if isinstance(topic, str) and topic.strip():
-        query = query.filter(LearningResource.topic == topic.strip())
+        clean_topic = topic.strip()
+        query = query.filter(func.lower(func.trim(LearningResource.topic)) == func.lower(clean_topic))
 
     limit_val = limit if isinstance(limit, int) else 50
     offset_val = offset if isinstance(offset, int) else 0

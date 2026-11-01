@@ -67,6 +67,7 @@ function InsightsInner() {
   return (
     <PageContainer width="wide">
       <PageHeader
+        eyebrow="[ 02 / COHORT ]"
         title="Class insights"
         description={activeClass ? `How ${activeClass.name} is doing, where they're stuck, and who needs help.` : "Mastery, misconceptions and at-risk students."}
         actions={<ClassPicker classes={classes.data} value={classId} onChange={setClassId} />}
@@ -76,7 +77,7 @@ function InsightsInner() {
           icon={<BarChart3 className="h-5 w-5" />}
           title="No classes yet"
           description="Create a class and upload material to start seeing insights."
-          action={<Link href="/upload" className="text-sm font-medium text-accent-secondary hover:underline">Create a class</Link>}
+          action={<Link href="/upload" className="font-mono text-xs uppercase tracking-[0.06em] text-accent-red hover:underline">Create a class</Link>}
         />
       ) : (
         <ClassInsights key={activeClass.id} activeClass={activeClass} />
@@ -126,20 +127,27 @@ function ClassInsights({ activeClass }: { activeClass: ClassRow }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Class mastery" value={avg === null ? "—" : percent(avg)} hint={plural(heat.length, "topic")} icon={<BarChart3 className="h-4 w-4" />} />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          variant="highlight"
+          label="Estimated Class Avg"
+          value={avg === null ? "—" : percent(avg)}
+          hint={`${plural(heat.length, "topic")} evaluated`}
+          icon={<BarChart3 className="h-5 w-5" />}
+        />
         <StatCard label="At risk" value={atRisk.length} hint={upcoming[0] ? `before ${upcoming[0].name}` : "no assessment scheduled"} icon={<AlertTriangle className="h-4 w-4" />} tone={atRisk.length ? "danger" : "default"} />
         <StatCard label="Struggling" value={struggling} hint="student-topic pairs below 40%" icon={<Users className="h-4 w-4" />} tone={struggling ? "warning" : "default"} />
         <StatCard label="Flagged replies" value={flags.length} hint="from students" icon={<Flag className="h-4 w-4" />} tone={flags.length ? "warning" : "default"} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+      <div className="grid gap-6 lg:grid-cols-3 lg:items-start mt-6">
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
           <Card>
             <CardHeader
+              showDot
               icon={<BarChart3 className="h-4 w-4" />}
-              title="Mastery by topic"
-              description="Average quiz mastery across the class, weakest first."
+              title="Estimated Mastery by Topic"
+              description="Average estimated quiz performance across the cohort, lowest first."
               actions={
                 <div className="flex items-center gap-3 text-xs text-tertiary" aria-hidden>
                   <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-danger" />&lt;40%</span>
@@ -151,19 +159,19 @@ function ClassInsights({ activeClass }: { activeClass: ClassRow }) {
             {heat.length === 0 ? (
               <EmptyState compact title="No quiz data yet" description="Once students take a quiz, topic mastery shows up here." />
             ) : (
-              <ul className="flex flex-col divide-y divide-subtle">
+              <ul className="flex flex-col divide-y divide-line">
                 {heat.map((h) => (
                   <li key={h.topic} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 py-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_auto]">
-                    <span className="truncate text-sm font-medium text-primary">{h.topic}</span>
+                    <span className="truncate font-serif text-[16px] text-ink">{h.topic}</span>
                     <span className="flex items-center gap-2 justify-self-end sm:order-3">
                       {h.struggling_count > 0 && <Badge tone="red">{h.struggling_count} struggling</Badge>}
-                      <span className={cn("w-10 text-right text-sm font-semibold tabular-nums", masteryTone(h.average_mastery) === "green" ? "text-success" : masteryTone(h.average_mastery) === "amber" ? "text-warning" : "text-danger")}>
+                      <span className={cn("w-10 text-right font-mono text-xs tabular-nums", masteryTone(h.average_mastery) === "green" ? "text-accent-green" : masteryTone(h.average_mastery) === "amber" ? "text-muted" : "text-accent-red")}>
                         {percent(h.average_mastery)}
                       </span>
                     </span>
                     <div className="col-span-2 flex items-center gap-3 sm:col-span-1">
                       <ProgressBar value={h.average_mastery} label={`${h.topic} class mastery`} className="h-2.5" />
-                      <span className="w-16 shrink-0 text-xs text-tertiary">{plural(h.student_count, "student")}</span>
+                      <span className="w-16 shrink-0 font-mono text-xs text-muted uppercase tracking-[0.04em]">{plural(h.student_count, "student")}</span>
                     </div>
                   </li>
                 ))}
@@ -184,7 +192,7 @@ function ClassInsights({ activeClass }: { activeClass: ClassRow }) {
                 description={upcoming.length ? "Everyone is on track for the next assessment." : "Schedule an assessment to see who isn't ready for it."}
               />
             ) : (
-              <ul className="flex flex-col divide-y divide-subtle">
+              <ul className="flex flex-col divide-y divide-line">
                 {[...atRisk]
                   .sort((a, b) => b.weak_topics_in_scope.length - a.weak_topics_in_scope.length)
                   .map((s) => (
@@ -194,8 +202,8 @@ function ClassInsights({ activeClass }: { activeClass: ClassRow }) {
                         className="group flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-primary group-hover:text-accent-secondary">{s.full_name}</p>
-                          <p className="truncate text-xs text-tertiary">{s.email}</p>
+                          <p className="font-serif text-[16px] text-ink group-hover:text-accent-red transition-colors">{s.full_name}</p>
+                          <p className="truncate font-mono text-xs text-muted">{s.email}</p>
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
                           {s.weak_topics_in_scope.slice(0, 3).map((t) => (
@@ -218,12 +226,12 @@ function ClassInsights({ activeClass }: { activeClass: ClassRow }) {
             {insights.misconceptions.length === 0 ? (
               <EmptyState compact title="None detected yet" description="Misconceptions appear once students answer quizzes." />
             ) : (
-              <ul className="flex flex-col divide-y divide-subtle">
+              <ul className="flex flex-col divide-y divide-line">
                 {[...insights.misconceptions].sort((a, b) => b.count - a.count).map((m, i) => (
                   <li key={i} className="flex items-start justify-between gap-3 py-3">
                     <div className="min-w-0 text-sm">
-                      <p className="font-medium text-primary">{m.topic}</p>
-                      <p className="text-secondary">{m.description}</p>
+                      <p className="font-serif text-[16px] text-ink">{m.topic}</p>
+                      <p className="text-muted text-xs">{m.description}</p>
                     </div>
                     <Badge tone="amber">{plural(m.count, "student")}</Badge>
                   </li>
@@ -255,7 +263,7 @@ function ClassInsights({ activeClass }: { activeClass: ClassRow }) {
                   <li key={t.topic} className="flex items-center justify-between gap-2 text-sm">
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="w-4 text-xs tabular-nums text-tertiary">{i + 1}</span>
-                      <span className="truncate text-primary">{t.topic}</span>
+                      <span className="truncate font-medium text-primary">{t.topic}</span>
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-tertiary">{plural(t.questions_asked, "question")}</span>
                   </li>
@@ -271,9 +279,9 @@ function ClassInsights({ activeClass }: { activeClass: ClassRow }) {
             ) : (
               <ul className="flex flex-col gap-3">
                 {flags.map((f) => (
-                  <li key={f.message_id} className="rounded-lg border border-subtle p-3">
+                  <li key={f.message_id} className="rounded-xl border border-subtle p-3">
                     <div className="flex items-center justify-between gap-2 text-xs text-tertiary">
-                      <span className="truncate font-medium text-secondary">{f.student_name}</span>
+                      <span className="truncate font-semibold text-secondary">{f.student_name}</span>
                       <span className="shrink-0">{formatRelative(f.created_at)}</span>
                     </div>
                     <p className="mt-1.5 line-clamp-4 text-sm text-primary" title={formatDateTime(f.created_at)}>{f.content}</p>
@@ -342,15 +350,15 @@ function ConfusionCard({
       ) : (
         <ul className="flex flex-col gap-2.5">
           {[...entries].sort((a, b) => b.cluster_size - a.cluster_size).map((c, i) => (
-            <li key={i} className="relative overflow-hidden rounded-lg border border-subtle p-3">
+            <li key={i} className="relative overflow-hidden rounded-[2px] border border-line p-3 bg-surface">
               <span
-                className="absolute inset-y-0 left-0 bg-accent-secondary/8"
+                className="absolute inset-y-0 left-0 bg-accent-red/10"
                 style={{ width: `${total ? Math.max(8, (c.cluster_size / total) * 100) : 0}%` }}
                 aria-hidden
               />
               <div className="relative flex items-start justify-between gap-3">
-                <p className="text-sm text-primary">&ldquo;{c.representative_text}&rdquo;</p>
-                <Badge tone="blue" className="shrink-0">{plural(c.cluster_size, "student")}</Badge>
+                <p className="text-sm font-medium text-ink">&ldquo;{c.representative_text}&rdquo;</p>
+                <Badge tone="red" className="shrink-0">{plural(c.cluster_size, "student")}</Badge>
               </div>
             </li>
           ))}
@@ -421,26 +429,26 @@ function ScheduleAssessmentCard({
       {upcoming.length > 0 ? (
         <ul className="mb-4 flex flex-col gap-2">
           {upcoming.map((a) => (
-            <li key={`${a.name}-${a.date}`} className="rounded-lg border border-subtle bg-surface-muted/50 p-3">
+            <li key={`${a.name}-${a.date}`} className="rounded-[2px] border border-line bg-surface2 p-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-sm font-medium text-primary">{a.name}</span>
-                <span className="shrink-0 text-xs text-tertiary">{formatDate(a.date)}</span>
+                <span className="truncate font-serif text-[15px] text-ink">{a.name}</span>
+                <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.04em] text-muted">{formatDate(a.date)}</span>
               </div>
-              {a.covers.length > 0 && <p className="mt-1 line-clamp-2 text-xs text-tertiary">{a.covers.join(", ")}</p>}
+              {a.covers.length > 0 && <p className="mt-1 line-clamp-2 text-xs text-muted">{a.covers.join(", ")}</p>}
             </li>
           ))}
         </ul>
       ) : context ? (
-        <p className="mb-4 text-sm text-tertiary">No upcoming assessments.</p>
+        <p className="mb-4 text-xs font-mono uppercase tracking-[0.06em] text-muted">No upcoming assessments.</p>
       ) : (
         <SkeletonText lines={2} className="mb-4" />
       )}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3 border-t border-subtle pt-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3 border-t border-line pt-4">
         <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Mid-term 1" />
         <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         {topics.length > 0 && (
           <fieldset>
-            <legend className="mb-1.5 text-sm font-medium text-secondary">Topics covered</legend>
+            <legend className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.06em] text-muted">Topics covered</legend>
             <div className="flex flex-wrap gap-1.5">
               {topics.map((t) => {
                 const on = selected.has(t);
@@ -451,8 +459,8 @@ function ScheduleAssessmentCard({
                     aria-pressed={on}
                     onClick={() => toggle(t)}
                     className={cn(
-                      "rounded-full border px-2.5 py-1 text-xs transition-colors",
-                      on ? "border-accent-secondary bg-accent-secondary/12 font-medium text-accent-secondary" : "border-strong text-secondary hover:bg-surface-muted"
+                      "rounded-full border px-3 py-1 font-mono text-[11px] uppercase tracking-[0.06em] transition-colors",
+                      on ? "border-accent-red bg-accent-red text-white" : "border-line bg-surface text-ink hover:border-ink"
                     )}
                   >
                     {t}

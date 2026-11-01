@@ -13,6 +13,8 @@ class ChunkData:
     full_text: str
     chunk_index: int
     token_count: int
+    page_number: int | None = None
+    section_heading: str | None = None
 
 
 def generate_prefix(
@@ -131,6 +133,7 @@ def chunk_text(
     document_title: str,
     chunk_size: int = 512,
     chunk_overlap: int = 64,
+    pages: list[Any] | None = None,
 ) -> list[ChunkData]:
     print(f"[CHUNKER] Starting text chunking. Input length: {len(text):,} chars | Target chunk size: {chunk_size}")
 
@@ -150,39 +153,65 @@ def chunk_text(
     print(f"[CHUNKER] Acquiring text splitter (chunk_size={chunk_size}, overlap={chunk_overlap})...")
     splitter = _get_splitter(chunk_size, chunk_overlap)
 
-    print("[CHUNKER] Splitting text into raw blocks...")
-    try:
-        raw_chunks: list[str] = splitter.split_text(text)
-    except Exception as e:
-        print(f"[CHUNKER ERROR] Text splitting failed: {e}")
-        logger.exception("Error during text splitting")
-        raise
-
-    print(f"[CHUNKER] Raw split produced {len(raw_chunks)} blocks.")
-
     results: list[ChunkData] = []
-    for idx, raw in enumerate(raw_chunks):
-        if not raw.strip():
-            continue
-        full = f"{prefix}\n{raw}"
-        token_count = len(full.split())
-        results.append(
-            ChunkData(
-                text=raw,
-                contextual_prefix=prefix,
-                full_text=full,
-                chunk_index=idx,
-                token_count=token_count,
+    chunk_idx = 0
+
+    if pages and len(pages) > 0:
+        # Page-aware chunking preserving exact page numbers
+        for page in pages:
+            page_text = getattr(page, "text", "")
+            page_num = getattr(page, "page_number", 1)
+            headings = getattr(page, "headings", [])
+            primary_heading = headings[0] if headings else None
+
+            if not page_text or not page_text.strip():
+                continue
+
+            page_blocks = splitter.split_text(page_text)
+            for raw in page_blocks:
+                if not raw.strip():
+                    continue
+                full = f"{prefix}\n[Page {page_num}]\n{raw}"
+                token_count = len(full.split())
+                results.append(
+                    ChunkData(
+                        text=raw,
+                        contextual_prefix=prefix,
+                        full_text=full,
+                        chunk_index=chunk_idx,
+                        token_count=token_count,
+                        page_number=page_num,
+                        section_heading=primary_heading,
+                    )
+                )
+                chunk_idx += 1
+    else:
+        # Fallback to general text splitting with [Page X] regex detection
+        import re
+
+        page_marker_regex = re.compile(r"\[Page\s+(\d+)\]")
+
+        raw_chunks: list[str] = splitter.split_text(text)
+        for raw in raw_chunks:
+            if not raw.strip():
+                continue
+            m = page_marker_regex.search(raw)
+            detected_page = int(m.group(1)) if m else None
+
+            full = f"{prefix}\n{raw}"
+            token_count = len(full.split())
+            results.append(
+                ChunkData(
+                    text=raw,
+                    contextual_prefix=prefix,
+                    full_text=full,
+                    chunk_index=chunk_idx,
+                    token_count=token_count,
+                    page_number=detected_page,
+                    section_heading=None,
+                )
             )
-        )
+            chunk_idx += 1
 
     print(f"[CHUNKER SUCCESS] Successfully created {len(results)} chunks from source text.")
-    logger.info(
-        "chunk_text produced %d chunks from %d input characters "
-        "(chunk_size=%d, overlap=%d).",
-        len(results),
-        len(text),
-        chunk_size,
-        chunk_overlap,
-    )
     return results

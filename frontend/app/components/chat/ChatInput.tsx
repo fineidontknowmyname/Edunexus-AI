@@ -66,10 +66,10 @@ export function ChatInput({
               key={m.value}
               title={m.description}
               className={cn(
-                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus",
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[9px] uppercase tracking-[0.08em] transition-colors select-none",
                 selected
-                  ? "border-accent-secondary bg-accent-secondary/12 text-accent-secondary"
-                  : "border-strong bg-surface text-secondary hover:bg-surface-muted hover:text-primary"
+                  ? "border-ink bg-ink text-bg font-semibold"
+                  : "border-line bg-transparent text-muted hover:text-ink hover:border-ink"
               )}
             >
               <input
@@ -80,17 +80,17 @@ export function ChatInput({
                 onChange={() => onModeChange(m.value)}
                 className="sr-only"
               />
-              <Icon className="h-3.5 w-3.5" aria-hidden />
+              <Icon className="h-3 w-3" aria-hidden />
               {m.label}
             </label>
           );
         })}
-        {active && <span className="hidden text-xs text-tertiary sm:inline">{active.description}</span>}
+        {active && <span className="hidden font-mono text-[9px] uppercase tracking-wider text-muted sm:inline">[ {active.description} ]</span>}
       </fieldset>
 
       <form
         onSubmit={handleSubmit}
-        className="flex items-end gap-2 rounded-2xl border border-strong bg-surface p-2 shadow-sm transition-colors focus-within:border-accent-secondary focus-within:ring-2 focus-within:ring-accent-secondary/25"
+        className="flex items-end gap-2 rounded-[2px] border border-line bg-surface p-2.5 transition-colors focus-within:border-red"
       >
         <label htmlFor="chat-message" className="sr-only">
           Message
@@ -99,37 +99,41 @@ export function ChatInput({
           id="chat-message"
           ref={textareaRef}
           value={value}
-          maxLength={CHAT_MESSAGE_MAX_LENGTH}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               handleSubmit();
             }
           }}
-          rows={1}
+          disabled={disabled}
           placeholder={placeholder}
-          aria-describedby={showCounter ? counterId : undefined}
-          className="max-h-[200px] min-h-[2.5rem] flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-relaxed text-primary placeholder:text-tertiary focus:outline-none focus-visible:outline-none"
+          rows={1}
+          maxLength={CHAT_MESSAGE_MAX_LENGTH}
+          className="flex-1 resize-none bg-transparent px-2 py-1 font-sans text-sm text-ink placeholder:text-muted focus:outline-none max-h-48 overflow-y-auto"
         />
-        <button
-          type="submit"
-          disabled={disabled || !trimmed}
-          aria-label="Send message"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-primary text-inverse transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <SendHorizontal className="h-4 w-4" aria-hidden />
-        </button>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {showCounter && (
+            <span
+              id={counterId}
+              className={cn("font-mono text-[9px] uppercase", atLimit ? "text-red font-bold" : "text-muted")}
+              aria-live="polite"
+            >
+              {length}/{CHAT_MESSAGE_MAX_LENGTH}
+            </span>
+          )}
+          <button
+            type="submit"
+            disabled={disabled || !trimmed || atLimit}
+            aria-label="Send message"
+            className="primary h-9 px-4 text-[9px] cursor-pointer"
+          >
+            <SendHorizontal className="h-3.5 w-3.5" aria-hidden />
+            <span>Send</span>
+          </button>
+        </div>
       </form>
-      <div className="flex items-center justify-between gap-2 px-1 text-[0.6875rem] text-tertiary">
-        <span className="hidden sm:inline">Enter to send · Shift + Enter for a new line</span>
-        {showCounter && (
-          <span id={counterId} aria-live="polite" className={cn("ml-auto tabular-nums", atLimit ? "font-semibold text-danger" : "text-warning")}>
-            {length.toLocaleString()} / {CHAT_MESSAGE_MAX_LENGTH.toLocaleString()}
-            {atLimit ? " · limit reached" : ""}
-          </span>
-        )}
-      </div>
     </div>
   );
 }

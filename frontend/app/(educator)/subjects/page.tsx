@@ -58,6 +58,7 @@ export default function SubjectsPage() {
   return (
     <PageContainer>
       <PageHeader
+        eyebrow="[ 05 / TAXONOMY ]"
         title="Subjects & topics"
         description="Define each subject's topic graph. It drives topic tagging, learning paths and misconception detection."
         actions={

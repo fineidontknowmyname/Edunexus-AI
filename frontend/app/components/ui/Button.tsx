@@ -3,22 +3,31 @@ import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "reac
 import { cn } from "../../lib/cn";
 import { Spinner } from "./Spinner";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "accent";
-type Size = "sm" | "md" | "lg" | "icon";
+export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger" | "accent" | "filter";
+export type ButtonSize = "sm" | "md" | "lg" | "icon";
 
-const VARIANT_CLASSES: Record<Variant, string> = {
-  primary: "bg-accent-primary text-inverse hover:opacity-90 shadow-sm",
-  accent: "bg-accent-secondary text-on-accent hover:brightness-110 shadow-sm",
-  secondary: "bg-surface text-primary border border-strong hover:bg-surface-muted shadow-sm",
-  ghost: "text-secondary hover:bg-surface-muted hover:text-primary",
-  danger: "bg-danger text-on-accent hover:brightness-110 shadow-sm",
+const VARIANT_CLASSES: Record<ButtonVariant, string> = {
+  primary:
+    "bg-ink text-bg border-0 rounded-full hover:bg-red hover:-translate-y-0.5 transition-[transform,background] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-none",
+  accent:
+    "bg-ink text-bg border-0 rounded-full hover:bg-red hover:-translate-y-0.5 transition-[transform,background] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+  secondary:
+    "bg-transparent text-ink border border-line rounded-full hover:border-red hover:text-red transition-all duration-250",
+  outline:
+    "bg-transparent text-ink border border-line rounded-full hover:border-red hover:text-red transition-all duration-250",
+  ghost:
+    "bg-transparent text-muted rounded-full hover:text-red transition-colors duration-200",
+  danger:
+    "bg-transparent text-red border border-red/60 rounded-full hover:bg-red hover:text-white transition-all duration-250",
+  filter:
+    "bg-transparent text-ink border border-line rounded-full text-[9px] hover:bg-ink hover:text-bg hover:border-ink transition-all duration-250",
 };
 
-const SIZE_CLASSES: Record<Size, string> = {
-  sm: "h-8 px-3 text-xs gap-1.5",
-  md: "h-9 px-4 text-sm gap-2",
-  lg: "h-11 px-5 text-sm gap-2",
-  icon: "h-9 w-9 justify-center",
+const SIZE_CLASSES: Record<ButtonSize, string> = {
+  sm: "h-8 px-3 text-[9px] gap-1.5",
+  md: "h-[38px] px-[18px] text-[10px] gap-2",
+  lg: "h-11 px-6 text-[11px] gap-2.5",
+  icon: "h-[36px] w-[36px] p-0 justify-center rounded-full border border-line bg-transparent hover:border-red hover:rotate-12 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
 };
 
 export function buttonClasses({
@@ -26,12 +35,12 @@ export function buttonClasses({
   size = "md",
   className,
 }: {
-  variant?: Variant;
-  size?: Size;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   className?: string;
 } = {}) {
   return cn(
-    "inline-flex items-center justify-center rounded-lg font-medium whitespace-nowrap transition-[background-color,opacity,filter,color,border-color] duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none select-none",
+    "inline-flex items-center justify-center font-mono uppercase tracking-[0.1em] whitespace-nowrap select-none disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red cursor-pointer",
     VARIANT_CLASSES[variant],
     SIZE_CLASSES[size],
     className
@@ -40,8 +49,8 @@ export function buttonClasses({
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: ReactNode;
-  variant?: Variant;
-  size?: Size;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   loading?: boolean;
   icon?: ReactNode;
 }
@@ -65,21 +74,21 @@ export function Button({
       className={buttonClasses({ variant, size, className })}
       {...rest}
     >
-      {loading ? <Spinner className="h-4 w-4" /> : icon}
+      {loading ? <Spinner className="h-3.5 w-3.5" /> : icon}
       {children}
     </button>
   );
 }
 
-interface ButtonLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+interface LinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;
-  children: ReactNode;
-  variant?: Variant;
-  size?: Size;
+  children?: ReactNode;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   icon?: ReactNode;
 }
 
-export function ButtonLink({ href, children, variant = "secondary", size = "md", icon, className, ...rest }: ButtonLinkProps) {
+export function ButtonLink({ href, children, variant = "primary", size = "md", icon, className, ...rest }: LinkButtonProps) {
   return (
     <Link href={href} className={buttonClasses({ variant, size, className })} {...rest}>
       {icon}
@@ -87,3 +96,5 @@ export function ButtonLink({ href, children, variant = "secondary", size = "md",
     </Link>
   );
 }
+
+export const LinkButton = ButtonLink;

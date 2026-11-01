@@ -27,7 +27,7 @@ def _fail_document(db: Session, document_id) -> None:
     doc = db.get(Document, document_id)
     if doc is not None and doc.status != DocumentStatus.ready:
         doc.status = DocumentStatus.failed
-    db.query(DocumentFile).filter(DocumentFile.document_id == document_id).delete(synchronize_session=False)
+    # PRESERVE ORIGINAL DOCUMENT: Never delete DocumentFile even on failure!
 
 
 def claim_next(db: Session) -> IngestionJob | None:

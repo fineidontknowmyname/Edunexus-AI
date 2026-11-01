@@ -68,10 +68,11 @@ function StudentDetail() {
     <PageContainer>
       <PageHeader
         back={back}
+        eyebrow="[ STUDENT PROFILE ]"
         title={
           <span className="flex items-center gap-3">
             <Avatar name={name || "Student"} className="h-10 w-10 text-sm" />
-            <span>{name || "Student detail"}</span>
+            <span className="font-serif">{name || "Student detail"}</span>
           </span>
         }
         description={
@@ -100,13 +101,13 @@ function StudentDetail() {
       <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
           {context.misconceptions.length > 0 && (
-            <Card className="border-danger/25">
+            <Card>
               <CardHeader icon={<Brain className="h-4 w-4" />} title="Active misconceptions" description="Related quiz questions are hidden until the student works through these." />
               <ul className="flex flex-col gap-2">
                 {context.misconceptions.map((m, i) => (
-                  <li key={i} className="rounded-lg bg-danger/6 px-3 py-2 text-sm">
-                    <span className="font-medium text-primary">{m.topic}</span>
-                    <span className="text-secondary">: {m.description}</span>
+                  <li key={i} className="rounded-[2px] border border-line bg-surface2 px-3 py-2 text-sm">
+                    <span className="font-serif text-[15px] text-ink">{m.topic}</span>
+                    <span className="text-muted text-xs">: {m.description}</span>
                   </li>
                 ))}
               </ul>
@@ -135,18 +136,18 @@ function StudentDetail() {
           <Card>
             <CardHeader icon={<Route className="h-4 w-4" />} title="Learning path" description="What the student sees as their priorities." />
             {learning_path.length === 0 ? (
-              <p className="text-sm text-tertiary">No path yet.</p>
+              <p className="font-mono text-xs text-muted uppercase tracking-[0.06em]">No path yet.</p>
             ) : (
-              <ol className="flex flex-col divide-y divide-subtle">
+              <ol className="flex flex-col divide-y divide-line">
                 {learning_path.map((entry, i) => (
                   <li key={entry.topic} className="grid grid-cols-[1.5rem_minmax(0,1fr)_6rem_3rem] items-center gap-3 py-2.5 text-sm">
-                    <span className="text-xs tabular-nums text-tertiary">{i + 1}</span>
+                    <span className="font-mono text-xs tabular-nums text-muted">{String(i + 1).padStart(2, "0")}</span>
                     <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate text-primary">{entry.topic}</span>
+                      <span className="truncate font-serif text-[15px] text-ink">{entry.topic}</span>
                       {entry.in_assessment_scope && <Badge tone="red" className="hidden sm:inline-flex">Exam</Badge>}
                     </span>
                     <ProgressBar value={entry.mastery_score} label={`${entry.topic} mastery`} />
-                    <span className="text-right text-xs tabular-nums text-tertiary">{entry.attempts ? percent(entry.mastery_score) : "—"}</span>
+                    <span className="text-right font-mono text-xs tabular-nums text-muted">{entry.attempts ? percent(entry.mastery_score) : "—"}</span>
                   </li>
                 ))}
               </ol>

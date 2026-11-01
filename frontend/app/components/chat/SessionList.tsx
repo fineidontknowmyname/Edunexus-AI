@@ -41,12 +41,14 @@ export function SessionList({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <div className="p-3">
-        <Button onClick={onNew} disabled={disabled} className="w-full" icon={<MessageSquarePlus className="h-4 w-4" aria-hidden />}>
-          New chat
+      <div className="p-3 border-b border-line">
+        <Button onClick={onNew} disabled={disabled} variant="primary" size="sm" className="w-full" icon={<MessageSquarePlus className="h-3.5 w-3.5" aria-hidden />}>
+          New conversation
         </Button>
       </div>
-      <p className="px-4 pb-1 pt-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-tertiary">Recent</p>
+      <p className="px-4 pb-1 pt-3 font-mono text-[9px] uppercase tracking-[0.1em] text-red">
+        [ SESSIONS ]
+      </p>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {loading && sessions.length === 0 ? (
           <div className="flex flex-col gap-2 p-2" aria-hidden>
@@ -58,16 +60,16 @@ export function SessionList({
             ))}
           </div>
         ) : error && sessions.length === 0 ? (
-          <div className="p-3 text-xs text-danger" role="alert">
+          <div className="p-3 font-mono text-[10px] text-red" role="alert">
             <p>{error}</p>
-            <button type="button" onClick={onRetry} className="mt-1 font-medium underline">
+            <button type="button" onClick={onRetry} className="mt-1 underline cursor-pointer">
               Try again
             </button>
           </div>
         ) : sessions.length === 0 ? (
-          <p className="px-2 py-3 text-xs text-tertiary">No conversations yet. Ask your first question to get started.</p>
+          <p className="px-3 py-4 font-mono text-[9px] uppercase tracking-wider text-muted">No conversations yet.</p>
         ) : (
-          <ul className="flex flex-col gap-0.5">
+          <ul className="flex flex-col gap-1 divide-y divide-line/30">
             {sessions.map((s) => {
               const active = s.session_id === activeId;
               return (
@@ -78,14 +80,14 @@ export function SessionList({
                     disabled={disabled}
                     aria-current={active ? "true" : undefined}
                     className={cn(
-                      "w-full rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                      active ? "bg-accent-secondary/10" : "hover:bg-surface-muted"
+                      "w-full rounded-[2px] px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer",
+                      active ? "bg-surface2 text-red font-medium" : "hover:bg-surface2/60 text-ink"
                     )}
                   >
-                    <span className={cn("block truncate text-sm", active ? "font-medium text-accent-secondary" : "text-primary")}>
+                    <span className="block truncate font-serif text-base leading-snug">
                       {s.preview || "New conversation"}
                     </span>
-                    <span className="mt-0.5 block text-xs text-tertiary">
+                    <span className="mt-0.5 block font-mono text-[9px] uppercase tracking-wider text-muted">
                       {formatRelative(s.created_at)} · {MODE_LABEL[s.mode] ?? s.mode}
                     </span>
                   </button>
@@ -96,13 +98,13 @@ export function SessionList({
         )}
         {hasMore && (
           <div className="px-1 pt-2">
-            <Button variant="ghost" size="sm" className="w-full" loading={loadingMore} onClick={onLoadMore}>
+            <Button variant="outline" size="sm" className="w-full" loading={loadingMore} onClick={onLoadMore}>
               Load more
             </Button>
           </div>
         )}
         {error && sessions.length > 0 && (
-          <p className="px-3 pt-2 text-xs text-danger" role="alert">
+          <p className="px-3 pt-2 font-mono text-[10px] text-red" role="alert">
             {error}
           </p>
         )}

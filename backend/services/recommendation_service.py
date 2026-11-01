@@ -2,15 +2,19 @@ from datetime import datetime, timedelta, timezone
 import json
 import re
 from typing import Any
+import uuid
 
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from backend.core import config
 from backend.models.db import (
     Chunk,
+    Class,
     Document,
     LearningResource,
     MasteryTrend,
+    PrerequisiteMap,
     RecommendationLog,
     ResourceType,
     ReviewStatus,
@@ -52,7 +56,7 @@ def _curriculum_sections(
 
 
 def _library_resources(
-    db: Session, class_id: str, topic: str, subject_name: str | None = None
+    db: Session, class_id: str, topic: str, subject_name: str | None = None, topic_id: str | None = None
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Selects faculty-approved and peer-shared resources from the library for this topic and class.
@@ -63,12 +67,24 @@ def _library_resources(
       4. Recency descending
       5. Automatically discovered YouTube candidates when no approved videos exist (source: 'auto')
     """
+    clean_topic = topic.strip()
+    topic_filters = [
+        func.lower(func.trim(LearningResource.topic)) == func.lower(clean_topic)
+    ]
+    if topic_id:
+        topic_filters.append(LearningResource.content.ilike(f'%"topic_id": "{topic_id}"%'))
+
+    try:
+        class_uuid = uuid.UUID(str(class_id))
+    except (ValueError, TypeError, AttributeError):
+        class_uuid = class_id
+
     rows = (
         db.query(LearningResource, User.role)
         .join(User, LearningResource.uploaded_by_id == User.id)
         .filter(
-            LearningResource.class_id == class_id,
-            LearningResource.topic == topic,
+            LearningResource.class_id == class_uuid,
+            or_(*topic_filters),
             LearningResource.status == ReviewStatus.approved,
         )
         .order_by(
@@ -84,8 +100,7 @@ def _library_resources(
 
     for r, role in rows:
         if r.resource_type == ResourceType.youtube and r.url:
-            match = re.search(r"(?:v=|youtu\.be/|shorts/)([a-zA-Z0-9_-]{11})", r.url)
-            vid = match.group(1) if match else str(r.id)
+            from backend.services import youtube_service
 
             meta: dict[str, Any] = {}
             if r.content:
@@ -94,16 +109,22 @@ def _library_resources(
                 except Exception:
                     meta = {}
 
+            # Parse video ID safely from metadata or canonical URL. Never fabricate a fake video ID.
+            vid = meta.get("video_id")
+            if not vid or not isinstance(vid, str) or len(vid) != 11:
+                vid = youtube_service.extract_video_id(r.url)
+
             is_educator = role in (UserRole.educator, UserRole.admin)
             source_tag = meta.get("source") or ("faculty" if is_educator else "student_suggested")
             channel_name = meta.get("channel") or ("Faculty Approved" if is_educator else "Student Shared")
+            thumb = meta.get("thumbnail") or (f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg" if vid else None)
 
             videos.append({
-                "video_id": meta.get("video_id") or vid,
-                "title": r.title or meta.get("title", f"Video ({vid})"),
+                "video_id": vid,
+                "title": r.title or meta.get("title", f"Video ({vid})" if vid else "Educational Video"),
                 "channel": channel_name,
                 "duration": meta.get("duration", "Video"),
-                "thumbnail": meta.get("thumbnail") or f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                "thumbnail": thumb,
                 "source": source_tag,
                 "embeddable": meta.get("embeddable", True),
                 "url": r.url,
@@ -130,6 +151,109 @@ def _library_resources(
         videos.extend(auto_videos)
 
     return videos, notes
+
+
+def _topic_course_documents(
+    db: Session, class_id: str, topic: str, topic_id: str | None = None
+) -> list[dict[str, Any]]:
+    """Retrieves faculty course documents strictly scoped to this class that have reliable topic association."""
+    clean_topic = topic.strip()
+    docs_found: dict[uuid.UUID, dict[str, Any]] = {}
+
+    try:
+        class_uuid = uuid.UUID(str(class_id))
+    except (ValueError, TypeError, AttributeError):
+        return []
+
+    # Source 1: Check canonical PrerequisiteMap for source_document_id
+    topic_row = None
+    if topic_id:
+        try:
+            topic_row = db.get(PrerequisiteMap, uuid.UUID(str(topic_id)))
+        except (ValueError, TypeError, AttributeError):
+            topic_row = None
+
+    if not topic_row:
+        class_row = db.get(Class, class_uuid)
+        if class_row and class_row.subject_id:
+            topic_row = (
+                db.query(PrerequisiteMap)
+                .filter(
+                    PrerequisiteMap.subject_id == class_row.subject_id,
+                    func.lower(func.trim(PrerequisiteMap.topic)) == func.lower(clean_topic),
+                )
+                .first()
+            )
+
+    if topic_row and topic_row.source_document_id:
+        doc = (
+            db.query(Document)
+            .filter(
+                Document.id == topic_row.source_document_id,
+                Document.class_id == class_uuid,
+                Document.deleted == False,  # noqa: E712
+            )
+            .first()
+        )
+        if doc:
+            docs_found[doc.id] = {
+                "document_id": str(doc.id),
+                "title": doc.title or f"{clean_topic} Course Notes",
+                "filename": doc.filename,
+                "mime_type": doc.mime_type or "application/pdf",
+                "page_number": topic_row.source_page_number,
+                "excerpt": None,
+            }
+
+    # Source 2: Chunks explicitly tagged with this topic in this class
+    chunk_rows = (
+        db.query(Chunk, Document)
+        .join(Document, Chunk.document_id == Document.id)
+        .filter(
+            Document.class_id == class_uuid,
+            Document.deleted == False,  # noqa: E712
+            func.lower(func.trim(Chunk.topic)) == func.lower(clean_topic),
+        )
+        .order_by(Chunk.chunk_index)
+        .limit(5)
+        .all()
+    )
+
+    for chunk, doc in chunk_rows:
+        if doc.id not in docs_found:
+            docs_found[doc.id] = {
+                "document_id": str(doc.id),
+                "title": doc.title or f"{clean_topic} Course Document",
+                "filename": doc.filename,
+                "mime_type": doc.mime_type or "application/pdf",
+                "page_number": chunk.page_number,
+                "excerpt": chunk.text[:300] if chunk.text else None,
+            }
+        elif not docs_found[doc.id].get("excerpt") and chunk.text:
+            docs_found[doc.id]["excerpt"] = chunk.text[:300]
+
+    result = []
+    for d in docs_found.values():
+        doc_id = d["document_id"]
+        mime = d.get("mime_type") or "Document"
+        format_label = "PDF" if "pdf" in mime.lower() else "Image" if "image" in mime.lower() else "Document"
+        page_info = f" · Page {d['page_number']}" if d.get("page_number") else ""
+        result.append({
+            "id": f"doc-{doc_id}",
+            "title": d["title"],
+            "resource_type": "notes",
+            "document_id": doc_id,
+            "file_url": f"/api/v1/documents/{doc_id}/file",
+            "content": d.get("excerpt") or f"Faculty course document: {d.get('filename', 'document')} for topic {clean_topic}.",
+            "content_snippet": d.get("excerpt"),
+            "source": "faculty",
+            "channel": f"Faculty Document ({format_label}{page_info})",
+            "duration": format_label,
+            "action": "read",
+            "action_label": "Read Document",
+            "topic": clean_topic,
+        })
+    return result
 
 
 def _check_prerequisite_gap(
@@ -462,10 +586,14 @@ def get_progress_recommendations(
     # Sort weak topics: lowest mastery first
     weak_topics.sort(key=lambda x: (x["mastery_score"], -x["attempts"]))
 
-    # Find available quizzes in this class for practice actions
+    # Find available quizzes in this class for practice actions (exclude topic practice quizzes)
     approved_quizzes = (
         db.query(Quiz)
-        .filter(Quiz.class_id == class_id, Quiz.status == ReviewStatus.approved)
+        .filter(
+            Quiz.class_id == class_id,
+            Quiz.status == ReviewStatus.approved,
+            or_(Quiz.generation_type.is_(None), Quiz.generation_type != "topic_practice"),
+        )
         .all()
     )
     quiz_by_topic: dict[str, str] = {}
@@ -480,7 +608,9 @@ def get_progress_recommendations(
     grouped_recommendations = []
     for wt in weak_topics:
         topic_name = wt["topic"]
-        videos, notes = _library_resources(db, class_id, topic_name, subject_name)
+        topic_id = wt.get("topic_id")
+        videos, notes = _library_resources(db, class_id, topic_name, subject_name, topic_id=topic_id)
+        course_docs = _topic_course_documents(db, class_id, topic_name, topic_id=topic_id)
 
         resources_list = []
 
@@ -488,7 +618,8 @@ def get_progress_recommendations(
         faculty_videos = [v for v in videos if v.get("source") == "faculty"]
         for v in faculty_videos:
             resources_list.append({
-                "id": v.get("video_id") or v.get("url"),
+                "id": v.get("video_id") or v.get("url") or str(uuid.uuid4()),
+                "video_id": v.get("video_id"),
                 "title": v.get("title", f"{topic_name} Lecture"),
                 "resource_type": "youtube",
                 "url": v.get("url"),
@@ -501,13 +632,19 @@ def get_progress_recommendations(
                 "topic": topic_name,
             })
 
-        # 2. Faculty notes / study materials
+        # 2. Faculty notes & course documents
+        # 2a. Reliable faculty-uploaded course documents / syllabus materials
+        for cd in course_docs:
+            resources_list.append(cd)
+
+        # 2b. Faculty-curated text notes
         for n in notes:
             resources_list.append({
                 "id": n.get("resource_id"),
                 "title": n.get("title", f"{topic_name} Notes"),
                 "resource_type": "notes",
                 "content": n.get("content", ""),
+                "content_snippet": n.get("content", "")[:240] if n.get("content") else None,
                 "source": "faculty" if n.get("author_role") in ("educator", "admin") else "peer",
                 "channel": "Faculty Material" if n.get("author_role") in ("educator", "admin") else "Class Notes",
                 "duration": f"{n.get('content_length', 0)} chars",
@@ -520,7 +657,8 @@ def get_progress_recommendations(
         student_videos = [v for v in videos if v.get("source") == "student_suggested"]
         for v in student_videos:
             resources_list.append({
-                "id": v.get("video_id") or v.get("url"),
+                "id": v.get("video_id") or v.get("url") or str(uuid.uuid4()),
+                "video_id": v.get("video_id"),
                 "title": v.get("title", f"{topic_name} Student Recommendation"),
                 "resource_type": "youtube",
                 "url": v.get("url"),
@@ -538,7 +676,8 @@ def get_progress_recommendations(
             auto_videos = [v for v in videos if v.get("source") == "auto"]
             for v in auto_videos[:2]:
                 resources_list.append({
-                    "id": v.get("video_id") or v.get("url"),
+                    "id": v.get("video_id") or v.get("url") or str(uuid.uuid4()),
+                    "video_id": v.get("video_id"),
                     "title": v.get("title", f"{topic_name} Video"),
                     "resource_type": "youtube",
                     "url": v.get("url"),

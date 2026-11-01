@@ -30,7 +30,7 @@ def record_interaction(
     db.commit()
 
 
-def update_engagement(db: Session, student_id: str) -> None:
+def update_engagement(db: Session, student_id: str, count_as_message: bool = True) -> None:
     engagement = db.query(Engagement).filter(Engagement.student_id == student_id).first()
     if engagement is None:
         print(f"[EVIDENCE WARNING] No Engagement row for student {student_id} — skipping.")
@@ -47,6 +47,7 @@ def update_engagement(db: Session, student_id: str) -> None:
     engagement.longest_streak = max(engagement.longest_streak, engagement.current_streak)
     engagement.last_interaction_date = today
     engagement.staleness_flag = False
-    engagement.total_messages += 1
+    if count_as_message:
+        engagement.total_messages += 1
     db.commit()
     print(f"[EVIDENCE] engagement updated: student={student_id} streak={engagement.current_streak} total_messages={engagement.total_messages}")

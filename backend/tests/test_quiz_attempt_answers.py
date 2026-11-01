@@ -97,3 +97,59 @@ def test_build_answer_rows_with_class_id():
     rows = build_answer_rows(attempt_id, student_id, results, class_id=class_id)
     assert len(rows) == 1
     assert rows[0]["class_id"] == uuid.UUID(class_id)
+
+
+def test_build_answer_rows_points_and_selected_options():
+    attempt_id = str(uuid.uuid4())
+    student_id = str(uuid.uuid4())
+    q1 = str(uuid.uuid4())
+    q2 = str(uuid.uuid4())
+    q3 = str(uuid.uuid4())
+
+    results = [
+        {
+            "question_id": q1,
+            "correct": True,
+            "correct_answer": "Option A",
+            "chosen": "Option A",
+            "topic": "Scheduling",
+            "earned_points": 1.5,
+            "points_possible": 2.0,
+        },
+        {
+            "question_id": q2,
+            "correct": True,
+            "correct_answer": ["Opt 1", "Opt 2"],
+            "chosen": ["Opt 1", "Opt 2"],
+            "topic": "Concurrency",
+            "earned_points": 2.0,
+            "points_possible": 2.0,
+        },
+        {
+            "question_id": q3,
+            "correct": False,
+            "correct_answer": "True",
+            "chosen": None,
+            "topic": "Deadlocks",
+            "earned_points": 0.0,
+            "points_possible": 1.0,
+        },
+    ]
+
+    rows = build_answer_rows(attempt_id, student_id, results)
+    assert len(rows) == 3
+
+    # Q1: single choice string
+    assert rows[0]["points_awarded"] == 1.5
+    assert rows[0]["max_points"] == 2.0
+    assert rows[0]["selected_options"] == "Option A"
+
+    # Q2: multiple choice list
+    assert rows[1]["points_awarded"] == 2.0
+    assert rows[1]["max_points"] == 2.0
+    assert rows[1]["selected_options"] == '["Opt 1", "Opt 2"]'
+
+    # Q3: unanswered / None
+    assert rows[2]["points_awarded"] == 0.0
+    assert rows[2]["max_points"] == 1.0
+    assert rows[2]["selected_options"] is None

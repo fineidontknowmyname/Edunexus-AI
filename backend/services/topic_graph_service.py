@@ -244,7 +244,9 @@ def rename_topic(db: Session, subject_id: str, old_topic: str, new_topic: str) -
         ).update({Chunk.topic: new_topic}, synchronize_session=False)
 
         if subject_class_ids:
-            from backend.models.db import Quiz
+            from backend.models.db import Quiz, QuizAttempt, QuizAttemptAnswer
+            from backend.services.mastery_v2 import normalize_topic_key
+            from sqlalchemy import or_
 
             quiz_ids = [
                 row[0]
@@ -254,6 +256,35 @@ def rename_topic(db: Session, subject_id: str, old_topic: str, new_topic: str) -
                 db.query(QuizQuestion).filter(
                     QuizQuestion.quiz_id.in_(quiz_ids), QuizQuestion.topic == old_topic
                 ).update({QuizQuestion.topic: new_topic}, synchronize_session=False)
+
+            old_key = normalize_topic_key(old_topic)
+            new_key = normalize_topic_key(new_topic)
+
+            # Update QuizAttemptAnswer topic and topic_key
+            db.query(QuizAttemptAnswer).filter(
+                QuizAttemptAnswer.class_id.in_(subject_class_ids),
+                or_(QuizAttemptAnswer.topic_key == old_key, QuizAttemptAnswer.topic == old_topic),
+            ).update(
+                {QuizAttemptAnswer.topic: new_topic, QuizAttemptAnswer.topic_key: new_key},
+                synchronize_session=False,
+            )
+
+            # Rewrite QuizAttempt.topic_scores JSON
+            if quiz_ids:
+                attempts = (
+                    db.query(QuizAttempt)
+                    .filter(QuizAttempt.quiz_id.in_(quiz_ids))
+                    .all()
+                )
+                for att in attempts:
+                    if att.topic_scores:
+                        try:
+                            scores = json.loads(att.topic_scores)
+                            if isinstance(scores, dict) and old_topic in scores:
+                                scores[new_topic] = scores.pop(old_topic)
+                                att.topic_scores = json.dumps(scores)
+                        except Exception:
+                            pass
 
         db.commit()
         bump_anchor_version(subject_id)

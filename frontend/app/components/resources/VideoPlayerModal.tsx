@@ -45,14 +45,14 @@ export function VideoPlayerModal({ video, onClose }: VideoPlayerModalProps) {
             href={video.url}
             target="_blank"
             rel="noreferrer noopener"
-            className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-accent-secondary hover:underline"
+            className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.06em] text-accent-red hover:underline"
           >
             <span>Watch on YouTube</span>
             <ExternalLink className="h-3 w-3" aria-hidden />
           </a>
         </div>
 
-        <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-inner">
+        <div className="relative aspect-video w-full overflow-hidden rounded-[2px] bg-black shadow-inner">
           <iframe
             src={embedUrl}
             title={video.title}

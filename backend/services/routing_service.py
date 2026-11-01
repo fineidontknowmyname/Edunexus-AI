@@ -15,7 +15,7 @@ def intervene_topics(db: Session, student_id: str, class_id: str) -> set[str]:
         Misconception.class_id == class_id,
         Misconception.resolved == False,  # noqa: E712
     )
-    return {row.topic for row in rows}
+    return {row.topic for row in rows if row.topic and row.topic.strip() and row.topic.strip().lower() != "general"}
 
 
 def _label(row: TopicMastery | None) -> str:

@@ -47,10 +47,10 @@ export function EducatorModerationQueue({
   return (
     <Card>
       <CardHeader
-        icon={<Clock className="h-5 w-5 text-accent-secondary" />}
+        icon={<Clock className="h-5 w-5 text-accent-red" />}
         title="Student Video Suggestions"
         description="Review YouTube resources submitted by students. Approved videos will appear in class recommendations."
-        actions={items.length > 0 ? <Badge tone="blue">{items.length} pending</Badge> : undefined}
+        actions={items.length > 0 ? <Badge tone="blue" pill>{items.length} pending</Badge> : undefined}
       />
 
       {actionError && <Alert tone="danger" className="mt-3">{actionError}</Alert>}
@@ -71,7 +71,7 @@ export function EducatorModerationQueue({
           className="mt-4"
         />
       ) : (
-        <div className="mt-4 flex flex-col divide-y divide-subtle">
+        <div className="mt-4 flex flex-col divide-y divide-line">
           {items.map((item) => {
             const thumbUrl =
               item.thumbnail ||
@@ -87,7 +87,7 @@ export function EducatorModerationQueue({
               >
                 <div className="flex items-start gap-3 min-w-0 flex-1">
                   {thumbUrl && (
-                    <div className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-lg bg-surface-muted">
+                    <div className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-[2px] bg-surface2">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={thumbUrl}
@@ -104,7 +104,7 @@ export function EducatorModerationQueue({
                     <div className="flex flex-wrap items-center gap-1.5 mb-1">
                       <Badge tone="blue">Student Suggestion</Badge>
                       <Badge tone="gray">{item.topic}</Badge>
-                      <span className="text-xs text-tertiary">
+                      <span className="font-mono text-[11px] text-muted">
                         by {item.uploaded_by_name || "Student"}
                       </span>
                     </div>
@@ -113,7 +113,7 @@ export function EducatorModerationQueue({
                       href={item.url || "#"}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="text-sm font-semibold text-primary hover:text-accent-secondary hover:underline line-clamp-2"
+                      className="font-serif text-[15px] text-ink hover:text-accent-red hover:underline line-clamp-2 transition-colors"
                     >
                       {item.title}
                     </a>
@@ -135,7 +135,7 @@ export function EducatorModerationQueue({
                     variant="primary"
                     disabled={isBusy}
                     onClick={() => handleReview(item.id, "approved")}
-                    icon={<Check className="h-3.5 w-3.5 text-on-accent" />}
+                    icon={<Check className="h-3.5 w-3.5" />}
                   >
                     {isBusy ? "Reviewing…" : "Approve"}
                   </Button>

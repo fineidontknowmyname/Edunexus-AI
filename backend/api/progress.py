@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from backend.api import access
 from backend.api.dependencies import CurrentUser, RequireEducator, RequireStudent
 from backend.core.database import get_db
+from backend.models import schemas
 from backend.services import context_service, insights_service, progress_service, recommendation_service, routing_service
 
 router = APIRouter(prefix="/progress", tags=["progress"])
@@ -46,7 +47,7 @@ def routing(
     return routing_service.get_routing_map(db, str(current_user.id), resolved_class_id)
 
 
-@router.get("/recommendations")
+@router.get("/recommendations", response_model=schemas.ProgressRecommendationsResponse)
 def progress_recommendations(
     db: DbDep,
     current_user: CurrentUser,

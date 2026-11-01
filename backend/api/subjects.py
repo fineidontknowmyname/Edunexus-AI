@@ -12,7 +12,7 @@ from backend.core.config import get_settings
 from backend.core.database import get_db
 from backend.models import schemas
 from backend.models.db import Chunk, Class, Document
-from backend.pipeline.parser import SUPPORTED_EXTENSIONS, extract_text
+from backend.pipeline.parser import SUPPORTED_EXTENSIONS, extract_text, validate_document_content
 from backend.services import misconception_service, subject_service, topic_graph_service
 
 logger = logging.getLogger(__name__)
@@ -87,13 +87,6 @@ async def draft_topic_graph(
 
     for f_idx, upload_item in enumerate(upload_list, start=1):
         filename = os.path.basename(upload_item.filename or f"syllabus_page_{f_idx}")
-        ext = os.path.splitext(filename)[1].lower()
-        if ext not in SUPPORTED_EXTENSIONS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported file type '{ext}' for file '{filename}'. Supported formats: {', '.join(SUPPORTED_EXTENSIONS)}",
-            )
-
         content = await upload_item.read(max_bytes + 1)
         if len(content) > max_bytes:
             raise HTTPException(
@@ -102,6 +95,11 @@ async def draft_topic_graph(
             )
         if not content:
             raise HTTPException(status_code=400, detail=f"The uploaded file '{filename}' is empty.")
+
+        try:
+            ext, mime_type, file_size, sha256_hash = validate_document_content(content, filename)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
         try:

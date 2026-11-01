@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -77,6 +77,8 @@ def update_mastery_after_attempt(
     class_row = db.get(Class, class_id)
     subject_id = class_row.subject_id if class_row else None
     for topic in topic_scores:
+        if not topic or topic.strip().lower() in ("general", "unmapped", "none"):
+            continue
         history = _topic_score_history(db, student_id, class_id, topic)
         mastery_score = calculate_mastery(history)
         trend = calculate_trend(history)
@@ -96,7 +98,7 @@ def update_mastery_after_attempt(
         row.mastery_score = mastery_score
         row.attempt_count = attempt_count
         row.trend = trend
-        row.last_attempt_at = datetime.utcnow()
+        row.last_attempt_at = datetime.now(timezone.utc)
         if topic in topic_passed:
             row.last_quiz_passed = topic_passed[topic]
 

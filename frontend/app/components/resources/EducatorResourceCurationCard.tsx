@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { PlusCircle, Video, CheckCircle2, AlertCircle, FileText, ExternalLink } from "lucide-react";
+import { PlusCircle, Video, FileText, ExternalLink } from "lucide-react";
 import { Card, CardHeader } from "../ui/Card";
 import { Input, Select } from "../ui/Input";
 import { Button, ButtonLink } from "../ui/Button";
-import { Alert, Skeleton, SkeletonText } from "../ui/Feedback";
+import { Alert, SkeletonText } from "../ui/Feedback";
 import { apiFetch, errorMessage } from "../../lib/api";
-import type { ClassCurationTopicsResponse, CurationTopicItem } from "../../lib/types";
+import type { ClassCurationTopicsResponse } from "../../lib/types";
 
 interface EducatorResourceCurationCardProps {
   classId: string;
@@ -30,9 +29,11 @@ export function EducatorResourceCurationCard({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
+    const timer = setTimeout(() => {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+    }, 0);
 
     apiFetch<ClassCurationTopicsResponse>(`/classes/${classId}/curation-topics`)
       .then((data) => {
@@ -54,6 +55,7 @@ export function EducatorResourceCurationCard({
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [classId]);
 
@@ -105,7 +107,7 @@ export function EducatorResourceCurationCard({
   return (
     <Card>
       <CardHeader
-        icon={<Video className="h-5 w-5 text-red-500" />}
+        icon={<Video className="h-5 w-5 text-danger" />}
         title="Curate YouTube Video"
         description="Add faculty-approved educational videos dynamically mapped to your approved syllabus topics."
       />
@@ -120,12 +122,12 @@ export function EducatorResourceCurationCard({
             {curationData.message ||
               `No approved syllabus found for "${curationData.subject_name || "this class"}". Faculty curation requires an approved syllabus so resources map to validated curriculum topics.`}
           </Alert>
-          <div className="flex items-center justify-between rounded-lg border border-dashed border-subtle p-4 bg-surface-muted/50">
+          <div className="flex items-center justify-between rounded-[2px] border border-dashed border-line p-4 bg-surface2">
             <div className="flex items-center gap-3">
-              <FileText className="h-5 w-5 text-accent-secondary shrink-0" />
+              <FileText className="h-5 w-5 text-accent-red shrink-0" />
               <div>
-                <p className="text-sm font-medium text-primary">Syllabus Management</p>
-                <p className="text-xs text-secondary">
+                <p className="font-serif text-[15px] text-ink">Syllabus Management</p>
+                <p className="text-xs text-muted">
                   Upload syllabus PDF/DOCX, extract topics, review, and approve the curriculum.
                 </p>
               </div>

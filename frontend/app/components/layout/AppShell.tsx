@@ -1,59 +1,142 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
-import { Menu } from "lucide-react";
+import { Menu, Search } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { UserRole } from "../../lib/types";
 import { useAuth, useAuthActions, homeForRole } from "../../lib/hooks/useAuth";
 import { Drawer } from "../ui/Modal";
 import { Logo } from "./Logo";
 import { SidebarNav } from "./SidebarNav";
 import { UserMenu } from "./UserMenu";
+import { SearchCommandDialog } from "./SearchCommandDialog";
+import { ThemeToggle } from "../ui/ThemeToggle";
+import { cn } from "../../lib/cn";
+import { isActive, navFor } from "./nav";
 
 export function AppShell({ role, children }: { role: UserRole | null; children: ReactNode }) {
   const { user } = useAuth();
   const { logout } = useAuthActions();
+  const pathname = usePathname();
+
   const [navOpen, setNavOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
   const effectiveRole = user?.role ?? role;
+  const navItems = navFor(effectiveRole);
+
+  useEffect(() => {
+    function handleGlobalSearchKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleGlobalSearchKey);
+    return () => window.removeEventListener("keydown", handleGlobalSearchKey);
+  }, []);
 
   return (
-    <div className="flex min-h-dvh flex-col bg-app">
+    <div className="min-h-dvh bg-bg text-ink flex flex-col">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary focus:shadow-popover"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-[2px] focus:bg-surface focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:text-red focus:shadow-shadow focus:outline-2 focus:outline-red"
       >
         Skip to content
       </a>
-      <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-subtle bg-surface/90 px-3 backdrop-blur supports-[backdrop-filter]:bg-surface/80 sm:px-5">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setNavOpen(true)}
-            aria-label="Open navigation"
-            aria-expanded={navOpen}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-secondary hover:bg-surface-muted hover:text-primary md:hidden"
-          >
-            <Menu className="h-5 w-5" aria-hidden />
-          </button>
-          <Logo href={homeForRole(effectiveRole)} />
+
+      {/* Reference Sticky Topbar */}
+      <header className="topbar">
+        <div className="top-inner shell">
+          {/* Brand Wordmark Left */}
+          <div className="flex items-center gap-4">
+            <Logo href={homeForRole(effectiveRole)} />
+          </div>
+
+          {/* Center Desktop Numbered Mono Navigation */}
+          <nav className="topnav hidden md:flex" aria-label="Main navigation">
+            {navItems.map((item, idx) => {
+              const active = isActive(pathname, item);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "font-mono text-[10px] tracking-[0.1em] uppercase transition-colors duration-250 py-1",
+                    active ? "text-red active" : "text-muted hover:text-red"
+                  )}
+                  aria-current={active ? "page" : undefined}
+                >
+                  {String(idx + 1).padStart(2, "0")} / {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Right Header Controls */}
+          <div className="top-actions">
+            {/* Search Trigger Button */}
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="icon-btn"
+              aria-label="Search navigation (Cmd+K)"
+              title="Search navigation (Cmd+K)"
+            >
+              <Search className="h-3.5 w-3.5" aria-hidden />
+            </button>
+
+            {/* Theme Toggle Button */}
+            <ThemeToggle />
+
+            {/* User Avatar & Menu */}
+            <UserMenu user={user} onLogout={logout} />
+
+            {/* Mobile Hamburger Menu Toggle (<850px) */}
+            <button
+              type="button"
+              onClick={() => setNavOpen(true)}
+              aria-label="Open mobile navigation"
+              aria-expanded={navOpen}
+              className="icon-btn md:hidden"
+            >
+              <Menu className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
         </div>
-        <UserMenu user={user} onLogout={logout} />
       </header>
 
-      <div className="flex flex-1">
-        <aside className="hidden w-60 shrink-0 border-r border-subtle bg-surface md:block">
-          <div className="sticky top-14 h-[calc(100dvh-3.5rem)]">
-            <SidebarNav role={effectiveRole} />
-          </div>
-        </aside>
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 focus:outline-none sm:px-6 lg:px-10 lg:py-8">
-          {children}
-        </main>
-      </div>
+      {/* Main Content Area with Route Entrance Transition */}
+      <main
+        id="main"
+        tabIndex={-1}
+        key={pathname}
+        className="flex-1 w-full shell page-enter focus:outline-none px-[4.2vw] sm:px-[5vw] py-8"
+      >
+        {children}
+      </main>
 
-      <Drawer open={navOpen} onClose={() => setNavOpen(false)} title="Navigation">
-        <SidebarNav role={effectiveRole} onNavigate={() => setNavOpen(false)} />
+      {/* Reference Footer Strip */}
+      <footer className="footer shell border-t border-line mt-auto">
+        <span>EDUNEXUS AI / HIGHER EDUCATION LEARNING SYSTEM</span>
+        <span>DESIGNED FOR FOCUS · 2026—27</span>
+        <span className="text-right">ADAPTIVE CURRICULUM INTELLIGENCE</span>
+      </footer>
+
+      {/* Mobile Drawer Navigation */}
+      <Drawer
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
+        title="Menu"
+        category={effectiveRole ? effectiveRole.toUpperCase() : "EDUNEXUS"}
+      >
+        <SidebarNav role={effectiveRole} onNavigate={() => setNavOpen(false)} isDrawer />
       </Drawer>
+
+      {/* Quick Search Dialog */}
+      <SearchCommandDialog open={searchOpen} onClose={() => setSearchOpen(false)} role={effectiveRole} />
     </div>
   );
 }
