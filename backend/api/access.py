@@ -51,6 +51,15 @@ def enrolled_class(db: Session, class_id, user: User) -> Class:
     return row
 
 
+def user_class_access(db: Session, class_id, user: User) -> Class:
+    row = db.get(Class, parse_uuid(class_id, "Class"))
+    if row is None:
+        raise _not_found("Class")
+    if row.educator_id == user.id or is_enrolled(db, row.id, user.id):
+        return row
+    raise _not_found("Class")
+
+
 def student_class_id(db: Session, user: User, requested_class_id) -> str:
     if requested_class_id:
         return str(enrolled_class(db, requested_class_id, user).id)
@@ -78,6 +87,17 @@ def owned_student_in_class(db: Session, student_id, class_id, user: User) -> Cla
 def owned_document(db: Session, document_id, user: User) -> Document:
     doc = db.get(Document, parse_uuid(document_id, "Document"))
     if doc is None or doc.deleted or doc.class_ is None or doc.class_.educator_id != user.id:
+        raise _not_found("Document")
+    return doc
+
+
+def accessible_document(db: Session, document_id, user: User) -> Document:
+    doc = db.get(Document, parse_uuid(document_id, "Document"))
+    if doc is None or doc.deleted:
+        raise _not_found("Document")
+    if doc.class_id:
+        user_class_access(db, str(doc.class_id), user)
+    elif doc.uploaded_by_id != user.id:
         raise _not_found("Document")
     return doc
 
@@ -113,6 +133,8 @@ def owned_question(db: Session, question_id, user: User) -> QuizQuestion:
 def enrolled_quiz(db: Session, quiz_id, user: User) -> Quiz:
     quiz = db.get(Quiz, parse_uuid(quiz_id, "Quiz"))
     if quiz is None or quiz.status != ReviewStatus.approved or not is_enrolled(db, quiz.class_id, user.id):
+        raise _not_found("Quiz")
+    if getattr(quiz, "generation_type", None) == "topic_practice" and quiz.created_by_id and quiz.created_by_id != user.id:
         raise _not_found("Quiz")
     return quiz
 

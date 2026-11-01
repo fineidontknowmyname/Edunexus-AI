@@ -153,69 +153,74 @@ def test_stale_evidence_decay(fixed_now):
 
 
 def test_trend_improving_declining_flat(fixed_now):
-    # 7 attempts across 2 sessions (min 3 attempts needed, recent_window=3, earlier=4)
-    # Improving: earlier 4 all wrong, recent 3 all correct
+    # 10 attempts across 2 sessions (recent_window=5, earlier=5)
+    # Improving: earlier 5 all wrong, recent 5 all correct
     improving_attempts = [
         AttemptEvidence(
             question_id=f"q{i}",
             session_id=f"s{i % 2}",
             correct=False,
-            timestamp=fixed_now - timedelta(days=7 - i),
+            timestamp=fixed_now - timedelta(days=10 - i),
             option_count=4,
         )
-        for i in range(4)
+        for i in range(5)
     ] + [
         AttemptEvidence(
             question_id=f"q{i}",
             session_id=f"s{i % 2}",
             correct=True,
-            timestamp=fixed_now - timedelta(days=3 - (i - 4)),
+            timestamp=fixed_now - timedelta(days=5 - (i - 5)),
             option_count=4,
         )
-        for i in range(4, 7)
+        for i in range(5, 10)
     ]
     res_imp = compute_mastery(improving_attempts, now=fixed_now)
     assert res_imp.evidence_state == "sufficient"
     assert res_imp.trend == "improving"
 
-    # Declining: earlier 4 all correct, recent 3 all wrong
+    # Declining: earlier 5 all correct, recent 5 all wrong
     declining_attempts = [
         AttemptEvidence(
             question_id=f"q{i}",
             session_id=f"s{i % 2}",
             correct=True,
-            timestamp=fixed_now - timedelta(days=7 - i),
+            timestamp=fixed_now - timedelta(days=10 - i),
             option_count=4,
         )
-        for i in range(4)
+        for i in range(5)
     ] + [
         AttemptEvidence(
             question_id=f"q{i}",
             session_id=f"s{i % 2}",
             correct=False,
-            timestamp=fixed_now - timedelta(days=3 - (i - 4)),
+            timestamp=fixed_now - timedelta(days=5 - (i - 5)),
             option_count=4,
         )
-        for i in range(4, 7)
+        for i in range(5, 10)
     ]
     res_dec = compute_mastery(declining_attempts, now=fixed_now)
     assert res_dec.evidence_state == "sufficient"
     assert res_dec.trend == "declining"
 
-    # Flat: earlier 6 attempts (3 correct, 3 wrong -> 0.5), recent 4 attempts (2 correct, 2 wrong -> 0.5)
+    # Flat: earlier 6 attempts (3 correct, 3 wrong -> 0.5), recent 5 attempts (3 correct, 2 wrong -> 0.6; diff 0.1 < 0.15)
     flat_attempts = [
         AttemptEvidence(
             question_id=f"q{i}",
             session_id=f"s{i % 2}",
             correct=(i % 2 == 0),
-            timestamp=fixed_now - timedelta(days=10 - i),
+            timestamp=fixed_now - timedelta(days=12 - i),
             option_count=4,
         )
-        for i in range(10)
+        for i in range(11)
     ]
-    res_flat = compute_mastery(flat_attempts, now=fixed_now, cfg=MasteryConfig(recent_window=4))
+    res_flat = compute_mastery(flat_attempts, now=fixed_now)
     assert res_flat.evidence_state == "sufficient"
     assert res_flat.trend == "flat"
+
+    # Too few attempts (< 10) leaves trend as unknown
+    short_attempts = improving_attempts[:7]
+    res_short = compute_mastery(short_attempts, now=fixed_now)
+    assert res_short.trend == "unknown"
 
 
 def test_invalid_and_edge_inputs(fixed_now):
@@ -280,3 +285,4 @@ def test_normalize_topic_key():
     assert normalize_topic_key("") is None
     assert normalize_topic_key("   ") is None
     assert normalize_topic_key("\n\t") is None
+

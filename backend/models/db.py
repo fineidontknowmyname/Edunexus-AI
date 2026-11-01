@@ -13,10 +13,12 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     LargeBinary,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import relationship
@@ -36,13 +38,43 @@ class DocumentStatus(str, enum.Enum):
     pending = "pending"
     processing = "processing"
     ready = "ready"
+    review_required = "review_required"
     failed = "failed"
 
 
 class ReviewStatus(str, enum.Enum):
+    draft = "draft"
     pending_review = "pending_review"
     approved = "approved"
     rejected = "rejected"
+    archived = "archived"
+
+
+class QuestionType(str, enum.Enum):
+    single_choice = "single_choice"
+    multiple_choice = "multiple_choice"
+    true_false = "true_false"
+
+
+class BloomLevel(str, enum.Enum):
+    remember = "remember"
+    understand = "understand"
+    apply = "apply"
+    analyze = "analyze"
+    evaluate = "evaluate"
+    create = "create"
+
+
+class CoverageStatus(str, enum.Enum):
+    not_covered = "not_covered"
+    partially_covered = "partially_covered"
+    covered = "covered"
+    insufficient_evidence = "insufficient_evidence"
+
+
+class ResourceType(str, enum.Enum):
+    youtube = "youtube"
+    notes = "notes"
 
 
 class QuestionDifficulty(str, enum.Enum):
@@ -117,10 +149,11 @@ class User(Base):
     full_name = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.student)
     is_active = Column(Boolean, default=True, nullable=False)
+    timezone = Column(String(64), nullable=False, default="UTC", server_default="UTC")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    engagement = relationship("Engagement", back_populates="student", uselist=False, cascade="all, delete-orphan")
+    engagement = relationship("Engagement", back_populates="student", cascade="all, delete-orphan")
     topic_masteries = relationship("TopicMastery", back_populates="student", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="student", cascade="all, delete-orphan")
     quiz_attempts = relationship("QuizAttempt", back_populates="student", cascade="all, delete-orphan")
@@ -177,7 +210,14 @@ class Document(Base):
     is_indexed = Column(Boolean, default=False, nullable=False)
     chunk_count = Column(Integer, default=0)
     deleted = Column(Boolean, default=False, nullable=False)
+    file_hash_sha256 = Column(String(64), nullable=True, index=True)
+    mime_type = Column(String(100), nullable=True)
+    file_size_bytes = Column(Integer, nullable=True)
+    version = Column(Integer, default=1, nullable=False)
+    error_message = Column(Text, nullable=True)
+    processing_metadata = Column(JSON, default=dict, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=False)
     uploaded_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -212,6 +252,8 @@ class Chunk(Base):
     topic = Column(String(500), nullable=True)
     unit = Column(Integer, nullable=True)
     chapter = Column(Integer, nullable=True)
+    page_number = Column(Integer, nullable=True)
+    section_heading = Column(String(500), nullable=True)
     chunk_index = Column(Integer, nullable=False)
     token_count = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -272,6 +314,10 @@ class TopicMastery(Base):
     subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True, index=True)
     student = relationship("User", back_populates="topic_masteries")
 
+    __table_args__ = (
+        UniqueConstraint("student_id", "class_id", "topic", name="uq_topic_mastery_student_class_topic"),
+    )
+
 
 class Misconception(Base):
     __tablename__ = "misconceptions"
@@ -285,7 +331,7 @@ class Misconception(Base):
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=False)
     subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True, index=True)
-    source_quiz_attempt_id = Column(UUID(as_uuid=True), ForeignKey("quiz_attempts.id"), nullable=True)
+    source_quiz_attempt_id = Column(UUID(as_uuid=True), ForeignKey("quiz_attempts.id", ondelete="SET NULL"), nullable=True)
 
 
 class Reflection(Base):
@@ -343,6 +389,9 @@ class MisconceptionRule(Base):
 
 class InteractionPattern(Base):
     __tablename__ = "interaction_patterns"
+    __table_args__ = (
+        UniqueConstraint("student_id", "class_id", "topic", name="uq_interaction_patterns_student_class_topic"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     topic = Column(String(500), nullable=False)
@@ -358,6 +407,7 @@ class TopicBehavior(Base):
     __tablename__ = "topic_behavior"
     __table_args__ = (
         UniqueConstraint("student_id", "subject_id", "topic", name="uq_topic_behavior_student_subject_topic"),
+        Index("uq_topic_behavior_null_subject", "student_id", "topic", unique=True, postgresql_where=text("subject_id IS NULL")),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -376,6 +426,9 @@ class TopicBehavior(Base):
 
 class Engagement(Base):
     __tablename__ = "engagement"
+    __table_args__ = (
+        UniqueConstraint("student_id", "class_id", name="uq_engagement_student_class"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     current_streak = Column(Integer, default=0, nullable=False)
@@ -387,8 +440,10 @@ class Engagement(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True, nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True)
     student = relationship("User", back_populates="engagement")
+    class_ = relationship("Class")
 
 
 class ChatSession(Base):
@@ -427,11 +482,16 @@ class Quiz(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
     unit = Column(Integer, nullable=True)
     chapter = Column(Integer, nullable=True)
     generation_type = Column(String(50), default="standard", nullable=False)
     status = Column(Enum(ReviewStatus), default=ReviewStatus.pending_review, nullable=False)
+    version = Column(Integer, default=1, nullable=False)
+    time_limit_minutes = Column(Integer, nullable=True)
+    passing_percentage = Column(Float, default=60.0, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=False)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
@@ -440,29 +500,107 @@ class Quiz(Base):
 
     questions = relationship("QuizQuestion", back_populates="quiz", cascade="all, delete-orphan")
     attempts = relationship("QuizAttempt", back_populates="quiz", cascade="all, delete-orphan")
+    coverage_reports = relationship("QuizCoverageReport", back_populates="quiz", cascade="all, delete-orphan")
 
 
 class QuizQuestion(Base):
     __tablename__ = "quiz_questions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    question_type = Column(String(50), default="single_choice", nullable=False)
+    question_order = Column(Integer, default=1, nullable=False)
     question_text = Column(Text, nullable=False)
     options = Column(Text, nullable=False)
     correct_answer = Column(Text, nullable=False)
+    explanation = Column(Text, nullable=True)
+    points = Column(Float, default=1.0, nullable=False)
     topic = Column(String(500), nullable=True)
+    topic_id = Column(UUID(as_uuid=True), ForeignKey("prerequisite_map.id", ondelete="SET NULL"), nullable=True, index=True)
+    source_page_number = Column(Integer, nullable=True)
+    partial_credit_allowed = Column(Boolean, default=False, nullable=False)
     difficulty = Column(Enum(QuestionDifficulty), default=QuestionDifficulty.medium, nullable=False)
     status = Column(Enum(ReviewStatus), default=ReviewStatus.pending_review, nullable=False)
+    version = Column(Integer, default=1, nullable=False)
+    generation_meta = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     quiz_id = Column(UUID(as_uuid=True), ForeignKey("quizzes.id"), nullable=False)
     source_chunk_id = Column(UUID(as_uuid=True), ForeignKey("chunks.id"), nullable=True)
+    source_document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, index=True)
     quiz = relationship("Quiz", back_populates="questions")
+    canonical_topic = relationship("PrerequisiteMap", back_populates="questions")
+    source_document = relationship("Document", foreign_keys=[source_document_id])
+    curriculum_mappings = relationship("QuestionCurriculumMapping", back_populates="question", cascade="all, delete-orphan")
+    reports = relationship("QuestionReport", back_populates="question", cascade="all, delete-orphan")
+
+
+class QuestionCurriculumMapping(Base):
+    __tablename__ = "question_curriculum_mappings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    question_id = Column(UUID(as_uuid=True), ForeignKey("quiz_questions.id", ondelete="CASCADE"), nullable=False, index=True)
+    topic_id = Column(UUID(as_uuid=True), ForeignKey("prerequisite_map.id", ondelete="CASCADE"), nullable=False, index=True)
+    subtopic_id = Column(UUID(as_uuid=True), ForeignKey("syllabus_subtopics.id", ondelete="SET NULL"), nullable=True)
+    objective_id = Column(UUID(as_uuid=True), ForeignKey("learning_objectives.id", ondelete="SET NULL"), nullable=True, index=True)
+    bloom_level = Column(String(50), nullable=True)
+    weight = Column(Float, default=1.0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    question = relationship("QuizQuestion", back_populates="curriculum_mappings")
+    learning_objective = relationship("LearningObjective", back_populates="question_mappings")
+
+
+class QuizCoverageReport(Base):
+    __tablename__ = "quiz_coverage_reports"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    quiz_id = Column(UUID(as_uuid=True), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
+    total_topics = Column(Integer, default=0, nullable=False)
+    covered_topics = Column(Integer, default=0, nullable=False)
+    partially_covered_topics = Column(Integer, default=0, nullable=False)
+    missing_topics = Column(Integer, default=0, nullable=False)
+    coverage_score = Column(Float, default=0.0, nullable=False)
+    coverage_matrix = Column(Text, nullable=True)
+    warnings = Column(Text, nullable=True)
+    faculty_acknowledged = Column(Boolean, default=False, nullable=False)
+    faculty_notes = Column(Text, nullable=True)
+    generated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    quiz = relationship("Quiz", back_populates="coverage_reports")
+    document = relationship("Document")
+
+
+class QuestionReport(Base):
+    __tablename__ = "question_reports"
+    __table_args__ = (
+        UniqueConstraint("question_id", "reporter_id", "category", name="uq_question_reports_question_reporter_category"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    question_id = Column(UUID(as_uuid=True), ForeignKey("quiz_questions.id", ondelete="CASCADE"), nullable=False, index=True)
+    quiz_id = Column(UUID(as_uuid=True), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=True)
+    reporter_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reporter_role = Column(String(20), nullable=False)
+    category = Column(String(50), nullable=False)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    question = relationship("QuizQuestion", back_populates="reports")
+    quiz = relationship("Quiz")
+    class_ = relationship("Class")
+    reporter = relationship("User")
 
 
 class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    quiz_version = Column(Integer, default=1, nullable=False)
     score = Column(Float, nullable=True)
+    points_earned = Column(Float, nullable=True)
+    max_points = Column(Float, nullable=True)
     answers = Column(Text, nullable=True)
     topic_scores = Column(Text, nullable=True)
     completed = Column(Boolean, default=False)
@@ -480,17 +618,22 @@ class QuizAttemptAnswer(Base):
     __table_args__ = (
         UniqueConstraint("attempt_id", "question_id", name="uq_quiz_attempt_answers_attempt_question"),
         Index("ix_quiz_attempt_answers_student_topic_key_answered", "student_id", "topic_key", "answered_at"),
+        Index("ix_quiz_attempt_answers_student_class_topic_answered", "student_id", "class_id", "topic_key", "answered_at"),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     attempt_id = Column(UUID(as_uuid=True), ForeignKey("quiz_attempts.id", ondelete="CASCADE"), nullable=False)
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=True, index=True)
     question_id = Column(UUID(as_uuid=True), ForeignKey("quiz_questions.id"), nullable=False)
     topic = Column(String(500), nullable=True)
     topic_key = Column(String(500), nullable=True)
     is_correct = Column(Boolean, nullable=False)
+    points_awarded = Column(Float, nullable=True)
+    max_points = Column(Float, nullable=True)
     difficulty = Column(String(16), nullable=True)
     option_count = Column(Integer, nullable=True)
+    selected_options = Column(Text, nullable=True)
     answered_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
@@ -515,15 +658,68 @@ class PrerequisiteMap(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     subject = Column(String(255), nullable=True)
     subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
+    unit = Column(Integer, nullable=True)
     topic = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
     requires = Column(ARRAY(Text), nullable=True)
     related_concepts = Column(ARRAY(Text), nullable=True)
+    order_index = Column(Integer, default=0, nullable=False)
+    is_canonical = Column(Boolean, default=True, nullable=False)
+    source_document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, index=True)
+    source_page_number = Column(Integer, nullable=True)
+    review_status = Column(String(50), default="approved", nullable=False)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     subject_ = relationship("Subject", back_populates="topics")
+    subtopics = relationship("SyllabusSubtopic", back_populates="topic", cascade="all, delete-orphan")
+    learning_objectives = relationship("LearningObjective", back_populates="topic", cascade="all, delete-orphan")
+    questions = relationship("QuizQuestion", back_populates="canonical_topic")
+
+
+class SyllabusSubtopic(Base):
+    __tablename__ = "syllabus_subtopics"
+    __table_args__ = (
+        UniqueConstraint("topic_id", "name", name="uq_subtopics_topic_name"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic_id = Column(UUID(as_uuid=True), ForeignKey("prerequisite_map.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    order_index = Column(Integer, default=0, nullable=False)
+    source_document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
+    source_page_number = Column(Integer, nullable=True)
+    review_status = Column(String(50), default="approved", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    topic = relationship("PrerequisiteMap", back_populates="subtopics")
+    source_document = relationship("Document", foreign_keys=[source_document_id])
+    learning_objectives = relationship("LearningObjective", back_populates="subtopic", cascade="all, delete-orphan")
+
+
+class LearningObjective(Base):
+    __tablename__ = "learning_objectives"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic_id = Column(UUID(as_uuid=True), ForeignKey("prerequisite_map.id", ondelete="CASCADE"), nullable=False, index=True)
+    subtopic_id = Column(UUID(as_uuid=True), ForeignKey("syllabus_subtopics.id", ondelete="SET NULL"), nullable=True, index=True)
+    code = Column(String(50), nullable=True)
+    statement = Column(Text, nullable=False)
+    bloom_level = Column(String(50), nullable=True)
+    order_index = Column(Integer, default=0, nullable=False)
+    source_document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
+    source_page_number = Column(Integer, nullable=True)
+    review_status = Column(String(50), default="approved", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    topic = relationship("PrerequisiteMap", back_populates="learning_objectives")
+    subtopic = relationship("SyllabusSubtopic", back_populates="learning_objectives")
+    source_document = relationship("Document", foreign_keys=[source_document_id])
+    question_mappings = relationship("QuestionCurriculumMapping", back_populates="learning_objective", cascade="all, delete-orphan")
 
 
 class IngestionJob(Base):
@@ -551,3 +747,83 @@ class RefreshToken(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+
+
+class LearningResource(Base):
+    __tablename__ = "learning_resources"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic = Column(String(500), nullable=False, index=True)
+    title = Column(String(500), nullable=False)
+    resource_type = Column(Enum(ResourceType), nullable=False)
+    url = Column(Text, nullable=True)
+    content = Column(Text, nullable=True)
+    status = Column(Enum(ReviewStatus), default=ReviewStatus.pending_review, nullable=False, index=True)
+    helpful_count = Column(Integer, default=0, nullable=False)
+    report_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    uploaded_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    class_ = relationship("Class")
+    uploaded_by = relationship("User")
+    votes = relationship("ResourceVote", back_populates="resource", cascade="all, delete-orphan")
+    reports = relationship("ResourceReport", back_populates="resource", cascade="all, delete-orphan")
+
+
+class ResourceReport(Base):
+    __tablename__ = "resource_reports"
+    __table_args__ = (
+        UniqueConstraint("resource_id", "student_id", name="uq_resource_reports_resource_student"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    resource_id = Column(UUID(as_uuid=True), ForeignKey("learning_resources.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    resource = relationship("LearningResource", back_populates="reports")
+    student = relationship("User")
+
+
+class ResourceVote(Base):
+    __tablename__ = "resource_votes"
+    __table_args__ = (
+        UniqueConstraint("resource_id", "student_id", name="uq_resource_votes_resource_student"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    vote_type = Column(String(16), default="helpful", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    resource_id = Column(UUID(as_uuid=True), ForeignKey("learning_resources.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    resource = relationship("LearningResource", back_populates="votes")
+    student = relationship("User")
+
+
+class RecommendationLog(Base):
+    __tablename__ = "recommendation_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic = Column(String(500), nullable=False, index=True)
+    mode = Column(String(64), nullable=False)
+    reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    outcome_score_before = Column(Float, nullable=True)
+    outcome_score_after = Column(Float, nullable=True)
+    outcome_delta = Column(Float, nullable=True)
+
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    outcome_attempt_id = Column(UUID(as_uuid=True), ForeignKey("quiz_attempts.id", ondelete="SET NULL"), nullable=True)
+
+    student = relationship("User")
+    class_ = relationship("Class")
+    outcome_attempt = relationship("QuizAttempt")
+

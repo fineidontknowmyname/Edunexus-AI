@@ -13,11 +13,92 @@ if test_env.exists():
 from backend.main import app
 from backend.core.database import SessionLocal, get_db
 from backend.core.security import create_access_token, hash_password
-from backend.models.db import Class, ClassEnrollment, Misconception, TopicMastery, User, UserRole
+from backend.models.db import (
+    ChatMessage,
+    ChatSession,
+    Class,
+    ClassEnrollment,
+    EducatorNote,
+    Engagement,
+    InteractionPattern,
+    Misconception,
+    QuizAttempt,
+    QuizAttemptAnswer,
+    RecommendationLog,
+    Reflection,
+    ResourceReport,
+    ResourceVote,
+    TopicBehavior,
+    TopicMastery,
+    User,
+    UserRole,
+)
+
+
+def _cleanup_user(db, user):
+    try:
+        # Delete QuizAttemptAnswer rows for the user's attempts or direct student_id
+        attempt_ids = [row[0] for row in db.query(QuizAttempt.id).filter(QuizAttempt.student_id == user.id).all()]
+        if attempt_ids:
+            db.query(QuizAttemptAnswer).filter(QuizAttemptAnswer.attempt_id.in_(attempt_ids)).delete(synchronize_session=False)
+        db.query(QuizAttemptAnswer).filter(QuizAttemptAnswer.student_id == user.id).delete(synchronize_session=False)
+
+        # QuizAttempt
+        db.query(QuizAttempt).filter(QuizAttempt.student_id == user.id).delete(synchronize_session=False)
+
+        # TopicMastery, Misconception, ClassEnrollment
+        db.query(TopicMastery).filter(TopicMastery.student_id == user.id).delete(synchronize_session=False)
+        db.query(Misconception).filter(Misconception.student_id == user.id).delete(synchronize_session=False)
+        db.query(ClassEnrollment).filter(ClassEnrollment.student_id == user.id).delete(synchronize_session=False)
+
+        # Engagement, InteractionPattern, TopicBehavior, RecommendationLog, EducatorNote
+        db.query(Engagement).filter(Engagement.student_id == user.id).delete(synchronize_session=False)
+        db.query(InteractionPattern).filter(InteractionPattern.student_id == user.id).delete(synchronize_session=False)
+        db.query(TopicBehavior).filter(TopicBehavior.student_id == user.id).delete(synchronize_session=False)
+        db.query(RecommendationLog).filter(RecommendationLog.student_id == user.id).delete(synchronize_session=False)
+        db.query(EducatorNote).filter(
+            (EducatorNote.student_id == user.id) | (EducatorNote.educator_id == user.id)
+        ).delete(synchronize_session=False)
+
+        # Additional student-linked tables with ForeignKeys to users.id
+        db.query(Reflection).filter(Reflection.student_id == user.id).delete(synchronize_session=False)
+        db.query(ResourceVote).filter(ResourceVote.student_id == user.id).delete(synchronize_session=False)
+        db.query(ResourceReport).filter(ResourceReport.student_id == user.id).delete(synchronize_session=False)
+
+        # ChatSession and ChatMessage
+        session_ids = [s[0] for s in db.query(ChatSession.id).filter(ChatSession.student_id == user.id).all()]
+        if session_ids:
+            db.query(ChatMessage).filter(ChatMessage.session_id.in_(session_ids)).delete(synchronize_session=False)
+        db.query(ChatSession).filter(ChatSession.student_id == user.id).delete(synchronize_session=False)
+
+        db.delete(user)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def pytest_report_header(config):
+    from backend.core.database import engine
+    return f"[DATABASE ACTIVE IN TEST] Database name: {engine.url.database}"
+
+
+def check_test_db_safety(database_name: str | None) -> None:
+    """Guard against accidentally running tests against a production/non-test database."""
+    db_name = (database_name or "").lower()
+    override = os.environ.get("ALLOW_NON_TEST_DB_WRITE", "")
+    if "test" not in db_name and override != (database_name or ""):
+        pytest.exit(
+            f"SAFETY ABORT: Test attempted to obtain a database session connected to non-test database '{database_name}'. "
+            f"Database name must contain 'test', or set ALLOW_NON_TEST_DB_WRITE='{database_name}'.",
+            returncode=1,
+        )
 
 
 @pytest.fixture
 def db():
+    from backend.core.database import engine
+    check_test_db_safety(engine.url.database)
+
     session = SessionLocal()
     try:
         yield session
@@ -47,8 +128,7 @@ def educator_user(db):
     yield user
 
     # Cleanup
-    db.delete(user)
-    db.commit()
+    _cleanup_user(db, user)
 
 
 @pytest.fixture
@@ -65,11 +145,7 @@ def student_user(db):
     yield user
 
     # Cleanup
-    db.query(TopicMastery).filter(TopicMastery.student_id == user.id).delete()
-    db.query(Misconception).filter(Misconception.student_id == user.id).delete()
-    db.query(ClassEnrollment).filter(ClassEnrollment.student_id == user.id).delete()
-    db.delete(user)
-    db.commit()
+    _cleanup_user(db, user)
 
 
 @pytest.fixture
@@ -86,11 +162,7 @@ def student_user_2(db):
     yield user
 
     # Cleanup
-    db.query(TopicMastery).filter(TopicMastery.student_id == user.id).delete()
-    db.query(Misconception).filter(Misconception.student_id == user.id).delete()
-    db.query(ClassEnrollment).filter(ClassEnrollment.student_id == user.id).delete()
-    db.delete(user)
-    db.commit()
+    _cleanup_user(db, user)
 
 
 @pytest.fixture

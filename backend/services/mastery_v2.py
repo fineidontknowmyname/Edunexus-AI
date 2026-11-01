@@ -23,6 +23,7 @@ class AttemptEvidence:
 @dataclass(frozen=True)
 class MasteryConfig:
     half_life_days: float = 14.0
+    stale_after_days: float = 28.0
     prior_a: float = 1.0
     prior_b: float = 1.0
     min_effective_attempts: float = 3.0
@@ -31,7 +32,7 @@ class MasteryConfig:
     low_threshold: float = 0.4
     high_threshold: float = 0.75
     max_attempts: int = 50
-    recent_window: int = 3
+    recent_window: int = 5
     trend_delta: float = 0.15
     ci_z: float = 1.645                # about a 90% interval
 
@@ -130,7 +131,8 @@ def compute_mastery(
         band = "medium"
 
     trend = "unknown"
-    if evidence == "sufficient" and len(valid) > cfg.recent_window:
+    min_needed = max(cfg.recent_window + 3, cfg.recent_window * 2)
+    if evidence == "sufficient" and len(valid) >= min_needed:
         recent = valid[-cfg.recent_window:]
         earlier = valid[:-cfg.recent_window]
         r = sum(1 for a in recent if a.correct) / len(recent)
@@ -170,3 +172,48 @@ def result_to_dict(r: MasteryResult) -> dict:
         "last_evidence_at": r.last_evidence_at.isoformat() if r.last_evidence_at else None,
         "version": "v2.0",
     }
+
+
+def apply_staleness(
+    v2: dict | None,
+    now: datetime | None = None,
+    cfg: MasteryConfig = MasteryConfig(),
+) -> dict | None:
+    if v2 is None:
+        return None
+    try:
+        out = dict(v2)
+        raw_last = v2.get("last_evidence_at")
+        if not raw_last or not isinstance(raw_last, str):
+            out["evidence_age_days"] = None
+            out["stale"] = False
+            return out
+
+        ref_now = now or datetime.now(timezone.utc)
+        if ref_now.tzinfo is None:
+            ref_now = ref_now.replace(tzinfo=timezone.utc)
+
+        ev_dt = datetime.fromisoformat(raw_last)
+        if ev_dt.tzinfo is None:
+            ev_dt = ev_dt.replace(tzinfo=timezone.utc)
+        else:
+            ev_dt = ev_dt.astimezone(timezone.utc)
+
+        age_days = max(0, (ref_now - ev_dt).days)
+        out["evidence_age_days"] = age_days
+
+        if age_days >= cfg.stale_after_days:
+            out["stale"] = True
+            if out.get("evidence_state") == "sufficient":
+                out["evidence_state"] = "insufficient"
+            out["trend"] = "unknown"
+        else:
+            out["stale"] = False
+        return out
+    except Exception:
+        if v2 is not None:
+            out = dict(v2)
+            out["evidence_age_days"] = None
+            out["stale"] = False
+            return out
+        return None

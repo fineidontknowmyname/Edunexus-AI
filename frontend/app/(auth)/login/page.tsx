@@ -23,26 +23,35 @@ export default function LoginPage() {
     try {
       await login(email, password);
     } catch (err) {
-      setError(errorMessage(err, "Login failed. Please try again."));
+      setError(errorMessage(err, "Login failed. Please verify your credentials and try again."));
       setLoading(false);
     }
   }
 
   return (
-    <div className="w-full max-w-sm">
-      <h1 className="text-2xl font-semibold tracking-tight text-primary">Welcome back</h1>
-      <p className="mt-1.5 text-sm text-tertiary">Sign in to continue to EduNexus AI.</p>
+    <div className="w-full max-w-md rounded-[2px] border border-line bg-surface p-8 sm:p-10 shadow-[0_18px_48px_rgba(20,18,15,.08)]">
+      <div className="mb-6">
+        <span className="font-mono text-xs uppercase tracking-[0.08em] text-accent-red">
+          [ 01 / SIGN IN ]
+        </span>
+        <h1 className="font-serif text-3xl font-normal text-ink tracking-tight mt-1">
+          Sign in to EduNexus
+        </h1>
+        <p className="mt-1 text-xs text-muted font-sans">
+          Enter your institutional credentials to access your workspace.
+        </p>
+      </div>
 
-      <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Input
           id="email"
-          label="Email"
+          label="Email Address"
           type="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
-          placeholder="you@school.edu"
+          placeholder="scholar@university.edu"
         />
         <PasswordInput
           id="password"
@@ -53,17 +62,17 @@ export default function LoginPage() {
           autoComplete="current-password"
         />
         {error && <Alert tone="danger">{error}</Alert>}
-        <Button type="submit" size="lg" loading={loading} className="mt-2 w-full">
-          {loading ? "Signing in…" : "Sign in"}
+        <Button type="submit" size="lg" variant="primary" loading={loading} className="mt-2 w-full">
+          {loading ? "Signing in…" : "Sign In to Workspace"}
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-tertiary">
-        New to EduNexus?{" "}
-        <Link href="/register" className="font-medium text-accent-secondary hover:underline">
+      <div className="mt-6 pt-5 border-t border-line text-center text-xs text-muted">
+        New to EduNexus AI?{" "}
+        <Link href="/register" className="font-mono text-xs uppercase tracking-[0.06em] text-accent-red hover:underline">
           Create an account
         </Link>
-      </p>
+      </div>
     </div>
   );
 }

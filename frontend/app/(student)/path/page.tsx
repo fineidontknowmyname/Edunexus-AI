@@ -50,6 +50,7 @@ function LearningPath({ activeClass, picker }: { activeClass: ClassRow; picker: 
   return (
     <PageContainer width="narrow">
       <PageHeader
+        eyebrow="[ 02 / SEQUENCE ]"
         title="Learning path"
         description="Your topics in the order that will help most, based on mastery, the syllabus and upcoming assessments."
         actions={picker()}
@@ -78,7 +79,7 @@ function LearningPath({ activeClass, picker }: { activeClass: ClassRow; picker: 
               title="No topics tracked yet"
               description="Ask your teacher to upload course notes, or take a quiz to get started."
               action={
-                <Link href="/quiz" className="text-sm font-medium text-accent-secondary hover:underline">
+                <Link href="/quiz" className="font-mono text-xs uppercase tracking-[0.06em] text-accent-red hover:underline">
                   Browse quizzes
                 </Link>
               }
@@ -96,23 +97,23 @@ function LearningPath({ activeClass, picker }: { activeClass: ClassRow; picker: 
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                       <span
                         className={cn(
-                          "hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold sm:flex",
-                          index === 0 ? "bg-accent-secondary text-on-accent" : "bg-surface-muted text-secondary"
+                          "hidden h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono text-xs font-semibold sm:flex",
+                          index === 0 ? "bg-accent-red text-white" : "border border-line bg-surface2 text-muted"
                         )}
                         aria-hidden
                       >
-                        {index + 1}
+                        {String(index + 1).padStart(2, "0")}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <h2 className="mr-1 text-[0.9375rem] font-semibold text-primary">{entry.topic}</h2>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="mr-1 font-serif text-[18px] text-ink tracking-tight">{entry.topic}</h2>
                           <Badge tone={label.tone} dot>{label.text}</Badge>
                           {entry.in_assessment_scope && <Badge tone="red">In exam scope</Badge>}
                           {needsGuidance && <Badge tone="amber">Guided session suggested</Badge>}
                         </div>
                         <div className="mt-2 flex items-center gap-3">
                           <ProgressBar value={entry.mastery_score} label={`${entry.topic} mastery`} className="max-w-[12rem]" />
-                          <span className="shrink-0 text-xs text-tertiary">
+                          <span className="shrink-0 font-mono text-[11px] text-muted uppercase tracking-[0.04em]">
                             {entry.attempts === 0 ? "Not attempted yet" : `${percent(entry.mastery_score)} · ${plural(entry.attempts, "attempt")}`}
                           </span>
                         </div>
@@ -123,21 +124,21 @@ function LearningPath({ activeClass, picker }: { activeClass: ClassRow; picker: 
                           onClick={() => toggle(entry.topic)}
                           aria-expanded={isOpen}
                           aria-controls={panelId}
-                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-strong bg-surface px-3 text-xs font-medium text-primary hover:bg-surface-muted"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 font-mono text-[11px] uppercase tracking-[0.06em] text-ink hover:border-ink transition-colors"
                         >
                           {isOpen ? "Hide help" : "Get help"}
                           <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} aria-hidden />
                         </button>
                         <Link
                           href={cta.href}
-                          className="inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium text-accent-secondary hover:bg-accent-secondary/10"
+                          className="inline-flex h-8 items-center rounded-full border border-line bg-surface2 px-3.5 font-mono text-[11px] uppercase tracking-[0.06em] text-ink hover:bg-ink hover:text-bg transition-colors"
                         >
                           {cta.label}
                         </Link>
                       </div>
                     </div>
                     {isOpen && (
-                      <div id={panelId}>
+                      <div id={panelId} className="mt-4 pt-4 border-t border-line">
                         <RecommendationPanel classId={activeClass.id} topic={entry.topic} />
                       </div>
                     )}
@@ -146,7 +147,7 @@ function LearningPath({ activeClass, picker }: { activeClass: ClassRow; picker: 
               })}
             </ol>
           )}
-          <p className="flex items-center gap-1.5 text-xs text-tertiary">
+          <p className="flex items-center gap-1.5 font-mono text-[11px] text-muted uppercase tracking-[0.06em]">
             <Info className="h-3.5 w-3.5" aria-hidden />
             Path for {activeClass.name}
           </p>

@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, ListChecks } from "lucide-react";
+import { ListChecks } from "lucide-react";
 import { useApi } from "../../lib/hooks/useApi";
-import { formatRelative, plural } from "../../lib/format";
+import { formatRelative, percentValue, plural } from "../../lib/format";
 import type { AvailableQuiz, ClassRow, QuizAttemptSummary } from "../../lib/types";
-import { Badge } from "../../components/ui/Badge";
 import { EmptyState, ErrorState, SkeletonCard } from "../../components/ui/Feedback";
 import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
 import { StudentClassGate } from "../../components/layout/StudentClassGate";
 
 export default function QuizListPage() {
-  return <StudentClassGate>{(activeClass, picker) => <QuizList key={activeClass.id} activeClass={activeClass} picker={picker} />}</StudentClassGate>;
+  return (
+    <StudentClassGate>
+      {(activeClass, picker) => <QuizList key={activeClass.id} activeClass={activeClass} picker={picker} />}
+    </StudentClassGate>
+  );
 }
 
 function QuizList({ activeClass, picker }: { activeClass: ClassRow; picker: (className?: string) => React.ReactNode }) {
@@ -26,15 +29,16 @@ function QuizList({ activeClass, picker }: { activeClass: ClassRow; picker: (cla
   return (
     <PageContainer>
       <PageHeader
-        title="Quizzes"
-        description={`Short quizzes from ${activeClass.name}. Each attempt updates your mastery and learning path.`}
-        actions={picker()}
+        eyebrow="EVALUATION & PRACTICE"
+        title="Quizzes & Diagnostic Tests"
+        description={`Syllabus-aligned evaluations for ${activeClass.name}. Each submission calibrates your estimated topic mastery.`}
+        actions={picker("w-full sm:w-60")}
       />
 
       {quizzes.error ? (
         <ErrorState message={quizzes.error} onRetry={quizzes.reload} />
       ) : !quizzes.data ? (
-        <div className="grid gap-4 sm:grid-cols-2" role="status">
+        <div className="grid gap-6 sm:grid-cols-2" role="status">
           <span className="sr-only">Loading quizzes…</span>
           {[0, 1, 2, 3].map((i) => (
             <SkeletonCard key={i} lines={2} />
@@ -42,54 +46,74 @@ function QuizList({ activeClass, picker }: { activeClass: ClassRow; picker: (cla
         </div>
       ) : quizzes.data.length === 0 ? (
         <EmptyState
-          icon={<ListChecks className="h-5 w-5" />}
-          title="No quizzes available yet"
-          description="Your teacher hasn't published a quiz for this class. In the meantime, the tutor can quiz you informally."
+          bracket="QUIZZES"
+          icon={<ListChecks className="h-6 w-6 text-red" />}
+          title="No quizzes published yet"
+          description="Your faculty has not published quizzes for this class yet. In the meantime, you can ask the tutor questions."
           action={
-            <Link href="/chat" className="text-sm font-medium text-accent-secondary hover:underline">
-              Open tutor chat
+            <Link href="/chat" className="font-mono text-[9px] uppercase tracking-wider text-red hover:underline">
+              Open tutor chat ↗
             </Link>
           }
         />
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2">
-          {quizzes.data.map((q) => {
+        <div className="course-grid border border-line">
+          {quizzes.data.map((q, idx) => {
             const history = byQuiz.get(q.id) ?? [];
             const last = history[0];
             const best = history.reduce((m, a) => Math.max(m, a.score), 0);
             return (
-              <li key={q.id}>
-                <Link
-                  href={`/quiz/${q.id}`}
-                  className="group flex h-full flex-col rounded-xl border border-subtle bg-surface p-5 shadow-card transition-colors hover:border-accent-secondary/50"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <h2 className="text-[0.9375rem] font-semibold text-primary group-hover:text-accent-secondary">{q.title}</h2>
-                    {last ? (
-                      <Badge tone={best >= 70 ? "green" : best >= 40 ? "amber" : "red"}>Best {Math.round(best)}%</Badge>
-                    ) : (
-                      <Badge tone="blue">New</Badge>
-                    )}
+              <article key={q.id} className="course-card">
+                <div>
+                  <div className="course-meta">
+                    <span>QUIZ {String(idx + 1).padStart(2, "0")} / {activeClass.name.toUpperCase()}</span>
+                    <span>{plural(q.question_count, "QUESTION")}</span>
                   </div>
-                  <p className="mt-1 text-sm text-tertiary">
-                    {[q.unit != null && `Unit ${q.unit}`, q.chapter != null && `Chapter ${q.chapter}`, plural(q.question_count, "question")]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                  <div className="mt-auto flex items-center justify-between pt-4 text-sm">
-                    <span className="text-xs text-tertiary">
-                      {last ? `${plural(history.length, "attempt")} · last ${formatRelative(last.completed_at)}` : "Not attempted yet"}
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-medium text-accent-secondary">
-                      {last ? "Retake" : "Start"}
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
-                    </span>
+                  <div className="book">
+                    <div className="mono text-muted">
+                      {[
+                        q.unit != null && `UNIT ${q.unit}`,
+                        q.chapter != null && `CH ${q.chapter}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "SYLLABUS"}
+                    </div>
+                    <h3 className="font-serif text-2xl text-ink leading-tight mt-1">{q.title}</h3>
+                    <p className="font-sans text-xs text-muted mt-2 leading-relaxed">
+                      {last
+                        ? `${plural(history.length, "attempt")} · last completed ${formatRelative(last.completed_at)}`
+                        : "Ready for first diagnostic attempt."}
+                    </p>
                   </div>
-                </Link>
-              </li>
+                </div>
+
+                <div>
+                  <div className="card-foot">
+                    <span>
+                      {last ? `BEST: ${percentValue(best)}` : "STATUS: NEW"}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      {last && (
+                        <Link
+                          href={`/quiz/${q.id}/attempt/${last.id}`}
+                          className="text-muted hover:text-ink font-mono uppercase tracking-wider text-[10px]"
+                        >
+                          VIEW RESULT
+                        </Link>
+                      )}
+                      <Link href={`/quiz/${q.id}`} className="text-red font-mono uppercase tracking-wider">
+                        START TEST ↗
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="progress-line">
+                    <span style={{ width: last ? `${Math.round(best)}%` : "0%" }} />
+                  </div>
+                </div>
+              </article>
             );
           })}
-        </ul>
+        </div>
       )}
     </PageContainer>
   );

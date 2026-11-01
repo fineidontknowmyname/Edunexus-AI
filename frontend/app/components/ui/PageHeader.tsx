@@ -8,6 +8,7 @@ export function PageHeader({
   description,
   actions,
   eyebrow,
+  icon,
   back,
   className,
 }: {
@@ -15,26 +16,47 @@ export function PageHeader({
   description?: ReactNode;
   actions?: ReactNode;
   eyebrow?: ReactNode;
+  icon?: ReactNode;
   back?: { href: string; label: string };
   className?: string;
 }) {
   return (
-    <header className={cn("flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between", className)}>
-      <div className="min-w-0">
-        {back && (
-          <Link
-            href={back.href}
-            className="mb-2 inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-tertiary hover:text-primary"
+    <header className={cn("flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between pb-6 mb-6 border-b border-line", className)}>
+      <div className="flex items-start gap-4 min-w-0">
+        {icon && (
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center border border-line bg-surface2 text-red font-serif text-xl"
+            aria-hidden
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden />
-            {back.label}
-          </Link>
+            {icon}
+          </div>
         )}
-        {eyebrow && <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-accent-secondary">{eyebrow}</p>}
-        <h1 className="text-2xl font-semibold tracking-tight text-primary sm:text-[1.75rem] sm:leading-9 break-words">{title}</h1>
-        {description && <p className="mt-1.5 max-w-2xl text-sm text-tertiary sm:text-[0.9375rem]">{description}</p>}
+        <div className="min-w-0">
+          {back && (
+            <Link
+              href={back.href}
+              className="mb-2 inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-muted hover:text-red transition-colors"
+            >
+              <ArrowLeft className="h-3 w-3" aria-hidden />
+              {back.label}
+            </Link>
+          )}
+          {eyebrow && (
+            <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.1em] text-red">
+              [ {eyebrow} ]
+            </div>
+          )}
+          <h1 className="font-serif text-3xl sm:text-4xl text-ink leading-none tracking-tight break-words">
+            {title}
+          </h1>
+          {description && (
+            <p className="mt-2 max-w-2xl font-sans text-xs sm:text-sm text-muted leading-relaxed">
+              {description}
+            </p>
+          )}
+        </div>
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2 sm:justify-end">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0">{actions}</div>}
     </header>
   );
 }
@@ -48,6 +70,6 @@ export function PageContainer({
   width?: "narrow" | "default" | "wide";
   className?: string;
 }) {
-  const max = width === "narrow" ? "max-w-3xl" : width === "wide" ? "max-w-7xl" : "max-w-5xl";
+  const max = width === "narrow" ? "max-w-4xl" : "max-w-[1480px]";
   return <div className={cn("mx-auto flex w-full flex-col gap-6", max, className)}>{children}</div>;
 }

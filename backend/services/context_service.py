@@ -6,6 +6,12 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.core.prerequisites import get_prerequisites, load_prerequisite_map
+from backend.core.time_utils import local_today
+from backend.core.tracking_constants import (
+    ENGAGEMENT_INACTIVE_DAYS,
+    MASTERED_THRESHOLD,
+    WEAK_THRESHOLD,
+)
 from backend.models.db import (
     Class,
     ClassContext,
@@ -14,7 +20,9 @@ from backend.models.db import (
     InteractionPattern,
     Misconception,
     TopicMastery,
+    User,
 )
+from backend.services import evidence_service
 
 
 def assemble_class_context(db: Session, class_id: str) -> dict[str, Any]:
@@ -55,8 +63,8 @@ def assemble_student_context(db: Session, student_id: str, class_id: str) -> dic
         m.topic: {"score": m.mastery_score, "attempts": m.attempt_count, "trend": m.trend.value}
         for m in masteries
     }
-    weak_topics = [m.topic for m in masteries if m.attempt_count > 0 and m.mastery_score < 0.60]
-    strong_topics = [m.topic for m in masteries if m.mastery_score >= 0.80]
+    weak_topics = [m.topic for m in masteries if m.attempt_count > 0 and m.mastery_score < WEAK_THRESHOLD]
+    strong_topics = [m.topic for m in masteries if m.mastery_score >= MASTERED_THRESHOLD]
 
     misconception_rows = (
         db.query(Misconception)
@@ -82,16 +90,17 @@ def assemble_student_context(db: Session, student_id: str, class_id: str) -> dic
         for p in pattern_rows
     }
 
-    engagement_row = db.query(Engagement).filter(Engagement.student_id == student_id).first()
-    engagement = {
-        "current_streak": engagement_row.current_streak if engagement_row else 0,
-        "last_interaction": (
-            engagement_row.last_interaction_date.isoformat()
-            if engagement_row and engagement_row.last_interaction_date
-            else None
-        ),
-        "staleness_flag": engagement_row.staleness_flag if engagement_row else False,
-    }
+    user = db.get(User, student_id)
+    user_tz = getattr(user, "timezone", "UTC") if user else "UTC"
+    today = local_today(user_tz)
+
+    engagement_row = (
+        db.query(Engagement)
+        .filter(Engagement.student_id == student_id, Engagement.class_id == class_id)
+        .first()
+    )
+    engagement = evidence_service.build_engagement_payload(engagement_row, today)
+    engagement["last_interaction"] = engagement["last_interaction_date"]
 
     class_context = assemble_class_context(db, class_id)
     upcoming_focus = _compute_upcoming_focus(class_context["assessments"], weak_topics)
@@ -241,10 +250,9 @@ def get_uploaded_topics(db: Session, class_id: str, subject: str) -> list[str]:
 
 
 def check_staleness(db: Session, student_id: str) -> None:
-    engagement_row = db.query(Engagement).filter(Engagement.student_id == student_id).first()
-    if engagement_row is None or engagement_row.last_interaction_date is None:
-        return
-    if date.today() - engagement_row.last_interaction_date >= timedelta(days=5):
-        engagement_row.staleness_flag = True
-        db.commit()
-        print(f"[CONTEXT] Staleness flag set for student {student_id} (5+ days since last interaction)")
+    """
+    Deprecated / No-op in Phase 3.
+    Staleness / inactivity is now computed dynamically on read via build_engagement_payload
+    scoped per class, eliminating login-time DB mutation.
+    """
+    pass

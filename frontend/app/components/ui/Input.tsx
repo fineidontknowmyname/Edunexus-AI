@@ -5,7 +5,7 @@ import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTML
 import { cn } from "../../lib/cn";
 
 export const controlClasses =
-  "w-full rounded-lg border bg-surface text-sm text-primary placeholder:text-tertiary transition-colors focus:outline-none focus-visible:outline-none focus:border-accent-secondary focus:ring-2 focus:ring-accent-secondary/30 disabled:opacity-60 disabled:cursor-not-allowed";
+  "w-full rounded-[2px] border border-line bg-surface px-3 py-2.5 font-mono text-xs text-ink placeholder:text-muted transition-colors duration-200 focus:outline-none focus:border-red disabled:opacity-50 disabled:cursor-not-allowed";
 
 interface FieldProps {
   label?: ReactNode;
@@ -26,17 +26,17 @@ function FieldShell({
   return (
     <div className={cn("flex flex-col gap-1.5 min-w-0", className)}>
       {label && (
-        <label htmlFor={id} className={cn("text-sm font-medium text-secondary", srOnlyLabel && "sr-only")}>
+        <label htmlFor={id} className={cn("font-mono text-[9px] uppercase tracking-[0.1em] text-muted", srOnlyLabel && "sr-only")}>
           {label}
         </label>
       )}
       {children}
       {error ? (
-        <span id={`${id}-error`} className="text-xs text-danger" role="alert">
+        <span id={`${id}-error`} className="font-mono text-[10px] text-red" role="alert">
           {error}
         </span>
       ) : hint ? (
-        <span id={`${id}-hint`} className="text-xs text-tertiary">
+        <span id={`${id}-hint`} className="font-mono text-[10px] text-muted">
           {hint}
         </span>
       ) : null}
@@ -63,7 +63,7 @@ export function Input({ label, hint, error, srOnlyLabel, id, className, wrapperC
         id={inputId}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(inputId, error, hint)}
-        className={cn(controlClasses, "h-10 px-3", error ? "border-danger" : "border-strong", className)}
+        className={cn(controlClasses, "h-10", error ? "border-red" : "border-line", className)}
         {...rest}
       />
     </FieldShell>
@@ -84,7 +84,7 @@ export function Select({ label, hint, error, srOnlyLabel, id, className, wrapper
           id={selectId}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy(selectId, error, hint)}
-          className={cn(controlClasses, "h-10 appearance-none pl-3 pr-9 truncate", error ? "border-danger" : "border-strong", className)}
+          className={cn(controlClasses, "h-10 appearance-none pl-3 pr-9 truncate", error ? "border-red" : "border-line", className)}
           {...rest}
         >
           {children}
@@ -92,7 +92,7 @@ export function Select({ label, hint, error, srOnlyLabel, id, className, wrapper
         <svg
           aria-hidden
           viewBox="0 0 20 20"
-          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary"
+          className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted"
           fill="currentColor"
         >
           <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" />
@@ -108,14 +108,14 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement>, Fie
 
 export function Textarea({ label, hint, error, srOnlyLabel, id, className, wrapperClassName, ...rest }: TextareaProps) {
   const autoId = useId();
-  const areaId = id ?? autoId;
+  const textareaId = id ?? autoId;
   return (
-    <FieldShell id={areaId} label={label} hint={hint} error={error} srOnlyLabel={srOnlyLabel} className={wrapperClassName}>
+    <FieldShell id={textareaId} label={label} hint={hint} error={error} srOnlyLabel={srOnlyLabel} className={wrapperClassName}>
       <textarea
-        id={areaId}
+        id={textareaId}
         aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy(areaId, error, hint)}
-        className={cn(controlClasses, "px-3 py-2 resize-y min-h-[4.5rem]", error ? "border-danger" : "border-strong", className)}
+        aria-describedby={describedBy(textareaId, error, hint)}
+        className={cn(controlClasses, "min-h-[96px] py-2 resize-y", error ? "border-red" : "border-line", className)}
         {...rest}
       />
     </FieldShell>

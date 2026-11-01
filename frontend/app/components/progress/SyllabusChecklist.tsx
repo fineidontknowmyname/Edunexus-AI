@@ -62,8 +62,8 @@ export function SyllabusChecklist({ classId, documents }: { classId: string; doc
       ) : (
         <>
           <div className="mb-3 flex items-center gap-3">
-            <ProgressBar value={chapters.length ? taughtCount / chapters.length : 0} label="Chapters taught" tone="blue" />
-            <span className="shrink-0 text-xs tabular-nums text-tertiary">
+            <ProgressBar value={chapters.length ? taughtCount / chapters.length : 0} label="Chapters taught" />
+            <span className="shrink-0 font-mono text-xs tabular-nums text-muted">
               {taughtCount}/{chapters.length}
             </span>
           </div>
@@ -72,8 +72,8 @@ export function SyllabusChecklist({ classId, documents }: { classId: string; doc
               <li key={c.chapter}>
                 <label
                   className={cn(
-                    "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus",
-                    c.taught ? "border-success/30 bg-success/6" : "border-subtle hover:bg-surface-muted/60",
+                    "flex items-center gap-3 rounded-[2px] border px-3 py-2 text-sm transition-colors",
+                    c.taught ? "border-accent-green/40 bg-accent-green/5" : "border-line bg-surface hover:bg-surface2",
                     saving === c.chapter ? "opacity-60" : "cursor-pointer"
                   )}
                 >
@@ -86,15 +86,15 @@ export function SyllabusChecklist({ classId, documents }: { classId: string; doc
                   />
                   <span
                     className={cn(
-                      "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                      c.taught ? "border-success bg-success text-on-accent" : "border-strong bg-surface"
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-[2px] border transition-colors",
+                      c.taught ? "border-accent-green bg-accent-green text-white" : "border-line bg-surface"
                     )}
                     aria-hidden
                   >
                     {c.taught && <Check className="h-3 w-3" strokeWidth={3} />}
                   </span>
-                  <span className={cn("min-w-0 truncate", c.taught ? "text-primary" : "text-secondary")}>
-                    <span className="text-tertiary">Ch {c.chapter} · </span>
+                  <span className={cn("min-w-0 truncate font-serif text-[15px]", c.taught ? "text-ink" : "text-muted")}>
+                    <span className="font-mono text-xs uppercase tracking-[0.04em] text-muted">Ch {String(c.chapter).padStart(2, "0")} · </span>
                     {c.chapterName}
                   </span>
                 </label>
@@ -106,11 +106,11 @@ export function SyllabusChecklist({ classId, documents }: { classId: string; doc
       {error && <Alert tone="danger" className="mt-3">{error}</Alert>}
 
       {topicsCovered.length > 0 && (
-        <div className="mt-4 border-t border-subtle pt-4">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-tertiary">Topics covered (auto-detected)</h3>
+        <div className="mt-4 border-t border-line pt-4">
+          <h3 className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Topics covered (auto-detected)</h3>
           <div className="flex flex-wrap gap-1.5">
             {topicsCovered.map((t) => (
-              <span key={t} className="rounded-md border border-subtle bg-surface-muted px-2 py-0.5 text-xs text-secondary">
+              <span key={t} className="rounded-full border border-line bg-surface2 px-2.5 py-0.5 font-mono text-[11px] text-ink uppercase tracking-[0.04em]">
                 {t}
               </span>
             ))}

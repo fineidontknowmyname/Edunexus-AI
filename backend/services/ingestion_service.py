@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from backend.models.db import Chunk, Class, ClassContext, Document, DocumentFile, DocumentStatus
 from backend.pipeline.chunker import chunk_text
 from backend.pipeline.embedder import embed_texts
-from backend.pipeline.parser import extract_text
-from backend.services import classification_service, topic_graph_service
+from backend.pipeline.parser import extract_document_structure
+from backend.services import classification_service, curriculum_extraction_service, topic_graph_service
 
 logger = logging.getLogger(__name__)
 
@@ -70,20 +70,29 @@ def process_job(db: Session, document_id: str, embedding_model: Any) -> dict:
     )
 
     try:
-        print(f"[INGESTION STEP 1/6] Parsing '{filename}'...")
-        raw_text = extract_text(file_path=file_path, filename=filename)
-        print(f"[INGESTION STEP 1 DONE] Extracted {len(raw_text):,} characters.")
+        print(f"[INGESTION STEP 1/6] Structurally parsing '{filename}'...")
+        doc_structure = extract_document_structure(file_path=file_path, filename=filename)
+        print(f"[INGESTION STEP 1 DONE] Parsed {doc_structure.page_count} pages, {len(doc_structure.full_text):,} chars.")
 
-        print("[INGESTION STEP 2/6] Chunking...")
+        # Update document checksum and metadata
+        if not doc.file_hash_sha256:
+            doc.file_hash_sha256 = doc_structure.sha256_hash
+        if not doc.mime_type:
+            doc.mime_type = doc_structure.mime_type
+        if not doc.file_size_bytes:
+            doc.file_size_bytes = doc_structure.file_size_bytes
+
+        print("[INGESTION STEP 2/6] Chunking with page provenance...")
         chunks_data = chunk_text(
-            text=raw_text,
+            text=doc_structure.full_text,
             subject=subject_name or "General",
             unit=doc.unit or 1,
             chapter=doc.chapter or 1,
             chapter_name=doc.chapter_name or "",
             document_title=doc.title,
+            pages=doc_structure.pages,
         )
-        print(f"[INGESTION STEP 2 DONE] {len(chunks_data)} chunks.")
+        print(f"[INGESTION STEP 2 DONE] {len(chunks_data)} chunks created with page-level provenance.")
 
         print(f"[INGESTION STEP 3/6] Embedding {len(chunks_data)} chunks...")
         full_texts = [c.full_text for c in chunks_data]
@@ -110,43 +119,80 @@ def process_job(db: Session, document_id: str, embedding_model: Any) -> dict:
                     subject=subject_name,
                     unit=doc.unit,
                     chapter=doc.chapter,
+                    page_number=chunk_data.page_number,
+                    section_heading=chunk_data.section_heading,
                     chunk_index=chunk_data.chunk_index,
                     token_count=chunk_data.token_count,
                 )
             )
 
-        print("[INGESTION STEP 6/6] Finalising...")
-        doc.status = DocumentStatus.ready
+        print("[INGESTION STEP 6/6] Curriculum Extraction & Finalising...")
+        # Extract curriculum candidates (Units, Topics, Subtopics, Learning Objectives)
+        candidates = curriculum_extraction_service.extract_curriculum_hierarchy(
+            doc_structure, subject_name=subject_name
+        )
+
+        curriculum_stats = {}
+        if candidates and doc.subject_id:
+            curriculum_stats = curriculum_extraction_service.persist_curriculum_candidates(
+                db, doc, candidates
+            )
+            print(f"[INGESTION CURRICULUM] Extracted candidates: {curriculum_stats}")
+            # If candidates were extracted, require faculty review
+            doc.status = DocumentStatus.review_required
+        else:
+            doc.status = DocumentStatus.ready
+
         doc.is_indexed = True
         doc.chunk_count = len(chunks_data)
+        doc.processing_metadata = {
+            "page_count": doc_structure.page_count,
+            "sha256": doc.file_hash_sha256,
+            "mime_type": doc.mime_type,
+            "file_size_bytes": doc.file_size_bytes,
+            "ocr_used": any(p.is_ocr for p in doc_structure.pages),
+            "headings_count": len(doc_structure.all_headings),
+            "curriculum_extracted": curriculum_stats,
+        }
 
         _auto_mark_chapter_taught(db, doc)
         _auto_mark_topics_taught(db, doc, [t for t in topic_by_index.values() if t])
 
-        if file_row is not None:
-            db.delete(file_row)
+        # PRESERVE ORIGINAL DOCUMENT: DocumentFile is never deleted after extraction!
         db.commit()
         succeeded = True
-        print(f"[INGESTION SUCCESS] '{filename}' -> {len(chunks_data)} chunks stored.")
+        print(f"[INGESTION SUCCESS] '{filename}' preserved, {len(chunks_data)} chunks stored. Status: {doc.status.value}")
         return {
             "document_id": document_id,
             "filename": filename,
             "chunk_count": len(chunks_data),
-            "status": DocumentStatus.ready.value,
+            "status": doc.status.value,
         }
 
     except Exception as e:
         db.rollback()
+        # Mark document failure and preserve error message without deleting DocumentFile
+        try:
+            doc_fail = db.get(Document, document_id)
+            if doc_fail is not None:
+                doc_fail.status = DocumentStatus.failed
+                doc_fail.error_message = str(e)[:1000]
+                db.commit()
+        except Exception:
+            db.rollback()
         print(f"[INGESTION FAILED] '{filename}': {e}")
         logger.exception("Ingestion pipeline failed for document '%s'", document_id)
         raise
 
     finally:
-        if (file_row is not None or succeeded) and file_path and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except OSError as cleanup_err:
-                logger.warning("Failed to remove temp file '%s': %s", file_path, cleanup_err)
+        # Only cleanup temporary disk scratch file, NEVER the database DocumentFile
+        if file_path and os.path.exists(file_path):
+            # Check if this was a temporary file
+            if tempfile.gettempdir() in os.path.abspath(file_path):
+                try:
+                    os.remove(file_path)
+                except OSError as cleanup_err:
+                    logger.warning("Failed to remove temp file '%s': %s", file_path, cleanup_err)
 
 
 def _classify(

@@ -64,19 +64,19 @@ export function JoinClassPanel({
           description="Ask your teacher to create a class or verify your enrollment."
         />
       ) : (
-        <ul className="flex flex-col divide-y divide-subtle rounded-lg border border-subtle">
+        <ul className="flex flex-col divide-y divide-line rounded-[2px] border border-line">
           {browse.data.map((c) => {
             const isSelected = selectedClassId === c.id;
             return (
-              <li key={c.id} className="flex flex-col gap-2 px-4 py-3">
+              <li key={c.id} className="flex flex-col gap-2 p-4 bg-surface hover:bg-surface2 transition-colors">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-primary">{c.name}</p>
-                    {c.subject && <p className="truncate text-xs text-tertiary">{c.subject}</p>}
+                    <p className="truncate font-serif text-lg text-ink leading-tight">{c.name}</p>
+                    {c.subject && <p className="truncate font-mono text-[9px] uppercase tracking-[0.08em] text-muted mt-0.5">{c.subject}</p>}
                   </div>
                   {!isSelected ? (
                     <Button
-                      variant="secondary"
+                      variant="outline"
                       size="sm"
                       disabled={joining !== null}
                       onClick={() => {
@@ -85,7 +85,7 @@ export function JoinClassPanel({
                         setError(null);
                       }}
                     >
-                      Join
+                      Join →
                     </Button>
                   ) : null}
                 </div>
@@ -96,13 +96,13 @@ export function JoinClassPanel({
                       e.preventDefault();
                       handleJoin(c.id);
                     }}
-                    className="mt-2 flex flex-col gap-2 rounded-lg border border-subtle bg-surface-muted/50 p-3"
+                    className="mt-3 flex flex-col gap-2 rounded-[2px] border border-line bg-surface2 p-3.5"
                   >
                     <label
                       htmlFor={`join-code-${c.id}`}
-                      className="flex items-center gap-1.5 text-xs font-medium text-secondary"
+                      className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-muted"
                     >
-                      <KeyRound className="h-3.5 w-3.5 text-tertiary" aria-hidden />
+                      <KeyRound className="h-3 w-3 text-red" aria-hidden />
                       Enter teacher&apos;s join code
                     </label>
                     <div className="flex flex-wrap items-center gap-2">
@@ -113,7 +113,7 @@ export function JoinClassPanel({
                         value={joinCode}
                         onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                         maxLength={12}
-                        className="w-40 font-mono uppercase tracking-wider"
+                        className="w-44 font-mono uppercase tracking-wider"
                       />
                       <Button
                         type="submit"
@@ -126,7 +126,7 @@ export function JoinClassPanel({
                       </Button>
                       <Button
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         disabled={joining !== null}
                         onClick={() => {

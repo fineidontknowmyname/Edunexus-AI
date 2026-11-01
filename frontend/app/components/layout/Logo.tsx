@@ -3,30 +3,32 @@ import { cn } from "../../lib/cn";
 
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <span
-      className={cn(
-        "flex h-8 w-8 items-center justify-center rounded-lg bg-accent-primary text-sm font-bold text-inverse",
-        className
-      )}
-      aria-hidden
-    >
-      E
+    <span className={cn("font-serif text-[28px] sm:text-[30px] tracking-[-1px] text-ink", className)}>
+      EduNexus.
     </span>
   );
 }
 
 export function Logo({ href }: { href?: string }) {
   const content = (
-    <>
-      <LogoMark />
-      <span className="text-[0.9375rem] font-semibold tracking-tight text-primary">
-        EduNexus <span className="text-accent-secondary">AI</span>
+    <span className="brand select-none">
+      <span className="font-serif text-[28px] sm:text-[30px] tracking-[-1px] text-ink">
+        EduNexus.
       </span>
-    </>
+      <small className="hidden sm:inline font-mono text-[10px] tracking-[0.12em] text-muted uppercase">
+        AI / LEARNING SYSTEM
+      </small>
+    </span>
   );
-  if (!href) return <span className="flex items-center gap-2.5">{content}</span>;
+
+  if (!href) return content;
+
   return (
-    <Link href={href} className="flex items-center gap-2.5 rounded-lg" aria-label="EduNexus AI home">
+    <Link
+      href={href}
+      className="inline-flex items-baseline no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red"
+      aria-label="EduNexus AI Home"
+    >
       {content}
     </Link>
   );

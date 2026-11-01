@@ -61,6 +61,7 @@ export function Modal({
   description,
   children,
   footer,
+  bracket = "MODAL",
 }: {
   open: boolean;
   onClose: () => void;
@@ -68,6 +69,7 @@ export function Modal({
   description?: ReactNode;
   children?: ReactNode;
   footer?: ReactNode;
+  bracket?: string;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -75,22 +77,43 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-[1px]" onClick={onClose} aria-hidden />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="fixed inset-0 bg-[#0008] backdrop-blur-[5px] transition-opacity duration-400"
+        onClick={onClose}
+        aria-hidden
+      />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative w-full max-w-md rounded-t-2xl border border-subtle bg-surface p-6 shadow-popover sm:rounded-2xl"
+        className="relative w-full max-w-lg rounded-[3px] border border-line bg-surface p-6 sm:p-7 shadow-shadow z-10 animate-[pageIn_0.35s_cubic-bezier(0.16,1,0.3,1)_both]"
       >
-        <h2 id={titleId} className="text-base font-semibold text-primary">
-          {title}
-        </h2>
-        {description && <p className="mt-1.5 text-sm text-secondary">{description}</p>}
-        {children && <div className="mt-4">{children}</div>}
-        {footer && <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{footer}</div>}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            {bracket && (
+              <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-red mb-1">
+                [ {bracket} ]
+              </div>
+            )}
+            <h2 id={titleId} className="font-serif text-2xl sm:text-[1.75rem] text-ink leading-snug">
+              {title}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close modal"
+            className="h-8 w-8 rounded-full border border-line flex items-center justify-center text-muted hover:border-red hover:text-red hover:rotate-12 transition-all duration-300"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        </div>
+        {description && <p className="mt-2 font-sans text-xs sm:text-sm text-muted leading-relaxed">{description}</p>}
+        {children && <div className="mt-5">{children}</div>}
+        {footer && <div className="mt-6 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end border-t border-line pt-4">{footer}</div>}
       </div>
     </div>
   );
@@ -121,6 +144,7 @@ export function ConfirmDialog({
       onClose={onCancel}
       title={title}
       description={description}
+      bracket="CONFIRMATION"
       footer={
         <>
           <Button variant="secondary" onClick={onCancel} disabled={loading}>
@@ -139,14 +163,16 @@ export function Drawer({
   open,
   onClose,
   title,
-  side = "left",
+  side = "right",
   children,
+  category,
 }: {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title: ReactNode;
   side?: "left" | "right";
   children: ReactNode;
+  category?: string;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -155,7 +181,11 @@ export function Drawer({
 
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/45" onClick={onClose} aria-hidden />
+      <div
+        className="fixed inset-0 bg-[#0008] backdrop-blur-[5px] transition-opacity duration-400"
+        onClick={onClose}
+        aria-hidden
+      />
       <div
         ref={panelRef}
         role="dialog"
@@ -163,21 +193,28 @@ export function Drawer({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cn(
-          "absolute inset-y-0 flex w-[min(20rem,86vw)] flex-col border-subtle bg-surface shadow-popover",
-          side === "left" ? "left-0 border-r" : "right-0 border-l"
+          "fixed inset-y-0 z-51 flex w-[min(850px,100%)] flex-col bg-bg shadow-shadow transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          side === "left" ? "left-0 border-r border-line" : "right-0 border-l border-line"
         )}
       >
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-subtle px-4">
-          <h2 id={titleId} className="text-sm font-semibold text-primary">
-            {title}
-          </h2>
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-line px-6">
+          <div className="flex items-center gap-2">
+            {category && (
+              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-red">
+                [{category}]
+              </span>
+            )}
+            <h2 id={titleId} className="font-serif text-xl sm:text-2xl text-ink">
+              {title}
+            </h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-lg p-2 text-secondary hover:bg-surface-muted hover:text-primary"
+            className="h-8 w-8 rounded-full border border-line flex items-center justify-center text-muted hover:border-red hover:text-red hover:rotate-12 transition-all duration-300"
           >
-            <X className="h-4 w-4" aria-hidden />
+            <X className="h-3.5 w-3.5" aria-hidden />
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>

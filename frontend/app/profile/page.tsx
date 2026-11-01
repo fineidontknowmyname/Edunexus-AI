@@ -2,23 +2,24 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, KeyRound, LogOut, Plus, School, Trash2, UserRound } from "lucide-react";
+import { ArrowRight, KeyRound, LogOut, Plus, School, Trash2, UserRound, Award } from "lucide-react";
 import { apiFetch, errorMessage } from "../lib/api";
 import { useAuth, useAuthActions } from "../lib/hooks/useAuth";
 import { useApi } from "../lib/hooks/useApi";
 import { formatDate, percent } from "../lib/format";
 import type { ClassRow, DashboardResponse, User } from "../lib/types";
-import { Card, CardHeader } from "../components/ui/Card";
+import { Card, CardHeader, CardTakeaway } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { PasswordInput } from "../components/ui/PasswordInput";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { Alert, EmptyState, ErrorState, PageSkeleton, SkeletonText } from "../components/ui/Feedback";
 import { PageContainer, PageHeader } from "../components/ui/PageHeader";
-import { StatCard } from "../components/ui/Stat";
+import { ProgressBar } from "../components/ui/Stat";
 import { Avatar } from "../components/layout/UserMenu";
 import { ConfirmDialog, Modal } from "../components/ui/Modal";
 import { JoinClassPanel } from "../components/layout/JoinClassPanel";
+import { ProgressRing } from "../components/ui/DataVisualizations";
 
 function NameForm({ user }: { user: User }) {
   const [fullName, setFullName] = useState(user.full_name);
@@ -70,7 +71,7 @@ function PasswordForm() {
         method: "POST",
         body: { current_password: currentPassword, new_password: newPassword },
       });
-      setMessage("Password changed.");
+      setMessage("Password changed successfully.");
       setCurrentPassword("");
       setNewPassword("");
     } catch (err) {
@@ -109,17 +110,34 @@ function PasswordForm() {
   );
 }
 
-function StudentSnapshot() {
+function StudentProgressSummary() {
   const dashboard = useApi<DashboardResponse>("/progress/dashboard");
   if (!dashboard.data) return null;
   const d = dashboard.data;
-  const avg = d.mastery.length > 0 ? d.mastery.reduce((sum, m) => sum + m.score, 0) / d.mastery.length : 0;
+  const topTopics = [...d.mastery].sort((a, b) => b.score - a.score).slice(0, 4);
+
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      <StatCard label="Day streak" value={d.engagement.current_streak} hint={`Best: ${d.engagement.longest_streak}`} />
-      <StatCard label="Avg mastery" value={percent(avg)} hint={`${d.mastery.length} topics tracked`} />
-      <StatCard label="Progress" value={<span className="inline-flex items-center gap-1 text-base">View <ArrowRight className="h-4 w-4" aria-hidden /></span>} href="/progress" />
-    </div>
+    <Card className="flex flex-col gap-5">
+      <CardHeader
+        showDot
+        icon={<Award className="h-4 w-4" />}
+        title="Evaluated Curriculum Topics"
+        description="Estimated mastery levels across recently assessed areas"
+        linkHref="/progress"
+      />
+      <div className="space-y-4">
+        {topTopics.map((m) => (
+          <div key={m.topic} className="rounded-[2px] p-3 bg-surface border border-line">
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <span className="font-serif text-[15px] text-ink truncate max-w-[70%]">{m.topic}</span>
+              <span className="font-mono text-xs tabular-nums text-ink">Est. {percent(m.score)}</span>
+            </div>
+            <ProgressBar value={m.score} label={`${m.topic} estimated mastery`} />
+          </div>
+        ))}
+      </div>
+      <CardTakeaway text={`${d.mastery.length} topics currently tracked across all enrolled classes.`} />
+    </Card>
   );
 }
 
@@ -127,6 +145,7 @@ export default function ProfilePage() {
   const { user, loading, error } = useAuth();
   const { logout } = useAuthActions();
   const classes = useApi<ClassRow[]>(user ? "/classes/" : null);
+  const dashboard = useApi<DashboardResponse>(user?.role === "student" ? "/progress/dashboard" : null);
 
   const [joinOpen, setJoinOpen] = useState(false);
   const [leavingClass, setLeavingClass] = useState<ClassRow | null>(null);
@@ -143,6 +162,8 @@ export default function ProfilePage() {
   }
 
   const isEducator = user.role === "educator";
+  const d = dashboard.data;
+  const avg = d && d.mastery.length > 0 ? d.mastery.reduce((sum, m) => sum + m.score, 0) / d.mastery.length : null;
 
   async function handleConfirmLeave() {
     if (!leavingClass) return;
@@ -170,39 +191,65 @@ export default function ProfilePage() {
 
   return (
     <PageContainer width="narrow">
-      <PageHeader title="Profile" description="Manage your account details and password." />
+      <PageHeader
+        eyebrow="[ USER SETTINGS ]"
+        title="Scholar Profile"
+        description="Account details, enrolled classes, and learning metrics."
+      />
 
-      <Card>
-        <div className="flex flex-wrap items-center gap-4">
-          <Avatar name={user.full_name} className="h-14 w-14 text-lg" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-semibold text-primary">{user.full_name}</p>
-            <p className="truncate text-sm text-tertiary">{user.email}</p>
+      {/* Profile Header Card */}
+      <Card className="p-6">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4 text-center sm:text-left">
+            <Avatar name={user.full_name} className="h-16 w-16 text-xl bg-ink text-bg font-mono" />
+            <div className="min-w-0">
+              <h2 className="font-serif text-2xl text-ink tracking-tight">{user.full_name}</h2>
+              <p className="font-mono text-xs text-muted">{user.email}</p>
+              <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <span className="rounded-full border border-line bg-surface2 px-2.5 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-ink">
+                  {user.role}
+                </span>
+                <span className="font-mono text-[11px] text-muted uppercase tracking-[0.04em]">
+                  Joined {formatDate(user.created_at)}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col items-start gap-1 sm:items-end">
-            <Badge tone={isEducator ? "blue" : "gray"} className="capitalize">{user.role}</Badge>
-            <span className="text-xs text-tertiary">Member since {formatDate(user.created_at)}</span>
-          </div>
+
+          {!isEducator && avg !== null && (
+            <div className="flex flex-col items-center shrink-0">
+              <ProgressRing
+                value={avg}
+                size={96}
+                strokeWidth={7}
+                label={<span className="font-serif text-xl text-ink">{percent(avg)}</span>}
+                sublabel="Est. Avg"
+                color="stroke-accent-red"
+              />
+            </div>
+          )}
         </div>
       </Card>
 
-      {user.role === "student" && <StudentSnapshot />}
+      {/* Student Progress Topics with Bars */}
+      {!isEducator && <StudentProgressSummary />}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
-          <CardHeader icon={<UserRound className="h-4 w-4" />} title="Account" description="How your name appears to teachers." />
+          <CardHeader showDot icon={<UserRound className="h-4 w-4" />} title="Account Info" description="How your name appears in class" />
           <NameForm user={user} />
         </Card>
         <Card>
-          <CardHeader icon={<KeyRound className="h-4 w-4" />} title="Password" description="Use a password you don't use elsewhere." />
+          <CardHeader showDot icon={<KeyRound className="h-4 w-4" />} title="Security" description="Update your access password" />
           <PasswordForm />
         </Card>
       </div>
 
       <Card>
         <CardHeader
+          showDot
           icon={<School className="h-4 w-4" />}
-          title={isEducator ? "Classes you teach" : "Your classes"}
+          title={isEducator ? "Classes You Teach" : "Enrolled Classes"}
           actions={
             !isEducator && classes.data && classes.data.length > 0 ? (
               <Button
@@ -231,12 +278,12 @@ export default function ProfilePage() {
             title={isEducator ? "You haven't created a class yet" : "You're not enrolled in a class yet"}
             action={
               isEducator ? (
-                <Link href="/upload" className="text-sm font-medium text-accent-secondary hover:underline">
+                <Link href="/upload" className="font-mono text-xs uppercase tracking-[0.06em] text-accent-red hover:underline">
                   Create a class
                 </Link>
               ) : (
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   size="sm"
                   icon={<Plus className="h-4 w-4" aria-hidden />}
                   onClick={() => setJoinOpen(true)}
@@ -248,15 +295,15 @@ export default function ProfilePage() {
           />
         ) : (
           <div className="flex flex-col gap-3">
-            <ul className="flex flex-col divide-y divide-subtle">
+            <ul className="flex flex-col divide-y divide-line">
               {classes.data.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-primary">{c.name}</p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {c.subject && <span className="truncate text-xs text-tertiary">{c.subject}</span>}
+                    <p className="truncate font-serif text-[16px] text-ink">{c.name}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                      {c.subject && <span className="truncate font-mono text-xs text-muted">{c.subject}</span>}
                       {isEducator && c.join_code && (
-                        <Badge tone="blue" className="font-mono text-[0.6875rem]">
+                        <Badge tone="red" className="font-mono text-[10px]">
                           Join code: {c.join_code}
                         </Badge>
                       )}
@@ -265,7 +312,7 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-2 shrink-0">
                     <Link
                       href={isEducator ? `/insights?class_id=${c.id}` : "/chat"}
-                      className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-accent-secondary hover:underline"
+                      className="inline-flex shrink-0 items-center gap-1 font-mono text-xs uppercase tracking-[0.04em] text-accent-red hover:underline"
                     >
                       {isEducator ? "Insights" : "Open chat"}
                       <ArrowRight className="h-3.5 w-3.5" aria-hidden />
@@ -274,12 +321,11 @@ export default function ProfilePage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-tertiary hover:text-danger hover:bg-danger/10"
+                        className="text-muted hover:text-danger hover:bg-danger/10"
                         onClick={() => setLeavingClass(c)}
                         aria-label={`Leave ${c.name}`}
                       >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                        <span className="hidden sm:inline">Leave</span>
+                        <Trash2 className="h-4 w-4" aria-hidden />
                       </Button>
                     )}
                   </div>
@@ -290,43 +336,40 @@ export default function ProfilePage() {
         )}
       </Card>
 
-      <div>
-        <Button variant="secondary" onClick={logout} icon={<LogOut className="h-4 w-4" aria-hidden />}>
+      <div className="flex justify-end pt-2">
+        <Button
+          variant="ghost"
+          onClick={logout}
+          icon={<LogOut className="h-4 w-4" aria-hidden />}
+          className="text-danger hover:bg-danger/10"
+        >
           Sign out
         </Button>
       </div>
 
-      <Modal
-        open={joinOpen}
-        onClose={() => setJoinOpen(false)}
-        title="Join a class"
-        description="Select a class and enter the join code provided by your teacher."
-      >
-        <JoinClassPanel
-          compact
-          onJoined={() => {
-            classes.reload();
-            setJoinOpen(false);
-          }}
-        />
-      </Modal>
-
       <ConfirmDialog
-        open={leavingClass !== null}
+        open={Boolean(leavingClass)}
+        onCancel={() => setLeavingClass(null)}
+        onConfirm={handleConfirmLeave}
         title="Leave class?"
         description={
           leavingClass
-            ? `Are you sure you want to leave "${leavingClass.name}"? Your quizzes, progress and chat history will be kept, and you can re-enroll anytime with the teacher's code.`
-            : undefined
+            ? `Are you sure you want to leave ${leavingClass.name}? You will need the join code to re-enroll.`
+            : ""
         }
         confirmLabel="Leave class"
-        tone="danger"
         loading={leaveLoading}
-        onConfirm={handleConfirmLeave}
-        onCancel={() => {
-          if (!leaveLoading) setLeavingClass(null);
-        }}
+        tone="danger"
       />
+
+      <Modal open={joinOpen} onClose={() => setJoinOpen(false)} title="Join a class">
+        <JoinClassPanel
+          onJoined={() => {
+            setJoinOpen(false);
+            classes.reload();
+          }}
+        />
+      </Modal>
     </PageContainer>
   );
 }

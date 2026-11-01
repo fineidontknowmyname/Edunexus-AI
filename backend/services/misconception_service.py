@@ -275,7 +275,7 @@ def record_misconception(
             resolved=False,
         )
     )
-    db.commit()
+    db.flush()
     print(f"[MISCONCEPTION SUCCESS] Logged for student={student_id} topic={topic}: {description}")
 
 
@@ -291,7 +291,7 @@ def resolve_misconceptions_for_topic(db: Session, student_id: str, class_id: str
         .update({"resolved": True}, synchronize_session=False)
     )
     if updated:
-        db.commit()
+        db.flush()
         print(f"[MISCONCEPTION] Resolved {updated} misconception(s) for student={student_id} topic={topic} ({reason})")
     return updated
 

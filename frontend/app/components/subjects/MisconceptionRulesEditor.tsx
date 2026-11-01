@@ -53,7 +53,7 @@ export function MisconceptionRulesEditor({ topics, rules, onChange }: Props) {
   return (
     <div className="flex flex-col gap-3">
       {rules.length > 0 && (
-        <div className={cn("hidden gap-3 px-3 text-xs font-medium uppercase tracking-wide text-tertiary md:grid", GRID)}>
+        <div className={cn("hidden gap-3 px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-muted md:grid", GRID)}>
           <span>Topic</span>
           <span>Misconception</span>
           <span>Wrong-answer keywords</span>
@@ -65,7 +65,7 @@ export function MisconceptionRulesEditor({ topics, rules, onChange }: Props) {
         {rules.map((r, i) => {
           const base = `rule-${i}`;
           return (
-            <li key={i} className={cn("grid gap-3 rounded-lg border border-subtle bg-surface-muted/30 p-3 md:items-start", GRID)}>
+            <li key={i} className={cn("grid gap-3 rounded-[2px] border border-line bg-surface p-3 md:items-start", GRID)}>
               <div>
                 <label htmlFor={`${base}-topic`} className={fieldLabel}>Topic</label>
                 <select id={`${base}-topic`} className={cn(control, "h-[2.125rem]")} value={r.topic} onChange={(e) => update(i, { topic: e.target.value })}>

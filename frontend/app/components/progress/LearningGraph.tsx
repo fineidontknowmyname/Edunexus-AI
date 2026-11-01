@@ -13,7 +13,7 @@ export function LearningGraph({ mastery }: { mastery: DashboardMasteryEntry[] })
         title="No quiz attempts yet"
         description="Take a quiz to start tracking your mastery by topic."
         action={
-          <Link href="/quiz" className="text-sm font-medium text-accent-secondary hover:underline">
+          <Link href="/quiz" className="font-mono text-xs uppercase tracking-[0.06em] text-accent-red hover:underline">
             Browse quizzes
           </Link>
         }

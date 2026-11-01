@@ -139,6 +139,10 @@ function buildHeaders(method: string, headers: HeadersInit | undefined, jsonBody
     const csrfToken = getCsrfToken();
     if (csrfToken) finalHeaders.set(CSRF_HEADER, csrfToken);
   }
+  try {
+    const tz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : null;
+    if (tz) finalHeaders.set("X-Client-Timezone", tz);
+  } catch {}
   return finalHeaders;
 }
 

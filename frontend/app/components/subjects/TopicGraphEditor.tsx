@@ -58,7 +58,7 @@ export function TopicGraphEditor({ topics, onChange }: Props) {
   return (
     <div className="flex flex-col gap-3">
       {topics.length > 0 && (
-        <div className="hidden grid-cols-[minmax(0,11rem)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_2.25rem] gap-3 px-3 text-xs font-medium uppercase tracking-wide text-tertiary md:grid">
+        <div className="hidden grid-cols-[minmax(0,11rem)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_2.25rem] gap-3 px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-muted md:grid">
           <span>Topic</span>
           <span>Description</span>
           <span>Requires</span>
@@ -73,7 +73,7 @@ export function TopicGraphEditor({ topics, onChange }: Props) {
           return (
             <li
               key={i}
-              className="grid gap-3 rounded-lg border border-subtle bg-surface-muted/30 p-3 md:grid-cols-[minmax(0,11rem)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_2.25rem] md:items-start"
+              className="grid gap-3 rounded-[2px] border border-line bg-surface p-3 md:grid-cols-[minmax(0,11rem)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_2.25rem] md:items-start"
             >
               <div>
                 <label htmlFor={`${base}-name`} className={fieldLabel}>Topic</label>

@@ -1,10 +1,20 @@
 from datetime import datetime
+import json
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from backend.models.db import MasteryTrend, ReviewStatus, SessionMode, UserRole
+from backend.models.db import (
+    BloomLevel,
+    CoverageStatus,
+    MasteryTrend,
+    QuestionDifficulty,
+    QuestionType,
+    ReviewStatus,
+    SessionMode,
+    UserRole,
+)
 
 
 class _OrmBase(BaseModel):
@@ -34,6 +44,7 @@ class UserRead(_OrmBase):
     full_name: str
     role: UserRole
     is_active: bool
+    timezone: str = "UTC"
     created_at: datetime
 
 
@@ -186,14 +197,26 @@ class ReflectionClusterRead(_OrmBase):
     computed_at: datetime
 
 
+class PrerequisiteAdvisory(BaseModel):
+    topic: str
+    reason: str
+    attempted: bool = False
+
+
 class RecommendationRead(BaseModel):
+    id: str | None = None
     routing: str
     learning_tag: str | None
     mode: str
     reason: str | None = None
     sections: list[dict[str, Any]] = []
     videos: list[dict[str, Any]] = []
+    notes: list[dict[str, Any]] = []
     socratic_seed_message: str | None = None
+    prerequisite_advisory: PrerequisiteAdvisory | None = None
+
+
+RecommendationResponse = RecommendationRead
 
 
 class AssessmentEntry(BaseModel):
@@ -244,6 +267,21 @@ class DocumentCreate(BaseModel):
     subject: str | None = None
 
 
+def _parse_mastery_v2(v: Any) -> dict[str, Any] | None:
+    if v is None:
+        return None
+    if isinstance(v, dict):
+        return v
+    if isinstance(v, str):
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            return None
+    return None
+
+
 class TopicMasteryRead(_OrmBase):
     id: UUID
     topic: str
@@ -255,12 +293,22 @@ class TopicMasteryRead(_OrmBase):
     student_id: UUID
     mastery_v2: dict[str, Any] | None = None
 
+    @field_validator("mastery_v2", mode="before")
+    @classmethod
+    def _validate_mastery_v2(cls, v: Any) -> dict[str, Any] | None:
+        return _parse_mastery_v2(v)
+
 
 class TopicMasterySummary(BaseModel):
     topic: str
     mastery_score: float
     trend: MasteryTrend
     mastery_v2: dict[str, Any] | None = None
+
+    @field_validator("mastery_v2", mode="before")
+    @classmethod
+    def _validate_mastery_v2(cls, v: Any) -> dict[str, Any] | None:
+        return _parse_mastery_v2(v)
 
 
 class ChatMessageRead(_OrmBase):
@@ -297,18 +345,48 @@ class ChatMessageFlag(BaseModel):
 class QuizRead(_OrmBase):
     id: UUID
     title: str
-    unit: int | None
-    chapter: int | None
+    description: str | None = None
+    unit: int | None = None
+    chapter: int | None = None
     status: ReviewStatus
+    version: int = 1
+    generation_type: str = "manual"
+    time_limit_minutes: int | None = None
+    passing_percentage: float = 60.0
     created_at: datetime
+    updated_at: datetime | None = None
     class_id: UUID
 
 
 class QuizCreate(BaseModel):
     title: str
+    description: str | None = None
     unit: int | None = None
     chapter: int | None = None
     class_id: UUID
+    document_id: UUID | None = None
+    time_limit_minutes: int | None = None
+    passing_percentage: float = 60.0
+    status: ReviewStatus = ReviewStatus.draft
+
+
+class QuizUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    unit: int | None = None
+    chapter: int | None = None
+    document_id: UUID | None = None
+    time_limit_minutes: int | None = None
+    passing_percentage: float | None = None
+    status: ReviewStatus | None = None
+
+
+class QuizReorderPayload(BaseModel):
+    question_ids: list[UUID]
+
+
+class CoverageAcknowledgePayload(BaseModel):
+    faculty_notes: str | None = None
 
 
 class QuizGenerateRequest(BaseModel):
@@ -320,8 +398,166 @@ class QuizGenerateRequest(BaseModel):
     num_questions: int = Field(default=10, ge=1, le=20)
 
 
+class TopicQuizRequest(BaseModel):
+    class_id: UUID
+    topic: str = Field(min_length=1, max_length=500)
+    topic_id: UUID | None = None
+    num_questions: int = Field(default=5, ge=1, le=10)
+
+
+class TopicQuizResponse(BaseModel):
+    quiz_id: UUID
+    title: str
+    topic: str
+    question_count: int
+    status: ReviewStatus
+
+
 class QuestionStatusUpdate(BaseModel):
     status: ReviewStatus
+
+
+class QuestionFeedbackCreate(BaseModel):
+    category: str = Field(
+        ...,
+        description=(
+            "Feedback category: incorrect_question, incorrect_answer, "
+            "incorrect_explanation, unrelated_topic, ambiguous_wording, "
+            "incorrect_difficulty, missing_source, technical_failure, other"
+        ),
+    )
+    comment: str | None = Field(default=None, max_length=1000)
+
+
+class QuestionFeedbackResponse(BaseModel):
+    report_id: str
+    question_id: str
+    quiz_id: str
+    category: str
+    topic: str | None = None
+    status: str = "received"
+    created_at: str
+    message: str
+
+
+class QuestionReportItem(BaseModel):
+    id: str
+    category: str
+    comment: str | None = None
+    created_at: str
+    reporter_role: str
+
+
+class QuizQuestionCreate(BaseModel):
+    question_text: str = Field(min_length=1)
+    options: list[str] = Field(min_length=2)
+    correct_answer: str | list[str]
+    question_type: QuestionType = QuestionType.single_choice
+    question_order: int | None = None
+    explanation: str | None = None
+    points: float = 1.0
+    topic: str | None = None
+    topic_id: UUID | None = None
+    subtopic_id: UUID | None = None
+    objective_id: UUID | None = None
+    bloom_level: BloomLevel | None = None
+    difficulty: QuestionDifficulty = QuestionDifficulty.medium
+    partial_credit_allowed: bool = False
+    source_document_id: UUID | None = None
+    source_page_number: int | None = None
+
+
+class QuizQuestionUpdate(BaseModel):
+    question_text: str | None = None
+    options: list[str] | None = None
+    correct_answer: str | list[str] | None = None
+    question_type: QuestionType | None = None
+    question_order: int | None = None
+    explanation: str | None = None
+    points: float | None = None
+    topic: str | None = None
+    topic_id: UUID | None = None
+    subtopic_id: UUID | None = None
+    objective_id: UUID | None = None
+    difficulty: QuestionDifficulty | None = None
+    status: ReviewStatus | None = None
+    partial_credit_allowed: bool | None = None
+    source_document_id: UUID | None = None
+    source_page_number: int | None = None
+
+
+class QuizQuestionRead(_OrmBase):
+    id: UUID
+    quiz_id: UUID
+    question_text: str
+    options: str
+    correct_answer: str
+    question_type: str = "single_choice"
+    question_order: int = 1
+    explanation: str | None = None
+    points: float = 1.0
+    topic: str | None = None
+    topic_id: UUID | None = None
+    difficulty: QuestionDifficulty
+    status: ReviewStatus
+    version: int = 1
+    source_document_id: UUID | None = None
+    source_page_number: int | None = None
+    partial_credit_allowed: bool = False
+    generation_meta: str | None = None
+    provenance: dict[str, Any] | None = None
+
+
+class SyllabusSubtopicCreate(BaseModel):
+    topic_id: UUID
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    order_index: int = 0
+
+
+class SyllabusSubtopicRead(_OrmBase):
+    id: UUID
+    topic_id: UUID
+    name: str
+    description: str | None
+    order_index: int
+    created_at: datetime
+
+
+class LearningObjectiveCreate(BaseModel):
+    topic_id: UUID
+    subtopic_id: UUID | None = None
+    code: str | None = None
+    statement: str = Field(min_length=1)
+    bloom_level: BloomLevel | None = None
+    order_index: int = 0
+
+
+class LearningObjectiveRead(_OrmBase):
+    id: UUID
+    topic_id: UUID
+    subtopic_id: UUID | None
+    code: str | None
+    statement: str
+    bloom_level: str | None
+    order_index: int
+    created_at: datetime
+
+
+class QuizCoverageReportRead(_OrmBase):
+    id: UUID
+    quiz_id: UUID
+    document_id: UUID | None
+    total_topics: int
+    covered_topics: int
+    partially_covered_topics: int
+    missing_topics: int
+    coverage_score: float
+    coverage_matrix: str | None
+    warnings: str | None
+    faculty_acknowledged: bool
+    faculty_notes: str | None
+    generated_at: datetime
 
 
 class QuizAttemptCreate(BaseModel):
@@ -331,6 +567,11 @@ class QuizAttemptCreate(BaseModel):
 class QuizAttemptRead(_OrmBase):
     id: UUID
     score: float | None
+    score_ratio: float | None = None
+    passing_ratio: float | None = None
+    quiz_version: int = 1
+    points_earned: float | None = None
+    max_points: float | None = None
     completed: bool
     started_at: datetime
     completed_at: datetime | None
@@ -359,3 +600,128 @@ class MessageResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+class LearningResourceCreate(BaseModel):
+    class_id: str
+    topic: str
+    topic_id: str | None = None
+    title: str = ""
+    resource_type: str
+    url: str | None = None
+    content: str | None = None
+
+
+class LearningResourceRead(BaseModel):
+    id: str
+    class_id: str
+    topic: str
+    topic_id: str | None = None
+    subject_id: str | None = None
+    title: str
+    resource_type: str
+    url: str | None = None
+    content: str | None = None
+    content_length: int | None = None
+    truncated: bool = False
+    status: str
+    helpful_count: int
+    report_count: int
+    has_voted: bool = False
+    uploaded_by_id: str
+    uploaded_by_name: str | None = None
+    created_at: datetime
+    video_id: str | None = None
+    channel: str | None = None
+    duration: str | None = None
+    thumbnail: str | None = None
+    source: str | None = None
+    embeddable: bool = True
+
+
+class LearningResourceReview(BaseModel):
+    status: str
+
+
+class ProgressRecommendationItem(BaseModel):
+    id: str
+    title: str
+    resource_type: str
+    url: str | None = None
+    content: str | None = None
+    content_snippet: str | None = None
+    source: str
+    channel: str | None = None
+    duration: str | None = None
+    thumbnail: str | None = None
+    action: str
+    action_label: str
+    topic: str
+    video_id: str | None = None
+    document_id: str | None = None
+    file_url: str | None = None
+
+
+class WeakTopicRecommendationGroup(BaseModel):
+    topic: str
+    topic_id: str | None = None
+    mastery_score: float
+    attempts: int
+    evidence_state: str
+    mastery_band: str
+    resources: list[ProgressRecommendationItem]
+
+
+class InsufficientEvidenceTopic(BaseModel):
+    topic: str
+    topic_id: str | None = None
+    mastery_score: float
+    attempts: int
+    evidence_state: str
+    reason: str
+
+
+class ProgressRecommendationsResponse(BaseModel):
+    class_id: str
+    class_name: str
+    subject_id: str | None = None
+    subject_name: str | None = None
+    weak_topics: list[WeakTopicRecommendationGroup]
+    developing_topics: list[WeakTopicRecommendationGroup] = []
+    insufficient_evidence_topics: list[InsufficientEvidenceTopic]
+    all_topics_strong: bool
+    total_tracked_topics: int
+
+
+class SyllabusStatusRead(BaseModel):
+    subject_id: str
+    subject_name: str
+    status: str
+    topic_count: int
+    topics: list[dict[str, Any]]
+    updated_at: str | None = None
+
+
+class CurriculumReviewApprovePayload(BaseModel):
+    topic_ids: list[str] | None = None
+
+
+class CurriculumReviewRejectPayload(BaseModel):
+    topic_ids: list[str] | None = None
+
+
+class TopicUpdatePayload(BaseModel):
+    topic: str | None = None
+    unit: int | None = None
+    description: str | None = None
+
+
+class SubtopicUpdatePayload(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
+class ObjectiveUpdatePayload(BaseModel):
+    code: str | None = None
+    statement: str | None = None
+    bloom_level: str | None = None

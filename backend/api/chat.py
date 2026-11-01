@@ -2,10 +2,10 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -14,9 +14,10 @@ from backend.api import access
 from backend.api.dependencies import CurrentUser, RequireStudent
 from backend.core.database import SessionLocal, get_db
 from backend.core.rate_limit import rate_limit
+from backend.core.time_utils import capture_client_timezone
 from backend.llm.prompts import SOCRATIC_EVAL_PROMPT, SOCRATIC_SYSTEM_PROMPT
 from backend.models import schemas
-from backend.models.db import ChatMessage, ChatSession, ResponseCache, SessionMode, SourceType
+from backend.models.db import ChatMessage, ChatSession, ResponseCache, SessionMode, SourceType, User
 from backend.services import (
     behavior_service,
     cache_service,
@@ -81,6 +82,7 @@ class _Turn:
     chunks_with_sim: list = field(default_factory=list)
     prompt_chunks: list = field(default_factory=list)
     source_type: str = SourceType.general_knowledge.value
+    client_timezone: str | None = None
 
 
 def _resolve_topic(db: Session, turn: _Turn, embedding_model) -> str | None:
@@ -194,8 +196,11 @@ def _prepare(db: Session, turn: _Turn, embedding_model) -> None:
 
 
 def _finalize(db: Session, turn: _Turn, answer_text: str, verification_failed: bool) -> dict:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     session = db.get(ChatSession, turn.session_id)
+    student_row = db.get(User, turn.student_id)
+    if student_row and turn.client_timezone:
+        capture_client_timezone(student_row, turn.client_timezone)
 
     if turn.cached is not None:
         source_type = turn.cached.source_type.value if turn.cached.source_type else SourceType.curriculum.value
@@ -243,7 +248,9 @@ def _finalize(db: Session, turn: _Turn, answer_text: str, verification_failed: b
     behavior_service.record_turn(
         db, str(turn.student_id), turn.subject_id, turn.query_topic, turn.message, turn.last_role
     )
-    evidence_service.update_engagement(db, turn.student_id)
+    tz_to_use = getattr(student_row, "timezone", "UTC") if student_row else (turn.client_timezone or "UTC")
+    evidence_service.update_engagement(db, turn.student_id, turn.class_id, count_as_message=True, tz_name=tz_to_use)
+    db.commit()
 
     return {
         "message_id": str(assistant.id),
@@ -279,6 +286,10 @@ def _session_for_request(db: Session, payload: schemas.ChatRequest, student) -> 
         mode=mode,
     )
     db.add(session)
+    if class_id:
+        eng = evidence_service.get_or_create_engagement(db, student.id, class_id)
+        eng.total_sessions += 1
+        db.flush()
     db.commit()
     db.refresh(session)
     return session
@@ -290,6 +301,7 @@ def chat_query(
     db: DbDep,
     current_user: CurrentUser,
     _student: Annotated[None, RequireStudent],
+    x_client_timezone: Annotated[str | None, Header(alias="X-Client-Timezone")] = None,
 ):
     message = payload.message.strip()
     if not message:
@@ -303,6 +315,7 @@ def chat_query(
         mode=payload.mode.value,
         message=message,
         topic_override=(payload.topic or "").strip() or None,
+        client_timezone=x_client_timezone or getattr(current_user, "timezone", "UTC"),
     )
 
     from backend.main import app

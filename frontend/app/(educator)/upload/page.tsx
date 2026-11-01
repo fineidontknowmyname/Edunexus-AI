@@ -21,11 +21,11 @@ import { DocumentStatusBadge } from "../../components/educator/DocumentStatusBad
 import { SyllabusChecklist } from "../../components/progress/SyllabusChecklist";
 import { cn } from "../../lib/cn";
 
-const ACCEPTED = [".pdf", ".pptx", ".docx", ".txt"];
+const ACCEPTED = [".pdf", ".docx", ".jpg", ".jpeg", ".png", ".pptx", ".txt"];
 
 function validateFile(file: File): string | null {
   const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-  if (!ACCEPTED.includes(ext)) return `“${file.name}” isn't a supported file type. Use PDF, PPTX, DOCX or TXT.`;
+  if (!ACCEPTED.includes(ext)) return `“${file.name}” isn't a supported file type. Use PDF, DOCX, images (JPG/PNG), PPTX or TXT.`;
   if (file.size > UPLOAD_MAX_BYTES) {
     return `“${file.name}” is ${formatBytes(file.size)}. The maximum upload size is ${formatBytes(UPLOAD_MAX_BYTES)}. Try splitting it into smaller chapters.`;
   }
@@ -67,6 +67,7 @@ function UploadPageInner() {
   return (
     <PageContainer>
       <PageHeader
+        eyebrow="[ 04 / CURRICULUM ]"
         title="Curriculum"
         description="Upload chapters and notes. The tutor answers from these first, and quizzes are generated from them."
         actions={<ClassPicker classes={classes.data} value={classId} onChange={setClassId} />}
@@ -210,7 +211,7 @@ function ClassMaterials({
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-y border-subtle bg-surface-muted/50 text-left text-xs font-medium uppercase tracking-wide text-tertiary">
+                  <tr className="border-y border-line bg-surface2 text-left font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
                     <th scope="col" className="px-6 py-2.5 font-medium">Title</th>
                     <th scope="col" className="px-3 py-2.5 font-medium">Unit / Chapter</th>
                     <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
@@ -219,17 +220,17 @@ function ClassMaterials({
                     <th scope="col" className="px-6 py-2.5"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-subtle">
+                <tbody className="divide-y divide-line">
                   {documents.data.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-surface-muted/40">
+                    <tr key={doc.id} className="hover:bg-surface2 transition-colors">
                       <td className="max-w-xs px-6 py-3">
-                        <p className="truncate font-medium text-primary">{doc.title}</p>
-                        <p className="truncate text-xs text-tertiary">{doc.chapter_name || doc.filename}</p>
+                        <p className="truncate font-serif text-[15px] text-ink">{doc.title}</p>
+                        <p className="truncate font-mono text-[11px] text-muted uppercase tracking-[0.04em]">{doc.chapter_name || doc.filename}</p>
                       </td>
-                      <td className="px-3 py-3 text-secondary">{doc.unit ?? "—"} / {doc.chapter ?? "—"}</td>
+                      <td className="px-3 py-3 font-mono text-xs text-muted">{doc.unit ?? "—"} / {doc.chapter ?? "—"}</td>
                       <td className="px-3 py-3"><DocumentStatusBadge status={doc.status} /></td>
-                      <td className="px-3 py-3 text-right tabular-nums text-secondary">{doc.chunk_count}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-tertiary">{formatRelative(doc.created_at)}</td>
+                      <td className="px-3 py-3 text-right font-mono text-xs tabular-nums text-muted">{doc.chunk_count}</td>
+                      <td className="whitespace-nowrap px-3 py-3 font-mono text-[11px] text-muted">{formatRelative(doc.created_at)}</td>
                       <td className="px-6 py-3 text-right">
                         <Button variant="ghost" size="icon" aria-label={`Delete ${doc.title}`} onClick={() => setPendingDelete(doc)}>
                           <Trash2 className="h-4 w-4" aria-hidden />
@@ -240,12 +241,12 @@ function ClassMaterials({
                 </tbody>
               </table>
             </div>
-            <ul className="divide-y divide-subtle border-t border-subtle md:hidden">
+            <ul className="divide-y divide-line border-t border-line md:hidden">
               {documents.data.map((doc) => (
                 <li key={doc.id} className="flex items-start justify-between gap-3 px-5 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-primary">{doc.title}</p>
-                    <p className="text-xs text-tertiary">
+                    <p className="truncate font-serif text-[15px] text-ink">{doc.title}</p>
+                    <p className="font-mono text-xs text-muted">
                       Unit {doc.unit ?? "—"} · Ch {doc.chapter ?? "—"} · {doc.chunk_count} chunks
                     </p>
                     <div className="mt-1.5"><DocumentStatusBadge status={doc.status} /></div>
@@ -373,8 +374,8 @@ function UploadCard({
           onDragLeave={() => setDragActive(false)}
           onDrop={handleDrop}
           className={cn(
-            "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus",
-            dragActive ? "border-accent-secondary bg-accent-secondary/8" : fileError ? "border-danger/50" : "border-strong hover:border-accent-secondary/60 hover:bg-surface-muted/50"
+            "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-[2px] border-2 border-dashed px-4 py-8 text-center transition-colors",
+            dragActive ? "border-accent-red bg-accent-red/5" : fileError ? "border-danger/50" : "border-line bg-surface hover:border-ink hover:bg-surface2"
           )}
         >
           <input
@@ -385,18 +386,18 @@ function UploadCard({
             className="sr-only"
             onChange={(e) => pick(e.target.files?.[0] ?? null)}
           />
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted text-secondary" aria-hidden>
+          <span className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface2 text-ink" aria-hidden>
             <FileUp className="h-5 w-5" />
           </span>
           {file ? (
             <span className="text-sm">
-              <span className="font-medium text-primary">{file.name}</span>
-              <span className="text-tertiary"> · {formatBytes(file.size)}</span>
-              <span className="mt-0.5 block text-xs text-accent-secondary">Click to choose a different file</span>
+              <span className="font-serif text-[15px] text-ink">{file.name}</span>
+              <span className="font-mono text-xs text-muted"> · {formatBytes(file.size)}</span>
+              <span className="mt-0.5 block font-mono text-[11px] uppercase tracking-[0.06em] text-accent-red">Click to choose a different file</span>
             </span>
           ) : (
-            <span className="text-sm text-secondary">
-              <span className="font-medium text-accent-secondary">Choose a file</span> or drag it here
+            <span className="text-sm text-muted">
+              <span className="font-mono text-[11px] uppercase tracking-[0.06em] font-medium text-accent-red">Choose a file</span> or drag it here
             </span>
           )}
         </label>
@@ -406,7 +407,7 @@ function UploadCard({
         {subjects.length === 0 ? (
           <Alert tone="warning" title="No subjects yet">
             Create one on the{" "}
-            <Link href="/subjects" className="font-medium underline">Subjects</Link> page so topics can be tagged.
+            <Link href="/subjects" className="font-medium underline text-accent-red">Subjects</Link> page so topics can be tagged.
           </Alert>
         ) : (
           <Select label="Subject" value={effectiveSubject} onChange={(e) => setSubjectId(e.target.value)}>
@@ -429,19 +430,19 @@ function UploadCard({
       </form>
 
       {job && (
-        <div className="mt-5 rounded-lg border border-subtle bg-surface-muted/50 p-4" aria-live="polite">
-          <p className="truncate text-sm font-medium text-primary">{job.title}</p>
+        <div className="mt-5 rounded-[2px] border border-line bg-surface2 p-4" aria-live="polite">
+          <p className="truncate font-serif text-[15px] text-ink">{job.title}</p>
           <ol className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             {["Uploaded", "Indexing", "Ready"].map((label, i) => {
               const done = step > i || (step === 2 && i === 2);
               const current = step === i;
               return (
                 <li key={label} className="flex items-center gap-2">
-                  <span className={cn("inline-flex items-center gap-1 font-medium", done ? "text-success" : current ? "text-info" : "text-tertiary")}>
-                    {done ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : current ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <span className="h-3.5 w-3.5 rounded-full border border-strong" aria-hidden />}
+                  <span className={cn("inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.04em]", done ? "text-accent-green" : current ? "text-accent-red" : "text-muted")}>
+                    {done ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : current ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <span className="h-3.5 w-3.5 rounded-full border border-line" aria-hidden />}
                     {label}
                   </span>
-                  {i < 2 && <span className="h-px w-5 bg-strong" aria-hidden />}
+                  {i < 2 && <span className="h-px w-5 bg-line" aria-hidden />}
                 </li>
               );
             })}

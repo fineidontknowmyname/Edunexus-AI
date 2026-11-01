@@ -13,5 +13,7 @@ export const CHAT_HISTORY_LIMIT = 200;
 
 export const UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 
+export const ENGAGEMENT_INACTIVE_DAYS = 5;
+
 export const EDUCATOR_HOME = "/overview";
 export const STUDENT_HOME = "/home";

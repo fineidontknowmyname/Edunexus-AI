@@ -33,6 +33,12 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
     )
 
+    context.execute(
+        "CREATE TABLE IF NOT EXISTS alembic_version ("
+        "version_num VARCHAR(64) NOT NULL, "
+        "CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));"
+    )
+
     with context.begin_transaction():
         context.run_migrations()
 
@@ -45,6 +51,29 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        from sqlalchemy import text
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS alembic_version (
+                version_num VARCHAR(64) NOT NULL,
+                CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            );
+        """))
+        if connection.dialect.name == "postgresql":
+            connection.execute(text("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'alembic_version'
+                          AND column_name = 'version_num'
+                          AND (character_maximum_length IS NOT NULL AND character_maximum_length < 64)
+                    ) THEN
+                        ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64);
+                    END IF;
+                END $$;
+            """))
+            connection.commit()
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

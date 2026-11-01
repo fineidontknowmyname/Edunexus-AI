@@ -15,7 +15,7 @@ const COMPONENTS: Components = {
   li: ({ children }) => <li className="pl-0.5 [&>p]:mb-1">{children}</li>,
   hr: () => <hr className="my-4 border-subtle" />,
   blockquote: ({ children }) => (
-    <blockquote className="my-3 border-l-2 border-accent-secondary bg-accent-secondary/5 py-1 pl-3 pr-2 text-secondary">{children}</blockquote>
+    <blockquote className="my-3 border-l-2 border-accent-red bg-surface2 py-1 pl-3 pr-2 text-muted">{children}</blockquote>
   ),
   code: ({ children, className }) => (
     <code
@@ -29,17 +29,17 @@ const COMPONENTS: Components = {
     </code>
   ),
   pre: ({ children }) => (
-    <pre className="my-3 overflow-x-auto rounded-lg border border-subtle bg-surface-muted p-3 font-mono text-[0.8125rem] leading-relaxed text-primary [&_code]:bg-transparent [&_code]:p-0">
+    <pre className="my-3 overflow-x-auto rounded-[2px] border border-line bg-surface2 p-3 font-mono text-[0.8125rem] leading-relaxed text-ink [&_code]:bg-transparent [&_code]:p-0">
       {children}
     </pre>
   ),
   a: ({ children, href }) => (
-    <a href={href} target="_blank" rel="noreferrer noopener" className="font-medium text-accent-secondary underline decoration-accent-secondary/40 underline-offset-2 hover:decoration-accent-secondary">
+    <a href={href} target="_blank" rel="noreferrer noopener" className="font-medium text-accent-red underline underline-offset-2 hover:opacity-85">
       {children}
     </a>
   ),
   table: ({ children }) => (
-    <div className="my-3 overflow-x-auto rounded-lg border border-subtle">
+    <div className="my-3 overflow-x-auto rounded-[2px] border border-line">
       <table className="w-full border-collapse text-[0.8125rem]">{children}</table>
     </div>
   ),

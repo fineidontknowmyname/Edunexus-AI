@@ -27,8 +27,14 @@ export function formatDateTime(value: string | null | undefined): string {
   return parseDate(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export function percent(score: number): string {
-  return `${Math.round(score * 100)}%`;
+export function percent(ratio: number | null | undefined): string {
+  if (ratio == null || Number.isNaN(ratio)) return "0%";
+  return `${Math.round(ratio * 100)}%`;
+}
+
+export function percentValue(pct: number | null | undefined): string {
+  if (pct == null || Number.isNaN(pct)) return "0%";
+  return `${Math.round(pct)}%`;
 }
 
 export function plural(count: number, word: string, pluralWord = `${word}s`): string {
