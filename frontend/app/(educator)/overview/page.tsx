@@ -47,6 +47,9 @@ async function loadSummaries(classes: ClassRow[]): Promise<ClassSummary[]> {
 }
 
 function classAverage(insights: ClassInsightsResponse | null): number | null {
+  if (insights?.class_average_mastery !== undefined && insights?.class_average_mastery !== null) {
+    return insights.class_average_mastery;
+  }
   const rows = insights?.heatmap ?? [];
   if (rows.length === 0) return null;
   return rows.reduce((s, h) => s + h.average_mastery, 0) / rows.length;
@@ -217,7 +220,9 @@ export default function OverviewPage() {
                       <div className="flex items-center gap-4">
                         <div className="hidden sm:block text-right">
                           <span className="font-mono text-[9px] uppercase tracking-wider text-muted block">
-                            Average
+                            {s?.insights?.assessed_student_count !== undefined
+                              ? `Avg (${s.insights.assessed_student_count}/${s.insights.enrolled_student_count ?? "?"} assessed)`
+                              : "Average"}
                           </span>
                           <span className="font-serif text-xl text-ink">
                             {avg === null ? "—" : percent(avg)}

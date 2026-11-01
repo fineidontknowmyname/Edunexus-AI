@@ -222,16 +222,24 @@ def test_progress_recommendations_weak_vs_insufficient():
             return mock_subject
         return None
 
-    def mock_query(entity):
+    def mock_query(*entities, **kwargs):
         query_mock = MagicMock()
-        if entity == TopicMastery:
-            query_mock.filter.return_value.all.return_value = [mastery_spark, mastery_hdfs, mastery_yarn]
-        elif entity == PrerequisiteMap:
-            query_mock.filter.return_value.order_by.return_value.all.return_value = mock_syllabus
-        elif entity == Quiz:
-            query_mock.filter.return_value.all.return_value = []
+        query_mock.join.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.limit.return_value = query_mock
+        if len(entities) == 1:
+            entity = entities[0]
+            if entity == TopicMastery:
+                query_mock.all.return_value = [mastery_spark, mastery_hdfs, mastery_yarn]
+            elif entity == PrerequisiteMap:
+                query_mock.all.return_value = mock_syllabus
+            elif entity == Quiz:
+                query_mock.all.return_value = []
+            else:
+                query_mock.all.return_value = []
         else:
-            query_mock.filter.return_value.all.return_value = []
+            query_mock.all.return_value = []
         return query_mock
 
     db.get.side_effect = mock_get
@@ -313,14 +321,22 @@ def test_progress_recommendations_ranking():
             return mock_subject
         return None
 
-    def mock_query(entity):
+    def mock_query(*entities, **kwargs):
         query_mock = MagicMock()
-        if entity == TopicMastery:
-            query_mock.filter.return_value.all.return_value = [mastery_spark]
-        elif entity == PrerequisiteMap:
-            query_mock.filter.return_value.order_by.return_value.all.return_value = mock_syllabus
+        query_mock.join.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.limit.return_value = query_mock
+        if len(entities) == 1:
+            entity = entities[0]
+            if entity == TopicMastery:
+                query_mock.all.return_value = [mastery_spark]
+            elif entity == PrerequisiteMap:
+                query_mock.all.return_value = mock_syllabus
+            else:
+                query_mock.all.return_value = []
         else:
-            query_mock.filter.return_value.all.return_value = []
+            query_mock.all.return_value = []
         return query_mock
 
     db.get.side_effect = mock_get

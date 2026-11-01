@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.models.db import TopicBehavior
@@ -83,17 +84,30 @@ def record_turn(
         .first()
     )
     if row is None:
-        row = TopicBehavior(
-            student_id=student_id,
-            subject_id=subject_id,
-            topic=topic,
-            message_count=0,
-            follow_up_count=0,
-            qt_conceptual=0,
-            qt_example=0,
-            qt_direct=0,
-        )
-        db.add(row)
+        try:
+            with db.begin_nested():
+                row = TopicBehavior(
+                    student_id=student_id,
+                    subject_id=subject_id,
+                    topic=topic,
+                    message_count=0,
+                    follow_up_count=0,
+                    qt_conceptual=0,
+                    qt_example=0,
+                    qt_direct=0,
+                )
+                db.add(row)
+                db.flush()
+        except IntegrityError:
+            row = (
+                db.query(TopicBehavior)
+                .filter(
+                    TopicBehavior.student_id == student_id,
+                    TopicBehavior.subject_id == subject_id,
+                    TopicBehavior.topic == topic,
+                )
+                .first()
+            )
 
     row.message_count += 1
     if is_follow_up(message, last_role):

@@ -42,8 +42,12 @@ function Progress({ activeClass, picker }: { activeClass: ClassRow; picker: (cla
   }
 
   const d = dashboard.data;
-  const avg = d.mastery.length > 0 ? d.mastery.reduce((s, m) => s + m.score, 0) / d.mastery.length : null;
-  const strongCount = d.mastery.filter((m) => m.score >= 0.7).length;
+  const summary = d.summary;
+  const avg = summary?.assessed_average ?? (d.mastery.length > 0 ? d.mastery.reduce((s, m) => s + m.score, 0) / d.mastery.length : null);
+  const totalSyllabus = summary?.total_syllabus_topics ?? d.mastery.length;
+  const attemptedCount = summary?.attempted_topics ?? d.mastery.length;
+  const coverageRatio = summary?.coverage_ratio ?? (totalSyllabus > 0 ? attemptedCount / totalSyllabus : 0);
+  const strongCount = summary?.mastered_topics ?? d.mastery.filter((m) => m.score >= 0.7).length;
   const moderateCount = d.mastery.filter((m) => m.score >= 0.4 && m.score < 0.7).length;
   const needsReviewCount = d.mastery.filter((m) => m.score < 0.4).length;
 
@@ -72,10 +76,10 @@ function Progress({ activeClass, picker }: { activeClass: ClassRow; picker: (cla
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           variant="highlight"
-          label="Estimated Avg Score"
+          label="Assessed Avg Score"
           value={avg === null ? "—" : percent(avg)}
           icon={<BarChart3 className="h-5 w-5" />}
-          hint={`${plural(d.mastery.length, "topic")} assessed across syllabus`}
+          hint={totalSyllabus > 0 ? `${attemptedCount}/${totalSyllabus} topics (${percent(coverageRatio)} coverage)` : `${plural(attemptedCount, "topic")} assessed across syllabus`}
         />
         <StatCard
           label="Tracking 70%+"
@@ -88,13 +92,13 @@ function Progress({ activeClass, picker }: { activeClass: ClassRow; picker: (cla
           label="Active Day Streak"
           value={d.engagement.current_streak}
           icon={<Flame className="h-5 w-5" />}
-          hint="consecutive days"
+          hint={`in ${activeClass.name}`}
         />
         <StatCard
           label="Longest Streak"
           value={d.engagement.longest_streak}
           icon={<Flame className="h-5 w-5" />}
-          hint="personal best"
+          hint={`best in ${activeClass.name}`}
         />
       </div>
 
@@ -115,7 +119,7 @@ function Progress({ activeClass, picker }: { activeClass: ClassRow; picker: (cla
             />
           </div>
           <CardTakeaway
-            text={`${strongCount} of ${d.mastery.length} topics currently estimated at or above 70%.`}
+            text={`${strongCount} of ${attemptedCount} assessed topics currently estimated at or above 70% (${percent(coverageRatio)} syllabus coverage).`}
           />
         </Card>
 

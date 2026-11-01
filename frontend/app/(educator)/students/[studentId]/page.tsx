@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { BarChart3, Brain, Flame, MessageSquareText, NotebookPen, Route, StickyNote, Trophy } from "lucide-react";
 import { apiFetch, errorMessage } from "../../../lib/api";
+import { ENGAGEMENT_INACTIVE_DAYS } from "../../../lib/constants";
 import { useApi } from "../../../lib/hooks/useApi";
 import { formatDateTime, formatRelative, percent, plural } from "../../../lib/format";
 import type { MasteryTrend, StudentFullContext } from "../../../lib/types";
@@ -76,11 +77,11 @@ function StudentDetail() {
           </span>
         }
         description={
-          context.engagement.last_interaction
-            ? `Last active ${formatRelative(context.engagement.last_interaction)}`
+          (context.engagement.last_interaction_date || context.engagement.last_interaction)
+            ? `Last active ${formatRelative(context.engagement.last_interaction_date || context.engagement.last_interaction || "")}`
             : "No activity recorded yet"
         }
-        actions={context.engagement.staleness_flag ? <Badge tone="amber" dot>Inactive 5+ days</Badge> : undefined}
+        actions={context.engagement.is_inactive ? <Badge tone="amber" dot>Inactive ({ENGAGEMENT_INACTIVE_DAYS}+ days)</Badge> : undefined}
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -189,6 +190,38 @@ function StudentDetail() {
           )}
         </div>
       </div>
+
+      {query.data.attempts && query.data.attempts.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader icon={<Trophy className="h-4 w-4" />} title="Quiz attempts" description="Recent assessment attempts in this class." />
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-subtle text-xs text-muted">
+                <tr>
+                  <th className="py-2">Quiz</th>
+                  <th className="py-2">Score</th>
+                  <th className="py-2">Date</th>
+                  <th className="py-2 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-subtle">
+                {query.data.attempts.map((att) => (
+                  <tr key={att.id}>
+                    <td className="py-2.5 font-medium">{att.quiz_title}</td>
+                    <td className="py-2.5">{att.score !== null ? `${Math.round(att.score)}%` : "—"}</td>
+                    <td className="py-2.5 text-xs text-muted">{att.completed_at ? formatRelative(att.completed_at) : (att.started_at ? formatRelative(att.started_at) : "—")}</td>
+                    <td className="py-2.5 text-right">
+                      <Badge tone={att.completed ? "green" : "gray"}>
+                        {att.completed ? "Completed" : "In Progress"}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </PageContainer>
   );
 }

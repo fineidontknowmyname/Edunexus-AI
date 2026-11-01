@@ -8,6 +8,11 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from backend.core import config
+from backend.core.tracking_constants import (
+    MASTERED_THRESHOLD,
+    WEAK_THRESHOLD,
+    classify_topic,
+)
 from backend.models.db import (
     Chunk,
     Class,
@@ -27,7 +32,7 @@ from backend.services import behavior_service, routing_service, topic_graph_serv
 
 GUIDED_LEARNING_TAGS = {"needs-repetition"}
 STALLED_MIN_ATTEMPTS = 2
-STALLED_MASTERY_CEILING = 0.6
+STALLED_MASTERY_CEILING = WEAK_THRESHOLD
 
 
 def _curriculum_sections(
@@ -304,6 +309,105 @@ def _check_prerequisite_gap(
     return None
 
 
+def find_unattempted_prerequisites(
+    db: Session,
+    student_id: str,
+    class_id: str,
+    subject_id: str | None,
+    topic: str,
+) -> list[str]:
+    """
+    Finds direct prerequisites of `topic` that have never been attempted by the student
+    (either no TopicMastery row or attempt_count == 0).
+    Only includes prerequisites in the class syllabus vocabulary, compared using normalize_topic_key.
+    Returns up to 2 unattempted prerequisites in order. Single DB query for masteries.
+    """
+    if not subject_id:
+        return []
+
+    from backend.core.prerequisites import get_prerequisites_db
+    from backend.services.mastery_v2 import normalize_topic_key
+
+    # Fetch syllabus vocabulary for subject
+    # All topics registered in PrerequisiteMap for subject_id constitute the syllabus vocabulary
+    syllabus_rows = (
+        db.query(PrerequisiteMap.topic)
+        .filter(PrerequisiteMap.subject_id == subject_id)
+        .all()
+    )
+    syllabus_vocab_keys = {
+        normalize_topic_key(r[0])
+        for r in syllabus_rows
+        if r[0] and normalize_topic_key(r[0])
+    }
+
+    # Also include class-level syllabus vocabulary if class exists
+    if class_id:
+        try:
+            from backend.services.progress_service import get_syllabus_topics_for_class
+            for t in get_syllabus_topics_for_class(db, class_id):
+                k = normalize_topic_key(t)
+                if k:
+                    syllabus_vocab_keys.add(k)
+        except Exception:
+            pass
+
+    # Get direct prerequisites
+    direct_prereqs = get_prerequisites_db(db, subject_id, topic)
+    if not direct_prereqs:
+        # Check case-insensitive topic match in PrerequisiteMap if exact match returned nothing
+        norm_t = normalize_topic_key(topic)
+        pm_rows = db.query(PrerequisiteMap).filter(PrerequisiteMap.subject_id == subject_id).all()
+        for r in pm_rows:
+            if normalize_topic_key(r.topic) == norm_t and r.requires:
+                direct_prereqs = list(r.requires)
+                break
+
+    if not direct_prereqs:
+        return []
+
+    # Filter direct prerequisites to only those in the class's syllabus vocabulary
+    valid_candidates: list[str] = []
+    seen_keys: set[str] = set()
+    for p in direct_prereqs:
+        p_key = normalize_topic_key(p)
+        if p_key and p_key in syllabus_vocab_keys and p_key not in seen_keys:
+            seen_keys.add(p_key)
+            valid_candidates.append(p)
+
+    if not valid_candidates:
+        return []
+
+    # Fetch mastery for student & class in ONE query
+    student_uuid = uuid.UUID(student_id) if isinstance(student_id, str) else student_id
+    class_uuid = uuid.UUID(class_id) if isinstance(class_id, str) else class_id
+
+    mastery_rows = (
+        db.query(TopicMastery)
+        .filter(
+            TopicMastery.student_id == student_uuid,
+            TopicMastery.class_id == class_uuid,
+        )
+        .all()
+    )
+    mastery_by_key = {}
+    for m in mastery_rows:
+        mk = normalize_topic_key(m.topic)
+        if mk:
+            mastery_by_key[mk] = m
+
+    unattempted: list[str] = []
+    for p in valid_candidates:
+        p_key = normalize_topic_key(p)
+        m = mastery_by_key.get(p_key)
+        if m is None or (m.attempt_count or 0) == 0:
+            unattempted.append(p)
+            if len(unattempted) == 2:
+                break
+
+    return unattempted
+
+
 def get_recommendation(
     db: Session,
     student_id: str,
@@ -341,6 +445,7 @@ def get_recommendation(
     mode = "static"
     reason: str | None = None
     socratic_seed: str | None = None
+    prereq_reason: str | None = None
 
     # Step 1: Open misconception takes highest priority
     if routing == routing_service.INTERVENE:
@@ -372,7 +477,19 @@ def get_recommendation(
         elif band == "high" and evidence == "sufficient":
             mode = "advance"
             reason = f"You have demonstrated solid mastery of {topic}! Explore advanced resources or proceed to the next unit."
-        else:  # unknown or none
+        elif band == "medium" and evidence == "sufficient":
+            if learning_tag in GUIDED_LEARNING_TAGS:
+                mode = "ai_session"
+                reason = f"You've been asking several follow-up questions about {topic} in chat. Let's work through it in a guided session."
+                socratic_seed = topic
+            else:
+                mode = "reinforce"
+                reason = f"You're close on {topic}. A short practice quiz will help lock it in."
+        elif mastery is not None and (mastery.attempt_count or 0) > 0:
+            print(f"[RECOMMENDATION WARNING] Unexpected mastery combination for {topic}: band={band}, evidence={evidence}. Falling back to diagnostic.")
+            mode = "diagnostic"
+            reason = f"Let's take a quick check-in quiz on {topic} to calibrate your learning path."
+        else:  # completely unattempted
             mode = "initial_assessment"
             reason = f"You haven't attempted {topic} yet. Start with the shared resources below or take an initial quiz."
 
@@ -395,6 +512,17 @@ def get_recommendation(
         else:
             mode = "static"
             reason = None
+
+    prerequisite_advisory: dict[str, Any] | None = None
+    if prereq_reason is None:
+        unatt = find_unattempted_prerequisites(db, student_id, class_id, subject_id, topic)
+        if unatt:
+            first_prereq = unatt[0]
+            prerequisite_advisory = {
+                "topic": first_prereq,
+                "reason": f"Before {topic}, it helps to cover {first_prereq}. You haven't attempted it yet.",
+                "attempted": False,
+            }
 
     rec_id: str | None = None
     if mode != "static":
@@ -442,6 +570,7 @@ def get_recommendation(
         "videos": videos,
         "notes": notes,
         "socratic_seed_message": socratic_seed,
+        "prerequisite_advisory": prerequisite_advisory,
     }
 
 
@@ -492,7 +621,7 @@ def link_quiz_attempt_to_recommendations(
             linked_count += 1
 
     if linked_count > 0:
-        db.commit()
+        db.flush()
         print(f"[OUTCOME TRACKING] Linked attempt {attempt_id} to {linked_count} preceding recommendation(s)")
 
     return linked_count
@@ -544,6 +673,7 @@ def get_progress_recommendations(
         all_topic_names.add(st.topic)
 
     weak_topics = []
+    developing_topics = []
     insufficient_evidence_topics = []
     strong_topics = []
 
@@ -561,7 +691,9 @@ def get_progress_recommendations(
         band = v2_info.get("mastery_band", "unknown")
         evidence = v2_info.get("evidence_state", "none")
 
-        if attempts == 0 or evidence in ("none", "insufficient"):
+        category = classify_topic(attempts, evidence, band, score)
+
+        if category == "insufficient":
             insufficient_evidence_topics.append({
                 "topic": t_name,
                 "topic_id": topic_id_map.get(t_name),
@@ -570,7 +702,7 @@ def get_progress_recommendations(
                 "evidence_state": evidence if evidence != "none" else "insufficient",
                 "reason": "Needs assessment attempts to evaluate current understanding.",
             })
-        elif band == "low" or score < 0.60:
+        elif category == "weak":
             weak_topics.append({
                 "topic": t_name,
                 "topic_id": topic_id_map.get(t_name),
@@ -580,11 +712,23 @@ def get_progress_recommendations(
                 "mastery_band": band,
                 "trend": m.trend.value if m else "stable",
             })
-        elif band == "high" or score >= 0.70:
+        elif category == "developing":
+            developing_topics.append({
+                "topic": t_name,
+                "topic_id": topic_id_map.get(t_name),
+                "mastery_score": round(score, 2),
+                "attempts": attempts,
+                "evidence_state": evidence,
+                "mastery_band": band,
+                "trend": m.trend.value if m else "stable",
+            })
+        else:  # strong
             strong_topics.append(t_name)
 
     # Sort weak topics: lowest mastery first
     weak_topics.sort(key=lambda x: (x["mastery_score"], -x["attempts"]))
+    # Sort developing topics: lowest mastery first (ascending)
+    developing_topics.sort(key=lambda x: (x["mastery_score"], -x["attempts"]))
 
     # Find available quizzes in this class for practice actions (exclude topic practice quizzes)
     approved_quizzes = (
@@ -604,11 +748,9 @@ def get_progress_recommendations(
             if q_question.status == ReviewStatus.approved and q_question.topic and q_question.topic not in quiz_by_topic:
                 quiz_by_topic[q_question.topic] = str(q.id)
 
-    # Build resource recommendations for each weak topic
-    grouped_recommendations = []
-    for wt in weak_topics:
-        topic_name = wt["topic"]
-        topic_id = wt.get("topic_id")
+    def _build_topic_resources(topic_entry: dict[str, Any]) -> dict[str, Any]:
+        topic_name = topic_entry["topic"]
+        topic_id = topic_entry.get("topic_id")
         videos, notes = _library_resources(db, class_id, topic_name, subject_name, topic_id=topic_id)
         course_docs = _topic_course_documents(db, class_id, topic_name, topic_id=topic_id)
 
@@ -706,15 +848,25 @@ def get_progress_recommendations(
             "topic": topic_name,
         })
 
-        grouped_recommendations.append({
+        return {
             "topic": topic_name,
-            "topic_id": wt.get("topic_id"),
-            "mastery_score": wt["mastery_score"],
-            "attempts": wt["attempts"],
-            "evidence_state": wt["evidence_state"],
-            "mastery_band": wt["mastery_band"],
+            "topic_id": topic_entry.get("topic_id"),
+            "mastery_score": topic_entry["mastery_score"],
+            "attempts": topic_entry["attempts"],
+            "evidence_state": topic_entry["evidence_state"],
+            "mastery_band": topic_entry["mastery_band"],
             "resources": resources_list,
-        })
+        }
+
+    grouped_recommendations = [_build_topic_resources(wt) for wt in weak_topics]
+    grouped_developing = [_build_topic_resources(dt) for dt in developing_topics]
+
+    all_topics_strong = (
+        len(grouped_recommendations) == 0
+        and len(grouped_developing) == 0
+        and len(insufficient_evidence_topics) == 0
+        and len(all_topic_names) > 0
+    )
 
     return {
         "class_id": class_id,
@@ -722,8 +874,9 @@ def get_progress_recommendations(
         "subject_id": subject_id,
         "subject_name": subject_name,
         "weak_topics": grouped_recommendations,
+        "developing_topics": grouped_developing,
         "insufficient_evidence_topics": insufficient_evidence_topics,
-        "all_topics_strong": len(grouped_recommendations) == 0 and len(strong_topics) > 0,
+        "all_topics_strong": all_topics_strong,
         "total_tracked_topics": len(all_topic_names),
     }
 

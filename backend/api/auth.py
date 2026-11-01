@@ -1,7 +1,7 @@
 import secrets
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from backend.api.dependencies import CurrentUser
@@ -38,11 +38,18 @@ def register(payload: schemas.UserCreate, db: DbDep):
 
 
 @router.post("/login", response_model=schemas.LoginResponse, dependencies=[LoginRateLimit])
-def login(payload: schemas.UserLogin, db: DbDep, response: Response):
+def login(
+    payload: schemas.UserLogin,
+    db: DbDep,
+    response: Response,
+    x_client_timezone: Annotated[str | None, Header(alias="X-Client-Timezone")] = None,
+):
     account = payload.email.lower()
     check("auth-login-failures", account, FAILED_LOGINS_PER_ACCOUNT, FAILED_LOGIN_WINDOW_SECONDS)
     try:
-        result = auth_service.login_user(db=db, email=payload.email, password=payload.password)
+        result = auth_service.login_user(
+            db=db, email=payload.email, password=payload.password, client_timezone=x_client_timezone
+        )
     except HTTPException as exc:
         if exc.status_code == status.HTTP_401_UNAUTHORIZED:
             hit("auth-login-failures", account, FAILED_LOGINS_PER_ACCOUNT, FAILED_LOGIN_WINDOW_SECONDS)

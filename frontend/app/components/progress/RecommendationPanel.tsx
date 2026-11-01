@@ -5,6 +5,7 @@ import {
   Compass,
   FileText,
   HelpCircle,
+  Lightbulb,
   ListChecks,
   Plus,
   Trophy,
@@ -61,6 +62,25 @@ export function RecommendationPanel({ classId, topic }: { classId: string; topic
 
   return (
     <div className="mt-4 rounded-[2px] border border-line bg-surface p-4">
+      {/* Prerequisite Advisory Notice */}
+      {data.prerequisite_advisory && (
+        <div className="mb-4 flex flex-col gap-2 rounded-[2px] border border-line bg-surface2 p-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="font-semibold text-ink">Prerequisite Advisory: </span>
+            <span className="text-muted">{data.prerequisite_advisory.reason}</span>
+          </div>
+          <div className="shrink-0">
+            <ButtonLink
+              href={`/quiz?topic=${encodeURIComponent(data.prerequisite_advisory.topic)}`}
+              variant="outline"
+              size="sm"
+            >
+              Review {data.prerequisite_advisory.topic}
+            </ButtonLink>
+          </div>
+        </div>
+      )}
+
       {/* Top Banner based on Mode */}
       {data.mode === "ai_session" && (
         <div className="mb-4 flex flex-col gap-3 rounded-[2px] border border-line bg-surface2 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -126,6 +146,30 @@ export function RecommendationPanel({ classId, topic }: { classId: string; topic
               Ask Tutor
             </ButtonLink>
           </div>
+        </div>
+      )}
+
+      {data.mode === "reinforce" && (
+        <div className="mb-4 flex flex-col gap-3 rounded-[2px] border border-line bg-surface2 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-3">
+            <span
+              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-amber text-ink"
+              aria-hidden
+            >
+              <Lightbulb className="h-4 w-4" />
+            </span>
+            <div>
+              <h4 className="text-sm font-semibold text-ink">
+                Targeted practice recommended
+              </h4>
+              <p className="mt-0.5 text-xs text-muted">
+                {data.reason || "You're close on this topic. A short practice quiz will help lock it in."}
+              </p>
+            </div>
+          </div>
+          <ButtonLink href={`/quiz?topic=${encodeURIComponent(topic)}`} size="sm" variant="secondary">
+            Take Practice Quiz
+          </ButtonLink>
         </div>
       )}
 

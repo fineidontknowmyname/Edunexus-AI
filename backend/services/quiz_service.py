@@ -1849,6 +1849,7 @@ async def run_background_misconception_detection(
                     misconception_service.record_misconception(
                         db, student_id, class_id, topic, ai_result["description"], source_attempt_id
                     )
+                    db.commit()
             except Exception as e:
                 print(f"[QUIZ MISCONCEPTION BG WARNING] AI detection failed for item: {e}")
     finally:

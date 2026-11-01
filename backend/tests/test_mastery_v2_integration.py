@@ -125,6 +125,6 @@ def test_update_mastery_v2_with_class_id_scoping():
 
     assert "Deadlocks" in res
     assert mock_tm_row.mastery_v2 is not None
-    # Verify commit called
-    mock_db.commit.assert_called_once()
+    # Verify flush called (atomic transaction: services only flush)
+    mock_db.flush.assert_called_once()
 

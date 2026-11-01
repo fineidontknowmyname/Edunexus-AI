@@ -62,7 +62,11 @@ function StudentHome({ activeClass, picker }: { activeClass: ClassRow; picker: (
 
   const givenName = firstName(user?.full_name);
   const d = dashboard.data;
-  const avgMastery = d && d.mastery.length > 0 ? d.mastery.reduce((s, m) => s + m.score, 0) / d.mastery.length : null;
+  const summary = d?.summary;
+  const avgMastery = summary?.assessed_average ?? (d && d.mastery.length > 0 ? d.mastery.reduce((s, m) => s + m.score, 0) / d.mastery.length : null);
+  const totalSyllabus = summary?.total_syllabus_topics ?? d?.mastery.length ?? 0;
+  const attemptedCount = summary?.attempted_topics ?? d?.mastery.length ?? 0;
+  const coverageRatio = summary?.coverage_ratio ?? (totalSyllabus > 0 ? attemptedCount / totalSyllabus : 0);
   const next = path.data ? pickNext(path.data.path) : null;
   const nextRouting = next ? routing.data?.[next.topic] : undefined;
   const interveneTopics = Object.entries(routing.data ?? {})
@@ -116,15 +120,15 @@ function StudentHome({ activeClass, picker }: { activeClass: ClassRow; picker: (
             caption={activeClass.subject || "Current semester"}
           />
           <KpiCell
-            label="Average Mastery"
+            label="Assessed Mastery"
             value={avgMastery === null ? "—" : percent(avgMastery)}
-            caption={`${plural(d.mastery.length, "topic")} assessed across syllabus`}
+            caption={totalSyllabus > 0 ? `${attemptedCount} of ${totalSyllabus} syllabus topics (${percent(coverageRatio)} coverage)` : `${plural(attemptedCount, "topic")} assessed across syllabus`}
             tone={avgMastery !== null && avgMastery >= 0.7 ? "green" : undefined}
           />
           <KpiCell
-            label="Learning Streak"
+            label="Class Streak"
             value={`${String(d.engagement.current_streak).padStart(2, "0")}`}
-            caption={`Best record: ${d.engagement.longest_streak} days`}
+            caption={`Best in class: ${d.engagement.longest_streak} days`}
             tone={d.engagement.current_streak > 0 ? "red" : undefined}
           />
           <KpiCell
@@ -317,7 +321,7 @@ function StudentHome({ activeClass, picker }: { activeClass: ClassRow; picker: (
                     : "Focus on diagnostic weak topics."}
                 </p>
                 <p>
-                  Calculated across {d?.mastery.length ?? 0} syllabus topics grounded in verified faculty material.
+                  Calculated across {attemptedCount} of {totalSyllabus} syllabus topics ({percent(coverageRatio)} coverage).
                 </p>
               </div>
             </div>

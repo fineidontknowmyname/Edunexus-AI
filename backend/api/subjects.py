@@ -188,8 +188,14 @@ def rename_topic(
     access.owned_subject(db, subject_id, current_user)
     try:
         topic_graph_service.rename_topic(db, subject_id, payload.old_topic, payload.new_topic)
+        db.commit()
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        db.rollback()
+        status_code = 409 if "already exists" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+    except Exception:
+        db.rollback()
+        raise
     return {"subject_id": subject_id, "renamed_to": payload.new_topic}
 
 

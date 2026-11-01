@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ListChecks } from "lucide-react";
 import { useApi } from "../../lib/hooks/useApi";
-import { formatRelative, plural } from "../../lib/format";
+import { formatRelative, percentValue, plural } from "../../lib/format";
 import type { AvailableQuiz, ClassRow, QuizAttemptSummary } from "../../lib/types";
 import { EmptyState, ErrorState, SkeletonCard } from "../../components/ui/Feedback";
 import { PageContainer, PageHeader } from "../../components/ui/PageHeader";
@@ -90,7 +90,7 @@ function QuizList({ activeClass, picker }: { activeClass: ClassRow; picker: (cla
                 <div>
                   <div className="card-foot">
                     <span>
-                      {last ? `BEST: ${Math.round(best)}%` : "STATUS: NEW"}
+                      {last ? `BEST: ${percentValue(best)}` : "STATUS: NEW"}
                     </span>
                     <div className="flex items-center gap-3">
                       {last && (

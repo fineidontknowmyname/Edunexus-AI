@@ -259,7 +259,7 @@ def test_recommendation_outcome_tracking_linkage(base_db):
     assert rec_log.outcome_attempt_id == attempt_id
     assert rec_log.outcome_score_after == 0.85
     assert rec_log.outcome_delta == 0.45
-    base_db.commit.assert_called_once()
+    base_db.flush.assert_called_once()
 
 
 def test_recommendation_outcome_missing_updated_mastery_skips_linking(base_db):
@@ -331,7 +331,7 @@ def test_recommendation_outcome_missing_before_leaves_delta_none(base_db):
     assert rec_log.outcome_attempt_id == attempt_id
     assert rec_log.outcome_score_after == 0.85
     assert rec_log.outcome_delta is None
-    base_db.commit.assert_called_once()
+    base_db.flush.assert_called_once()
 
 
 def test_recommendation_outcome_uses_updated_mastery_v1(base_db):
@@ -376,7 +376,7 @@ def test_recommendation_outcome_uses_updated_mastery_v1(base_db):
     # Outcome score after must be the v1 mastery score (0.72), NOT the raw quiz score (1.0)
     assert rec_log.outcome_score_after == 0.72
     assert rec_log.outcome_delta == 0.32
-    base_db.commit.assert_called_once()
+    base_db.flush.assert_called_once()
 
 
 def _make_dedup_db(existing_log=None):

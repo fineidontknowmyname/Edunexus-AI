@@ -1,0 +1,322 @@
+[
+  {
+    "file": "test_chat_prompt_replay.py",
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 5.21,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_class_engagement.py",
+    "passed": 6,
+    "failed": 2,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 20.34,
+    "returncode": 1,
+    "reasons": "FAILED backend/tests/test_class_engagement.py::test_t7_class_scoped_engagement_isolation; FAILED backend/tests/test_class_engagement.py::test_t8_dashboard_read_creates_no_rows"
+  },
+  {
+    "file": "test_classes_enrollment.py",
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 96.27,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_curriculum_progress.py",
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 5.06,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_educator_tracking.py",
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 5.1,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_mastery_v2.py",
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 4.98,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_mastery_v2_integration.py",
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 5.01,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase1_completion.py",
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 4.98,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase1_quiz_foundation.py",
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 11.51,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase2_document_ingestion.py",
+    "passed": 17,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 28.84,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase2_mastery_harmonization.py",
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 5.11,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase2_topic_quiz.py",
+    "passed": 7,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 130.44,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase3_quiz_authoring.py",
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 103.9,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase3_rename_topic.py",
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 41.38,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase3_topic_quiz_quality.py",
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 36.86,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase4_coverage.py",
+    "passed": 1,
+    "failed": 2,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 53.44,
+    "returncode": 1,
+    "reasons": "FAILED backend/tests/test_phase4_coverage.py::test_coverage_analysis_engine; FAILED backend/tests/test_phase4_coverage.py::test_coverage_recalculation_and_acknowledgment"
+  },
+  {
+    "file": "test_phase4_topic_quiz_e2e.py",
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 83.03,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase5_assessment.py",
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 70.36,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase5_rollout_feedback.py",
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 48.79,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_phase6_resources_and_learn_concept.py",
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 149.16,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_quiz_attempt_answers.py",
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 4.91,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_quiz_attempt_econnreset.py",
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 11.51,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_quiz_submission_atomicity.py",
+    "passed": 2,
+    "failed": 3,
+    "skipped": 0,
+    "errored": 3,
+    "duration": 28.45,
+    "returncode": 1,
+    "reasons": "FAILED backend/tests/test_quiz_submission_atomicity.py::test_t3_fault_injection_rollback_leaves_db_clean; FAILED backend/tests/test_quiz_submission_atomicity.py::test_t4_happy_path_atomic_submission; FAILED backend/tests/test_quiz_submission_atomicity.py::test_t5_simultaneous_or_window_duplicate_returns_409; ERROR backend/tests/test_quiz_submission_atomicity.py::test_t3_fault_injection_rollback_leaves_db_clean; ERROR backend/tests/test_quiz_submission_atomicity.py::test_t4_happy_path_atomic_submission"
+  },
+  {
+    "file": "test_quiz_submission_validation.py",
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 4.8,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_quiz_validation.py",
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 4.74,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_recommendations.py",
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 4.91,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_resources.py",
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 5.49,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_syllabus_file_types.py",
+    "passed": 9,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 11.48,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_topic_integrity.py",
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 4.88,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_tracking_lifecycle.py",
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 4.99,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_trailing_slash.py",
+    "passed": 7,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 4.84,
+    "returncode": 0,
+    "reasons": "None"
+  },
+  {
+    "file": "test_v3_curriculum_and_recommendations.py",
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "errored": 0,
+    "duration": 5.45,
+    "returncode": 0,
+    "reasons": "None"
+  }
+]

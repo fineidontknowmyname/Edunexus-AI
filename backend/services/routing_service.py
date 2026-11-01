@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session
 
+from backend.core.tracking_constants import MASTERED_THRESHOLD
 from backend.models.db import Misconception, TopicMastery
 
-ADEQUATE_MASTERY_THRESHOLD = 0.7
+ADEQUATE_MASTERY_THRESHOLD = MASTERED_THRESHOLD
 
 REINFORCE = "reinforce"
 ADVANCE = "advance"

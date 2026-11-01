@@ -28,6 +28,57 @@ def _subject_scope(column, subject_id):
     return or_(column == subject_id, column.is_(None))
 
 
+def compute_class_average_from_student_scores(student_scores: list[list[float]]) -> float | None:
+    """Computes class average as the mean of student-level averages."""
+    student_averages = [sum(scores) / len(scores) for scores in student_scores if scores]
+    if not student_averages:
+        return None
+    return round(sum(student_averages) / len(student_averages), 4)
+
+
+def get_class_metrics(db: Session, class_id: str, subject_id: str | None = None) -> dict[str, Any]:
+    """Computes class-level mastery metrics based on student-level averages across enrolled students."""
+    enrolled_ids = [
+        r[0]
+        for r in db.query(ClassEnrollment.student_id)
+        .filter(ClassEnrollment.class_id == class_id)
+        .all()
+    ]
+    enrolled_student_count = len(enrolled_ids)
+    if not enrolled_ids:
+        return {
+            "class_average_mastery": None,
+            "assessed_student_count": 0,
+            "enrolled_student_count": 0,
+        }
+
+    query = (
+        db.query(
+            TopicMastery.student_id,
+            func.avg(TopicMastery.mastery_score).label("student_avg"),
+        )
+        .filter(
+            TopicMastery.class_id == class_id,
+            TopicMastery.student_id.in_(enrolled_ids),
+            _subject_scope(TopicMastery.subject_id, subject_id),
+        )
+        .group_by(TopicMastery.student_id)
+    )
+    student_averages = [float(r.student_avg) for r in query.all() if r.student_avg is not None]
+    assessed_student_count = len(student_averages)
+
+    if assessed_student_count == 0:
+        class_average_mastery = None
+    else:
+        class_average_mastery = round(sum(student_averages) / assessed_student_count, 4)
+
+    return {
+        "class_average_mastery": class_average_mastery,
+        "assessed_student_count": assessed_student_count,
+        "enrolled_student_count": enrolled_student_count,
+    }
+
+
 def get_class_heatmap(db: Session, class_id: str, subject_id: str | None = None) -> list[dict[str, Any]]:
     # Only include students who are *currently* enrolled so that a student who
     # left the class no longer skews the educator's heatmap.

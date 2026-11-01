@@ -129,8 +129,9 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
     return "gray";
   }
 
+  const developingList = data?.developing_topics || [];
   const insufficientList = data ? (data.insufficient_evidence_topics || data.insufficient_evidence || []) : [];
-  const totalRecs = data?.total_recommended_resources ?? (data?.weak_topics.reduce((acc, g) => acc + (g.resources?.length || g.recommendations?.length || 0), 0) ?? 0);
+  const totalRecs = data?.total_recommended_resources ?? ([...(data?.weak_topics || []), ...developingList].reduce((acc, g) => acc + (g.resources?.length || g.recommendations?.length || 0), 0) ?? 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -150,7 +151,7 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
           <div className="mt-4">
             <Alert tone="danger">{error}</Alert>
           </div>
-        ) : !data || (data.weak_topics.length === 0 && insufficientList.length === 0) ? (
+        ) : !data || (data.weak_topics.length === 0 && developingList.length === 0 && insufficientList.length === 0) ? (
           <div className="mt-4">
             <EmptyState
               compact
@@ -352,6 +353,98 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                                 ))}
                               </div>
                             )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Developing Topics Section (Almost there: 60-69%) */}
+            {developingList.length > 0 && (
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-primary">
+                    Almost there (60-69%) ({developingList.length} {plural(developingList.length, "topic")} close to mastery)
+                  </h3>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  {developingList.map((group) => {
+                    const topicName = group.topic || group.topic_name || "Developing Topic";
+                    const rawResources = group.resources || group.recommendations || [];
+                    const learningResources = rawResources.filter((r) => r.resource_type !== "quiz");
+                    const scorePct = percent(group.mastery_score);
+                    const tone: BadgeTone = "amber";
+                    const isExpanded = expandedTopic === topicName;
+
+                    return (
+                      <div
+                        key={topicName}
+                        className="rounded-xl border border-line bg-surface p-4 transition-all"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-primary text-base">
+                                {topicName}
+                              </span>
+                              <Badge tone={tone}>
+                                {scorePct}
+                              </Badge>
+                            </div>
+                            <span className="text-xs text-tertiary">
+                              {group.attempts} {plural(group.attempts, "attempt")} · Targeted practice recommended
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={<CheckCircle2 className="h-4 w-4" />}
+                              onClick={() => setPrepContext({ topic: topicName, topic_id: group.topic_id, class_id: data.class_id })}
+                            >
+                              Practice Quiz
+                            </Button>
+                            {learningResources.length > 0 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon={isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                onClick={() => setExpandedTopic(isExpanded ? null : topicName)}
+                              >
+                                {isExpanded ? "Hide Resources" : `Resources (${learningResources.length})`}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Expanded resources */}
+                        {isExpanded && learningResources.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-line flex flex-col gap-3">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              {learningResources.map((item, idx) => (
+                                <div key={item.id || idx} className="rounded-lg border border-line bg-surface2 p-3 flex flex-col justify-between">
+                                  <div>
+                                    <span className="text-xs font-semibold text-secondary">{item.title}</span>
+                                    {item.channel && <p className="font-mono text-xs text-muted">{item.channel}</p>}
+                                  </div>
+                                  <div className="mt-3 flex justify-end">
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      icon={item.action === "watch" ? <PlayCircle className="h-3.5 w-3.5" /> : <BookOpen className="h-3.5 w-3.5" />}
+                                      onClick={() => handleAction(item, topicName)}
+                                    >
+                                      {item.action === "watch" ? "Watch Video" : "Read Notes"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>

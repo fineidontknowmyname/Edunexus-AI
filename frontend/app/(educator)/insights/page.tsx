@@ -119,7 +119,11 @@ function ClassInsights({ activeClass }: { activeClass: ClassRow }) {
 
   const { insights, atRisk, trending, flags } = bundle.data;
   const heat = [...insights.heatmap].sort((a, b) => a.average_mastery - b.average_mastery);
-  const avg = heat.length ? heat.reduce((s, h) => s + h.average_mastery, 0) / heat.length : null;
+  const avg = insights.class_average_mastery !== undefined && insights.class_average_mastery !== null
+    ? insights.class_average_mastery
+    : (heat.length ? heat.reduce((s, h) => s + h.average_mastery, 0) / heat.length : null);
+  const assessedStudents = insights.assessed_student_count ?? (heat.length ? Math.max(...heat.map((h) => h.student_count)) : 0);
+  const enrolledStudents = insights.enrolled_student_count ?? assessedStudents;
   const struggling = heat.reduce((n, h) => n + h.struggling_count, 0);
   const upcoming = (context.data?.assessments ?? [])
     .filter((a) => new Date(a.date) >= new Date(new Date().toDateString()))
@@ -130,9 +134,9 @@ function ClassInsights({ activeClass }: { activeClass: ClassRow }) {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           variant="highlight"
-          label="Estimated Class Avg"
+          label="Class Average Mastery"
           value={avg === null ? "—" : percent(avg)}
-          hint={`${plural(heat.length, "topic")} evaluated`}
+          hint={enrolledStudents > 0 ? `${assessedStudents} of ${enrolledStudents} students assessed` : `${plural(heat.length, "topic")} evaluated`}
           icon={<BarChart3 className="h-5 w-5" />}
         />
         <StatCard label="At risk" value={atRisk.length} hint={upcoming[0] ? `before ${upcoming[0].name}` : "no assessment scheduled"} icon={<AlertTriangle className="h-4 w-4" />} tone={atRisk.length ? "danger" : "default"} />

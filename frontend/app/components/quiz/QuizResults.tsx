@@ -9,6 +9,7 @@ import { Flag } from "lucide-react";
 import { ReportQuestionDialog } from "./ReportQuestionDialog";
 import { TopicQuizPrepModal } from "./TopicQuizPrepModal";
 import { cn } from "../../lib/cn";
+import { percent } from "../../lib/format";
 
 function verdict(score: number): { title: string; tone: string } {
   if (score >= 80) return { title: "Excellent mastery", tone: "text-green" };
@@ -45,7 +46,8 @@ export function QuizResults({ result, quiz }: { result: QuizAttemptResult; quiz:
   const [prepContext, setPrepContext] = useState<TopicQuizPrepContext | null>(null);
   const correctCount = result.results.filter((r) => r.correct).length;
   const partialCount = result.results.filter((r) => !r.correct && (r.earned_points ?? 0) > 0).length;
-  const v = verdict(result.score);
+  const scoreRatio = result.score_ratio ?? (result.score != null ? result.score / 100 : 0);
+  const v = verdict(scoreRatio * 100);
   const questionMap = new Map(quiz?.questions.map((q) => [q.id, q]) ?? []);
   const classId = result.class_id || quiz?.class_id;
 
@@ -58,7 +60,7 @@ export function QuizResults({ result, quiz }: { result: QuizAttemptResult; quiz:
       <div className="rounded-[2px] border border-line bg-surface p-6 sm:p-8">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
           <ProgressRing
-            value={result.score}
+            value={scoreRatio}
             size={116}
             strokeWidth={9}
           />
@@ -88,8 +90,8 @@ export function QuizResults({ result, quiz }: { result: QuizAttemptResult; quiz:
           <ul className="flex flex-col gap-4 divide-y divide-line/40">
             {Object.entries(result.topic_scores).map(([topic, rawScore]) => {
               const mastery = result.updated_mastery[topic];
-              const scorePct = rawScore <= 1.0 ? rawScore * 100 : rawScore;
-              const isWeak = scorePct < 60;
+              const scorePct = Math.round(rawScore * 100);
+              const isWeak = rawScore < 0.60;
               return (
                 <li key={topic} className="pt-3 first:pt-0">
                   <div className="mb-2 flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider">
@@ -97,10 +99,10 @@ export function QuizResults({ result, quiz }: { result: QuizAttemptResult; quiz:
                     <span className="flex shrink-0 items-center gap-3">
                       {mastery && (
                         <span className="text-muted">
-                          MASTERY: {Math.round(mastery.mastery_score * 100)}% ({mastery.trend.replace("_", " ")})
+                          MASTERY: {percent(mastery.mastery_score)} ({mastery.trend.replace("_", " ")})
                         </span>
                       )}
-                      <Badge tone={masteryTone(rawScore)}>Score: {Math.round(scorePct)}%</Badge>
+                      <Badge tone={masteryTone(rawScore)}>Score: {scorePct}%</Badge>
                       {Boolean(classId && isWeak) && (
                         <Button
                           size="sm"
@@ -108,7 +110,7 @@ export function QuizResults({ result, quiz }: { result: QuizAttemptResult; quiz:
                           onClick={() => setPrepContext({
                             topic,
                             class_id: classId,
-                            mastery_score: rawScore <= 1.0 ? rawScore : rawScore / 100,
+                            mastery_score: rawScore,
                           })}
                           className="text-[10px] h-6 px-2 py-0 border-accent-red/40 text-accent-red hover:bg-accent-red/10"
                         >
@@ -117,7 +119,7 @@ export function QuizResults({ result, quiz }: { result: QuizAttemptResult; quiz:
                       )}
                     </span>
                   </div>
-                  <ProgressBar value={rawScore <= 1.0 ? rawScore : rawScore / 100} label={`${topic} score`} />
+                  <ProgressBar value={rawScore} label={`${topic} score`} />
                 </li>
               );
             })}

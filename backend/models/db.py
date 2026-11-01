@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import relationship
@@ -148,10 +149,11 @@ class User(Base):
     full_name = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.student)
     is_active = Column(Boolean, default=True, nullable=False)
+    timezone = Column(String(64), nullable=False, default="UTC", server_default="UTC")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    engagement = relationship("Engagement", back_populates="student", uselist=False, cascade="all, delete-orphan")
+    engagement = relationship("Engagement", back_populates="student", cascade="all, delete-orphan")
     topic_masteries = relationship("TopicMastery", back_populates="student", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="student", cascade="all, delete-orphan")
     quiz_attempts = relationship("QuizAttempt", back_populates="student", cascade="all, delete-orphan")
@@ -387,6 +389,9 @@ class MisconceptionRule(Base):
 
 class InteractionPattern(Base):
     __tablename__ = "interaction_patterns"
+    __table_args__ = (
+        UniqueConstraint("student_id", "class_id", "topic", name="uq_interaction_patterns_student_class_topic"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     topic = Column(String(500), nullable=False)
@@ -402,6 +407,7 @@ class TopicBehavior(Base):
     __tablename__ = "topic_behavior"
     __table_args__ = (
         UniqueConstraint("student_id", "subject_id", "topic", name="uq_topic_behavior_student_subject_topic"),
+        Index("uq_topic_behavior_null_subject", "student_id", "topic", unique=True, postgresql_where=text("subject_id IS NULL")),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -420,6 +426,9 @@ class TopicBehavior(Base):
 
 class Engagement(Base):
     __tablename__ = "engagement"
+    __table_args__ = (
+        UniqueConstraint("student_id", "class_id", name="uq_engagement_student_class"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     current_streak = Column(Integer, default=0, nullable=False)
@@ -431,8 +440,10 @@ class Engagement(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True, nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True)
     student = relationship("User", back_populates="engagement")
+    class_ = relationship("Class")
 
 
 class ChatSession(Base):

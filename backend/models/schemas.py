@@ -44,6 +44,7 @@ class UserRead(_OrmBase):
     full_name: str
     role: UserRole
     is_active: bool
+    timezone: str = "UTC"
     created_at: datetime
 
 
@@ -196,6 +197,12 @@ class ReflectionClusterRead(_OrmBase):
     computed_at: datetime
 
 
+class PrerequisiteAdvisory(BaseModel):
+    topic: str
+    reason: str
+    attempted: bool = False
+
+
 class RecommendationRead(BaseModel):
     id: str | None = None
     routing: str
@@ -206,6 +213,10 @@ class RecommendationRead(BaseModel):
     videos: list[dict[str, Any]] = []
     notes: list[dict[str, Any]] = []
     socratic_seed_message: str | None = None
+    prerequisite_advisory: PrerequisiteAdvisory | None = None
+
+
+RecommendationResponse = RecommendationRead
 
 
 class AssessmentEntry(BaseModel):
@@ -556,6 +567,8 @@ class QuizAttemptCreate(BaseModel):
 class QuizAttemptRead(_OrmBase):
     id: UUID
     score: float | None
+    score_ratio: float | None = None
+    passing_ratio: float | None = None
     quiz_version: int = 1
     points_earned: float | None = None
     max_points: float | None = None
@@ -674,6 +687,7 @@ class ProgressRecommendationsResponse(BaseModel):
     subject_id: str | None = None
     subject_name: str | None = None
     weak_topics: list[WeakTopicRecommendationGroup]
+    developing_topics: list[WeakTopicRecommendationGroup] = []
     insufficient_evidence_topics: list[InsufficientEvidenceTopic]
     all_topics_strong: bool
     total_tracked_topics: int

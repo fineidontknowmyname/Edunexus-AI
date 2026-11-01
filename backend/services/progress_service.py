@@ -4,11 +4,19 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from backend.core.prerequisites import load_prerequisite_map
-from backend.models.db import Class, Engagement, InteractionPattern, MasteryTrend, Quiz, QuizAttempt, TopicMastery
+from backend.core.prerequisites import load_prerequisite_map, load_topic_graph_db, topic_names_db
+from backend.core.time_utils import local_today
+from backend.core.tracking_constants import (
+    MASTERED_THRESHOLD,
+    TOPIC_REVIEW_DUE_DAYS,
+    URGENT_THRESHOLD,
+    WEAK_THRESHOLD,
+)
+from backend.models.db import Class, Engagement, InteractionPattern, MasteryTrend, Quiz, QuizAttempt, TopicMastery, User
 from backend.services import context_service, evidence_service
+from backend.services.mastery_v2 import normalize_topic_key
 
-STALE_AFTER_DAYS = 7
+STALE_AFTER_DAYS = TOPIC_REVIEW_DUE_DAYS
 
 
 def calculate_mastery(scores_most_recent_first: list[float]) -> float:
@@ -52,6 +60,7 @@ def _topic_score_history(db: Session, student_id: str, class_id: str, topic: str
         .order_by(QuizAttempt.completed_at.desc())
         .all()
     )
+    target_key = normalize_topic_key(topic)
     scores: list[float] = []
     for attempt in attempts:
         if not attempt.topic_scores:
@@ -60,8 +69,15 @@ def _topic_score_history(db: Session, student_id: str, class_id: str, topic: str
             topic_scores: dict[str, float] = json.loads(attempt.topic_scores)
         except json.JSONDecodeError:
             continue
-        if topic in topic_scores:
-            scores.append(topic_scores[topic])
+        matched_val = None
+        for k, v in topic_scores.items():
+            if normalize_topic_key(k) == target_key:
+                matched_val = v
+        if matched_val is not None:
+            try:
+                scores.append(float(matched_val))
+            except (TypeError, ValueError):
+                pass
     return scores
 
 
@@ -110,7 +126,7 @@ def update_mastery_after_attempt(
         }
         print(f"[PROGRESS] Mastery updated: student={student_id} topic={topic} score={mastery_score:.3f} trend={trend.value} attempts={attempt_count}")
 
-    db.commit()
+    db.flush()
     return updated_topics
 
 
@@ -211,33 +227,89 @@ def update_mastery_v2_after_attempt(
         for tm_row in tm_rows:
             tm_row.mastery_v2 = json.dumps(dict_res)
 
-    db.commit()
+    db.flush()
     return v2_results
 
 
 def _assign_priority(attempted: bool, score: float, in_scope: bool, days_remaining: int | None) -> int:
-    if attempted and score < 0.40:
+    if attempted and score < URGENT_THRESHOLD:
         return 0
     if not attempted and in_scope and days_remaining is not None and days_remaining <= 7:
         return 1
-    if attempted and 0.40 <= score < 0.60:
+    if attempted and URGENT_THRESHOLD <= score < WEAK_THRESHOLD:
         return 2
     if not attempted:
         return 3
-    if 0.60 <= score < 0.80:
+    if WEAK_THRESHOLD <= score < MASTERED_THRESHOLD:
         return 4
     return 5
+
+
+def get_syllabus_topics_for_class(db: Session, class_id: str) -> list[str]:
+    class_row = db.get(Class, class_id)
+    if class_row and class_row.subject_id:
+        db_topics = topic_names_db(db, str(class_row.subject_id))
+        if db_topics:
+            return db_topics
+    if class_row and class_row.subject:
+        legacy_map = load_prerequisite_map(class_row.subject)
+        if legacy_map:
+            return list(legacy_map.keys())
+    return []
+
+
+def compute_dashboard_summary(
+    mastery: dict[str, Any] | list[float],
+    syllabus_topics: list[str] | int = 0,
+) -> dict[str, Any]:
+    if isinstance(syllabus_topics, int):
+        total_syllabus_topics = syllabus_topics
+    else:
+        total_syllabus_topics = len(syllabus_topics)
+
+    if isinstance(mastery, list):
+        assessed_scores = [float(s) for s in mastery]
+        attempted_topics = len(assessed_scores)
+    else:
+        assessed_entries = [v for v in mastery.values() if v.get("attempts", 0) > 0]
+        assessed_scores = [v["score"] for v in assessed_entries]
+        attempted_topics = len(assessed_entries)
+
+    assessed_average = (
+        round(sum(assessed_scores) / len(assessed_scores), 4)
+        if assessed_scores
+        else None
+    )
+    mastered_topics = sum(1 for s in assessed_scores if s >= MASTERED_THRESHOLD)
+    coverage_ratio = (
+        round(attempted_topics / total_syllabus_topics, 4)
+        if total_syllabus_topics > 0
+        else 0.0
+    )
+    return {
+        "assessed_average": assessed_average,
+        "attempted_topics": attempted_topics,
+        "mastered_topics": mastered_topics,
+        "total_syllabus_topics": total_syllabus_topics,
+        "coverage_ratio": coverage_ratio,
+    }
 
 
 def get_learning_path(db: Session, student_id: str, class_id: str) -> dict[str, Any]:
     student_context = context_service.assemble_student_context(db, student_id, class_id)
     class_context = context_service.assemble_class_context(db, class_id)
 
-    vocabulary = list(load_prerequisite_map(class_context["subject"]).keys())
+    subject_id = class_context.get("subject_id")
+    topic_graph = load_topic_graph_db(db, subject_id) if subject_id else {}
+    if topic_graph:
+        vocabulary = list(topic_graph.keys())
+    else:
+        vocabulary = list(load_prerequisite_map(class_context["subject"]).keys())
+
     uploaded_topics = set(context_service.get_uploaded_topics(db, class_id, class_context["subject"]))
     mastery = student_context["mastery"]
     already_tracked = set(mastery.keys())
-    syllabus_topics = [t for t in vocabulary if t in uploaded_topics or t in already_tracked]
+    syllabus_topics = [t for t in vocabulary if t in uploaded_topics or t in already_tracked or not uploaded_topics]
     upcoming = student_context.get("upcoming_focus")
     topics_in_scope = set(upcoming["topics_in_scope"]) if upcoming else set()
     days_remaining = upcoming["days_remaining"] if upcoming else None
@@ -272,14 +344,18 @@ def get_dashboard(db: Session, student_id: str, class_id: str) -> dict[str, Any]
     student_context = context_service.assemble_student_context(db, student_id, class_id)
     mastery = student_context["mastery"]
 
-    engagement_row = db.query(Engagement).filter(Engagement.student_id == student_id).first()
-    engagement = {
-        "current_streak": engagement_row.current_streak if engagement_row else 0,
-        "longest_streak": engagement_row.longest_streak if engagement_row else 0,
-        "staleness_flag": engagement_row.staleness_flag if engagement_row else False,
-    }
+    user = db.get(User, student_id)
+    user_tz = getattr(user, "timezone", "UTC") if user else "UTC"
+    today = local_today(user_tz)
 
-    now = datetime.utcnow()
+    engagement_row = (
+        db.query(Engagement)
+        .filter(Engagement.student_id == student_id, Engagement.class_id == class_id)
+        .first()
+    )
+    engagement = evidence_service.build_engagement_payload(engagement_row, today)
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     stale_cutoff = now - timedelta(days=STALE_AFTER_DAYS)
     interaction_rows = db.query(InteractionPattern).filter(
         InteractionPattern.student_id == student_id, evidence_service.interaction_scope(class_id)
@@ -314,6 +390,9 @@ def get_dashboard(db: Session, student_id: str, class_id: str) -> dict[str, Any]
     except Exception as exc:
         print(f"[PROGRESS WARNING] Failed to parse mastery_v2 for dashboard: {exc}")
 
+    syllabus_topics = get_syllabus_topics_for_class(db, class_id)
+    summary = compute_dashboard_summary(mastery, syllabus_topics)
+
     return {
         "mastery": [
             {
@@ -328,4 +407,5 @@ def get_dashboard(db: Session, student_id: str, class_id: str) -> dict[str, Any]
         "engagement": engagement,
         "upcoming_focus": student_context.get("upcoming_focus"),
         "stale_topics": stale_topics,
+        "summary": summary,
     }

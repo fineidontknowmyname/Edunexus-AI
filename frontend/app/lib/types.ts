@@ -259,6 +259,8 @@ export interface QuizAttemptSummary {
   quiz_title?: string;
   quiz_version?: number;
   score: number;
+  score_ratio?: number;
+  passing_ratio?: number;
   topic_scores: Record<string, number>;
   completed_at: string | null;
 }
@@ -271,6 +273,8 @@ export interface QuizAttemptDetail {
   quiz_title?: string;
   quiz_version?: number;
   score: number;
+  score_ratio?: number;
+  passing_ratio?: number;
   topic_scores: Record<string, number>;
   completed: boolean;
   completed_at: string | null;
@@ -300,6 +304,8 @@ export type RoutingMap = Record<string, RoutingLabel>;
 export interface QuizAttemptResult {
   attempt_id: string;
   score: number;
+  score_ratio?: number;
+  passing_ratio?: number;
   class_id?: string | null;
   topic_scores: Record<string, number>;
   results: {
@@ -405,11 +411,34 @@ export interface DashboardUpcomingFocus {
   weak_topics_in_scope: string[];
 }
 
+export interface EngagementPayload {
+  current_streak: number;
+  longest_streak: number;
+  staleness_flag: boolean;
+  total_interactions?: number;
+  active_days?: number;
+  last_interaction?: string | null;
+  last_interaction_date?: string | null;
+  is_inactive?: boolean;
+  total_messages?: number;
+  total_sessions?: number;
+  has_activity?: boolean;
+}
+
+export interface DashboardSummary {
+  assessed_average: number | null;
+  attempted_topics: number;
+  mastered_topics: number;
+  total_syllabus_topics: number;
+  coverage_ratio: number;
+}
+
 export interface DashboardResponse {
   mastery: DashboardMasteryEntry[];
-  engagement: { current_streak: number; longest_streak: number; staleness_flag: boolean };
+  engagement: EngagementPayload;
   upcoming_focus: DashboardUpcomingFocus | null;
   stale_topics: string[];
+  summary?: DashboardSummary;
 }
 
 export interface HeatmapEntry {
@@ -431,10 +460,20 @@ export interface ClassConfusionEntry {
   computed_at: string;
 }
 
+export interface ClassMetrics {
+  class_average_mastery: number | null;
+  assessed_student_count: number;
+  enrolled_student_count: number;
+}
+
 export interface ClassInsightsResponse {
   heatmap: HeatmapEntry[];
   misconceptions: MisconceptionSummary[];
   class_confusion: ClassConfusionEntry[];
+  class_average_mastery?: number | null;
+  assessed_student_count?: number;
+  enrolled_student_count?: number;
+  metrics?: ClassMetrics;
 }
 
 export interface AtRiskStudent {
@@ -464,6 +503,17 @@ export interface EducatorNoteEntry {
   created_at: string;
 }
 
+export interface StudentAttemptSummary {
+  id: string;
+  quiz_id: string;
+  quiz_title?: string;
+  score: number | null;
+  score_ratio: number | null;
+  completed: boolean;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
 export interface StudentFullContext {
   context: {
     student_id: string;
@@ -472,12 +522,13 @@ export interface StudentFullContext {
     strong_topics: string[];
     misconceptions: { topic: string; description: string }[];
     interaction_patterns: Record<string, { questions_asked: number; last_asked: string | null }>;
-    engagement: { current_streak: number; last_interaction: string | null; staleness_flag: boolean };
+    engagement: EngagementPayload;
     latest_educator_note: string | null;
     upcoming_focus: DashboardUpcomingFocus | null;
   };
   notes: EducatorNoteEntry[];
   learning_path: LearningPathEntry[];
+  attempts?: StudentAttemptSummary[];
 }
 
 export interface ReflectionCreate {
@@ -586,6 +637,7 @@ export interface ProgressRecommendationsResponse {
   subject_id?: string | null;
   subject_name?: string | null;
   weak_topics: WeakTopicRecommendationGroup[];
+  developing_topics?: WeakTopicRecommendationGroup[];
   insufficient_evidence_topics?: InsufficientEvidenceTopic[];
   insufficient_evidence?: InsufficientEvidenceTopic[];
   all_topics_strong?: boolean;
@@ -631,16 +683,23 @@ export interface RecommendationNote {
 
 export type RoutingLabel = "reinforce" | "advance" | "intervene";
 
+export interface PrerequisiteAdvisory {
+  topic: string;
+  reason: string;
+  attempted?: boolean;
+}
+
 export interface RecommendationResponse {
   id?: string | null;
   routing: RoutingLabel;
   learning_tag: string | null;
-  mode: "static" | "ai_session" | "diagnostic" | "verification" | "advance" | "initial_assessment";
+  mode: "static" | "ai_session" | "diagnostic" | "verification" | "advance" | "initial_assessment" | "reinforce";
   sections: RecommendationSection[];
   videos: RecommendationVideo[];
   notes?: RecommendationNote[];
   socratic_seed_message: string | null;
   reason?: string | null;
+  prerequisite_advisory?: PrerequisiteAdvisory | null;
 }
 
 export interface LearningResourceRow {

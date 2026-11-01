@@ -3,8 +3,8 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from sqlalchemy import func, or_
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,8 @@ from backend.api import access
 from backend.api.dependencies import CurrentUser, RequireEducator, RequireStudent
 from backend.core.database import get_db
 from backend.core.rate_limit import rate_limit
+from backend.core.time_utils import capture_client_timezone
+from backend.core.tracking_constants import DUPLICATE_SUBMISSION_WINDOW_SECONDS
 from backend.models import schemas
 from backend.models.db import (
     QuestionReport,
@@ -31,7 +33,6 @@ router = APIRouter(prefix="/quizzes", tags=["quizzes"])
 DbDep = Annotated[Session, Depends(get_db)]
 GenerateRateLimit = Depends(rate_limit("quiz-generate", max_requests=6, window_seconds=600))
 TopicQuizRateLimit = Depends(rate_limit("topic-quiz-generate", max_requests=10, window_seconds=300))
-DUPLICATE_WINDOW = timedelta(seconds=30)
 
 
 def _question_out(q: QuizQuestion, include_answer: bool) -> dict:
@@ -303,6 +304,8 @@ def my_attempts(
             "quiz_title": a.quiz.title if a.quiz else "Quiz",
             "quiz_version": a.quiz_version,
             "score": a.score,
+            "score_ratio": round(a.score / 100.0, 4) if a.score is not None else None,
+            "passing_ratio": round(a.quiz.passing_percentage / 100.0, 4) if (a.quiz and a.quiz.passing_percentage is not None) else None,
             "topic_scores": json.loads(a.topic_scores) if a.topic_scores else {},
             "completed_at": a.completed_at.isoformat() if a.completed_at else None,
         }
@@ -315,9 +318,9 @@ def get_attempt_detail(
     attempt_id: str,
     db: DbDep,
     current_user: CurrentUser,
-    _student: Annotated[None, RequireStudent],
+    _student: Any = None,
 ):
-    """Student retrieves question-level results and answers for their completed attempt."""
+    """Retrieve question-level results and answers for an attempt (owning student or class educator)."""
     try:
         att_uuid = uuid.UUID(attempt_id)
     except ValueError:
@@ -325,10 +328,23 @@ def get_attempt_detail(
 
     attempt = (
         db.query(QuizAttempt)
-        .filter(QuizAttempt.id == att_uuid, QuizAttempt.student_id == current_user.id)
+        .filter(QuizAttempt.id == att_uuid)
         .first()
     )
     if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found.")
+
+    viewer_role: str | None = None
+    if str(attempt.student_id) == str(current_user.id):
+        viewer_role = "student"
+    else:
+        try:
+            access.owned_quiz(db, attempt.quiz_id, current_user)
+            viewer_role = "educator"
+        except Exception:
+            viewer_role = None
+
+    if viewer_role is None:
         raise HTTPException(status_code=404, detail="Attempt not found.")
 
     answers = (
@@ -362,8 +378,8 @@ def get_attempt_detail(
             except Exception:
                 parsed_chosen = raw_chosen
 
-            points_pos = float(ans.points_possible) if ans.points_possible is not None else (float(qq.points) if qq and qq.points is not None else 1.0)
-            earned_pts = float(ans.earned_points) if ans.earned_points is not None else (points_pos if ans.is_correct else 0.0)
+            points_pos = float(ans.max_points) if ans.max_points is not None else (float(qq.points) if qq and qq.points is not None else 1.0)
+            earned_pts = float(ans.points_awarded) if ans.points_awarded is not None else (points_pos if ans.is_correct else 0.0)
 
             results.append({
                 "question_id": qid_str,
@@ -413,14 +429,14 @@ def get_attempt_detail(
     if attempt.quiz and attempt.quiz.class_id:
         masteries = (
             db.query(TopicMastery)
-            .filter(TopicMastery.student_id == current_user.id, TopicMastery.class_id == attempt.quiz.class_id)
+            .filter(TopicMastery.student_id == attempt.student_id, TopicMastery.class_id == attempt.quiz.class_id)
             .all()
         )
         for m in masteries:
             updated_mastery[m.topic] = {
                 "mastery_score": m.mastery_score,
                 "trend": m.trend.value if hasattr(m.trend, "value") else str(m.trend),
-                "attempt_count": m.attempt_count,
+                "attempt_count": getattr(m, "attempts_count", getattr(m, "attempt_count", 0)),
             }
 
     quiz_detail = None
@@ -439,10 +455,14 @@ def get_attempt_detail(
         "id": str(attempt.id),
         "attempt_id": str(attempt.id),
         "quiz_id": str(attempt.quiz_id),
+        "student_id": str(attempt.student_id),
+        "viewer_role": viewer_role,
         "class_id": str(attempt.quiz.class_id) if attempt.quiz and attempt.quiz.class_id else None,
         "quiz_title": attempt.quiz.title if attempt.quiz else "Quiz",
         "quiz_version": attempt.quiz_version,
         "score": attempt.score,
+        "score_ratio": round(attempt.score / 100.0, 4) if attempt.score is not None else None,
+        "passing_ratio": round(attempt.quiz.passing_percentage / 100.0, 4) if (attempt.quiz and attempt.quiz.passing_percentage is not None) else None,
         "topic_scores": json.loads(attempt.topic_scores) if attempt.topic_scores else {},
         "completed": attempt.completed,
         "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
@@ -689,6 +709,64 @@ async def regenerate_question_endpoint(
 
 
 # --- SPECIFIC QUIZ DETAIL & ACTIONS ---
+
+
+@router.get("/{quiz_id}/attempts")
+def list_quiz_attempts(
+    quiz_id: str,
+    db: DbDep,
+    current_user: CurrentUser,
+    _educator: Annotated[None, RequireEducator],
+    student_id: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Educator retrieves attempts for a quiz with pagination and optional student filter."""
+    quiz = access.owned_quiz(db, quiz_id, current_user)
+    query = (
+        db.query(QuizAttempt, User.full_name, User.email)
+        .join(User, QuizAttempt.student_id == User.id)
+        .filter(QuizAttempt.quiz_id == quiz.id)
+    )
+    if student_id:
+        try:
+            s_uuid = uuid.UUID(student_id)
+            query = query.filter(QuizAttempt.student_id == s_uuid)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid student ID.")
+
+    total = query.count()
+    rows = (
+        query.order_by(QuizAttempt.started_at.desc())
+        .offset(offset)
+        .limit(min(limit, 100))
+        .all()
+    )
+
+    items = [
+        {
+            "id": str(att.id),
+            "attempt_id": str(att.id),
+            "quiz_id": str(att.quiz_id),
+            "student_id": str(att.student_id),
+            "student_name": full_name or email,
+            "student_email": email,
+            "score": att.score,
+            "score_ratio": round(att.score / 100.0, 4) if att.score is not None else None,
+            "completed": att.completed,
+            "started_at": att.started_at.isoformat() if att.started_at else None,
+            "completed_at": att.completed_at.isoformat() if att.completed_at else None,
+        }
+        for att, full_name, email in rows
+    ]
+
+    return {
+        "quiz_id": str(quiz.id),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "items": items,
+    }
 
 
 @router.get("/{quiz_id}/faculty")
@@ -966,10 +1044,7 @@ def _claim_submission(db: Session, quiz: Quiz, student: User, answers_json: str)
             QuizAttempt.student_id == student.id,
             QuizAttempt.quiz_id == quiz.id,
             QuizAttempt.answers == answers_json,
-            or_(
-                QuizAttempt.completed.is_(True),
-                QuizAttempt.started_at >= datetime.utcnow() - DUPLICATE_WINDOW,
-            ),
+            QuizAttempt.started_at >= datetime.utcnow() - timedelta(seconds=DUPLICATE_SUBMISSION_WINDOW_SECONDS),
         )
         .first()
     )
@@ -987,7 +1062,7 @@ def _claim_submission(db: Session, quiz: Quiz, student: User, answers_json: str)
         quiz_version=quiz.version,
     )
     db.add(attempt)
-    db.commit()
+    db.flush()
     db.refresh(attempt)
     return attempt
 
@@ -1000,6 +1075,7 @@ async def submit_attempt(
     current_user: CurrentUser,
     _student: Annotated[None, RequireStudent],
     background_tasks: BackgroundTasks,
+    x_client_timezone: Annotated[str | None, Header(alias="X-Client-Timezone")] = None,
 ):
     quiz = access.enrolled_quiz(db, quiz_id, current_user)
     if quiz.status != ReviewStatus.approved:
@@ -1035,6 +1111,8 @@ async def submit_attempt(
     answers = {str(k): v for k, v in payload.answers.items()}
     answers_json = json.dumps(answers, sort_keys=True)
     attempt = _claim_submission(db, quiz, current_user, answers_json)
+    if x_client_timezone:
+        capture_client_timezone(current_user, x_client_timezone)
 
     try:
         result = await quiz_service.score_attempt(
@@ -1075,75 +1153,64 @@ async def submit_attempt(
         for row in answer_rows:
             db.add(QuizAttemptAnswer(**row))
 
-        db.commit()
-    except ValueError as e:
-        db.rollback()
+        db.flush()
+
+        updated_mastery = progress_service.update_mastery_after_attempt(
+            db, str(current_user.id), str(quiz.class_id), result["topic_scores"],
+            topic_passed=result.get("topic_passed"),
+        )
+        evidence_service.update_engagement(
+            db, current_user.id, quiz.class_id, count_as_message=False, tz_name=getattr(current_user, "timezone", "UTC")
+        )
+
         try:
-            incomp = db.get(QuizAttempt, attempt.id)
-            if incomp and not incomp.completed:
-                db.delete(incomp)
-                db.commit()
-        except Exception:
-            db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+            from backend.services import recommendation_service
+            recommendation_service.link_quiz_attempt_to_recommendations(
+                db,
+                student_id=str(current_user.id),
+                class_id=str(quiz.class_id),
+                attempt_id=str(attempt.id),
+                topic_scores=result["topic_scores"],
+                updated_mastery=updated_mastery,
+            )
+        except Exception as exc:
+            print(f"[QUIZ WARNING] Failed to link attempt to recommendations: {exc}")
+
+        from backend.core.config import get_settings
+
+        if get_settings().mastery_v2_enabled:
+            try:
+                v2_out = progress_service.update_mastery_v2_after_attempt(
+                    db, str(current_user.id), result["topic_scores"], class_id=str(quiz.class_id)
+                )
+                for topic_name, v2_data in v2_out.items():
+                    if topic_name in updated_mastery:
+                        updated_mastery[topic_name]["mastery_v2"] = v2_data
+            except Exception as exc:
+                print(f"[QUIZ WARNING] Failed to compute mastery v2 for student {current_user.id}: {exc}")
+
+        attempt_id_str = str(attempt.id)
+        class_id_str = str(quiz.class_id) if quiz and quiz.class_id else None
+        passing_percentage = quiz.passing_percentage if quiz else None
+
+        db.commit()
     except HTTPException:
         db.rollback()
-        try:
-            incomp = db.get(QuizAttempt, attempt.id)
-            if incomp and not incomp.completed:
-                db.delete(incomp)
-                db.commit()
-        except Exception:
-            db.rollback()
         raise
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as exc:
         db.rollback()
-        try:
-            incomp = db.get(QuizAttempt, attempt.id)
-            if incomp and not incomp.completed:
-                db.delete(incomp)
-                db.commit()
-        except Exception:
-            db.rollback()
         raise HTTPException(status_code=500, detail=f"Quiz scoring or saving failed: {exc}")
 
-    updated_mastery = progress_service.update_mastery_after_attempt(
-        db, str(current_user.id), str(quiz.class_id), result["topic_scores"],
-        topic_passed=result.get("topic_passed"),
-    )
-    evidence_service.update_engagement(db, current_user.id, count_as_message=False)
-
-    try:
-        from backend.services import recommendation_service
-        recommendation_service.link_quiz_attempt_to_recommendations(
-            db,
-            student_id=str(current_user.id),
-            class_id=str(quiz.class_id),
-            attempt_id=str(attempt.id),
-            topic_scores=result["topic_scores"],
-            updated_mastery=updated_mastery,
-        )
-    except Exception as exc:
-        print(f"[QUIZ WARNING] Failed to link attempt to recommendations: {exc}")
-
-    from backend.core.config import get_settings
-
-    if get_settings().mastery_v2_enabled:
-        try:
-            v2_out = progress_service.update_mastery_v2_after_attempt(
-                db, str(current_user.id), result["topic_scores"], class_id=str(quiz.class_id)
-            )
-            for topic_name, v2_data in v2_out.items():
-                if topic_name in updated_mastery:
-                    updated_mastery[topic_name]["mastery_v2"] = v2_data
-        except Exception as exc:
-            print(f"[QUIZ WARNING] Failed to compute mastery v2 for student {current_user.id}: {exc}")
-
     return {
-        "attempt_id": str(attempt.id),
+        "attempt_id": attempt_id_str,
         "score": result["score"],
+        "score_ratio": round(result["score"] / 100.0, 4) if result.get("score") is not None else None,
+        "passing_ratio": round(passing_percentage / 100.0, 4) if passing_percentage is not None else None,
         "topic_scores": result["topic_scores"],
         "results": result["results"],
         "updated_mastery": updated_mastery,
-        "class_id": str(quiz.class_id) if quiz and quiz.class_id else None,
+        "class_id": class_id_str,
     }

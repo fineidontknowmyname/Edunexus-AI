@@ -21,24 +21,13 @@ def upgrade() -> None:
     bind = op.get_bind()
 
     # ── W7: Misconception FK ondelete='SET NULL' ─────────────────────────────
-    # Drop existing foreign key on misconceptions.source_quiz_attempt_id
-    try:
-        op.drop_constraint(
-            "misconceptions_source_quiz_attempt_id_fkey",
-            "misconceptions",
-            type_="foreignkey",
-        )
-    except Exception:
-        pass
-
-    try:
-        op.drop_constraint(
-            "fk_misconceptions_source_quiz_attempt_id",
-            "misconceptions",
-            type_="foreignkey",
-        )
-    except Exception:
-        pass
+    # Drop existing foreign key on misconceptions.source_quiz_attempt_id if exists
+    bind.execute(
+        text("ALTER TABLE misconceptions DROP CONSTRAINT IF EXISTS misconceptions_source_quiz_attempt_id_fkey")
+    )
+    bind.execute(
+        text("ALTER TABLE misconceptions DROP CONSTRAINT IF EXISTS fk_misconceptions_source_quiz_attempt_id")
+    )
 
     op.create_foreign_key(
         "fk_misconceptions_source_quiz_attempt_id",

@@ -72,6 +72,8 @@ function QuizAttemptViewInner() {
         result={{
           attempt_id: attempt.attempt_id || attempt.id,
           score: attempt.score,
+          score_ratio: attempt.score_ratio,
+          passing_ratio: attempt.passing_ratio,
           topic_scores: attempt.topic_scores || {},
           results: attempt.results || [],
           updated_mastery: attempt.updated_mastery || {},

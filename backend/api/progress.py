@@ -7,6 +7,7 @@ from backend.api import access
 from backend.api.dependencies import CurrentUser, RequireEducator, RequireStudent
 from backend.core.database import get_db
 from backend.models import schemas
+from backend.models.db import Quiz, QuizAttempt
 from backend.services import context_service, insights_service, progress_service, recommendation_service, routing_service
 
 router = APIRouter(prefix="/progress", tags=["progress"])
@@ -76,8 +77,32 @@ def student_full_context(
     student_context = context_service.assemble_student_context(db, student_id, str(class_row.id))
     notes = insights_service.get_educator_notes(db, student_id, str(class_row.id))
     learning_path = progress_service.get_learning_path(db, student_id, str(class_row.id))
+
+    attempts = (
+        db.query(QuizAttempt, Quiz.title)
+        .join(Quiz, QuizAttempt.quiz_id == Quiz.id)
+        .filter(QuizAttempt.student_id == student_id, Quiz.class_id == class_row.id)
+        .order_by(QuizAttempt.started_at.desc())
+        .limit(20)
+        .all()
+    )
+    attempts_out = [
+        {
+            "id": str(att.id),
+            "quiz_id": str(att.quiz_id),
+            "quiz_title": title,
+            "score": att.score,
+            "score_ratio": round(att.score / 100.0, 4) if att.score is not None else None,
+            "completed": att.completed,
+            "started_at": att.started_at.isoformat() if att.started_at else None,
+            "completed_at": att.completed_at.isoformat() if att.completed_at else None,
+        }
+        for att, title in attempts
+    ]
+
     return {
         "context": student_context,
         "notes": notes,
         "learning_path": learning_path["path"],
+        "attempts": attempts_out,
     }

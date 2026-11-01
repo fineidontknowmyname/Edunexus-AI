@@ -12,8 +12,8 @@ from backend.core.security import (
     hash_refresh_token,
     verify_password,
 )
-from backend.models.db import Engagement, RefreshToken, User, UserRole
-from backend.services.context_service import check_staleness
+from backend.core.time_utils import capture_client_timezone
+from backend.models.db import RefreshToken, User, UserRole
 
 settings = get_settings()
 
@@ -45,15 +45,6 @@ def register_user(
     )
     db.add(user)
     db.flush()
-
-    if role == UserRole.student:
-        engagement = Engagement(
-            student_id=user.id,
-            current_streak=0,
-            longest_streak=0,
-        )
-        db.add(engagement)
-        print(f"[AUTH] Bootstrapped Engagement row for student {user.id}")
 
     db.commit()
     db.refresh(user)
@@ -92,7 +83,7 @@ def _revoke_all_for_user(db: Session, user_id: UUID) -> None:
     print(f"[AUTH] Revoked all active refresh tokens for user {user_id}")
 
 
-def login_user(db: Session, email: str, password: str) -> dict:
+def login_user(db: Session, email: str, password: str, client_timezone: str | None = None) -> dict:
     print(f"[AUTH] Login attempt: email={email}")
 
     user: User | None = db.query(User).filter(User.email == email.lower()).first()
@@ -112,8 +103,8 @@ def login_user(db: Session, email: str, password: str) -> dict:
             detail="Account is deactivated. Contact support.",
         )
 
-    if user.role == UserRole.student:
-        check_staleness(db, user.id)
+    if client_timezone:
+        capture_client_timezone(user, client_timezone)
 
     access_token = create_access_token(user_id=user.id, role=user.role.value)
     refresh_token = _create_refresh_token(db, user.id)

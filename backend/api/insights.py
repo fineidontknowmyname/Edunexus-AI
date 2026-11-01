@@ -22,10 +22,15 @@ def class_insights(
 ):
     class_row = access.owned_class(db, class_id, current_user)
     subject_id = str(class_row.subject_id) if class_row.subject_id else None
+    metrics = insights_service.get_class_metrics(db, str(class_row.id), subject_id)
     return {
         "heatmap": insights_service.get_class_heatmap(db, str(class_row.id), subject_id),
         "misconceptions": insights_service.get_common_misconceptions(db, str(class_row.id), subject_id),
         "class_confusion": insights_service.get_class_confusion(db, str(class_row.id), subject_id),
+        "class_average_mastery": metrics["class_average_mastery"],
+        "assessed_student_count": metrics["assessed_student_count"],
+        "enrolled_student_count": metrics["enrolled_student_count"],
+        "metrics": metrics,
     }
 
 
