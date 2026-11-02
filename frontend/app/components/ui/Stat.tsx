@@ -23,7 +23,7 @@ export function StatCard({
   const isHighlight = variant === "highlight";
 
   const toneClass = isHighlight
-    ? "text-panel-dark-text"
+    ? "text-highlight-text"
     : tone === "danger"
     ? "text-red"
     : tone === "warning"
@@ -35,11 +35,16 @@ export function StatCard({
   const body = (
     <div className="flex flex-col justify-between h-full">
       <div className="flex items-start justify-between gap-3">
-        <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted">
+        <span className={cn("font-mono text-[9px] uppercase tracking-[0.1em]", isHighlight ? "text-highlight-muted" : "text-muted")}>
           {label}
         </span>
         {icon && (
-          <span className="flex h-8 w-8 items-center justify-center border border-line bg-surface2 text-red font-serif text-sm">
+          <span className={cn(
+            "flex h-8 w-8 items-center justify-center font-serif text-sm",
+            isHighlight
+              ? "border border-highlight-icon-border bg-highlight-icon-bg text-highlight-icon-text"
+              : "border border-line bg-surface2 text-red"
+          )}>
             {icon}
           </span>
         )}
@@ -55,7 +60,7 @@ export function StatCard({
         </strong>
       </div>
       {hint && (
-        <div className="mt-2 font-mono text-[9px] uppercase tracking-[0.08em] text-muted">
+        <div className={cn("mt-2 font-mono text-[9px] uppercase tracking-[0.08em]", isHighlight ? "text-highlight-muted" : "text-muted")}>
           {hint}
         </div>
       )}
@@ -65,7 +70,7 @@ export function StatCard({
   const classes = cn(
     "group block p-5 sm:p-6 min-w-0 transition-colors duration-200 border border-line",
     isHighlight
-      ? "bg-panel-dark text-panel-dark-text shadow-shadow"
+      ? "border-highlight-border bg-highlight-bg text-highlight-text shadow-shadow"
       : "bg-surface hover:bg-surface2"
   );
 
@@ -161,7 +166,13 @@ export function ProgressBar({
 }) {
   const pct = Math.max(0, Math.min(100, Math.round(value * 100)));
   const resolved = tone ?? masteryTone(value);
-  const color = resolved === "green" ? "bg-green" : "bg-red";
+  const color = {
+    green: "bg-success",
+    amber: "bg-warning",
+    red: "bg-danger",
+    blue: "bg-info",
+    teal: "bg-accent-teal",
+  }[resolved];
 
   return (
     <div

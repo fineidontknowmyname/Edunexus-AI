@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   BookOpen,
-  Compass,
   ListChecks,
   MessageSquare,
   Route,
@@ -12,6 +11,7 @@ import {
 import { useApi } from "../../lib/hooks/useApi";
 import { useAuth } from "../../lib/hooks/useAuth";
 import { firstName, percent, plural } from "../../lib/format";
+import { getRecommendationPresentation, type RecommendationMode } from "../../lib/recommendationPresentation";
 import type {
   AvailableQuiz,
   ClassRow,
@@ -28,6 +28,7 @@ import { KpiStrip, KpiCell, FocusRow, ProgressBar } from "../../components/ui/St
 import { ProgressRing } from "../../components/ui/DataVisualizations";
 import { StudentClassGate } from "../../components/layout/StudentClassGate";
 import { guidedSessionHref } from "../../components/progress/RecommendationPanel";
+import { RecommendationModeBanner } from "../../components/progress/RecommendationModeBanner";
 import { TopicQuizPrepModal } from "../../components/quiz/TopicQuizPrepModal";
 
 function greeting(): string {
@@ -69,6 +70,14 @@ function StudentHome({ activeClass, picker }: { activeClass: ClassRow; picker: (
   const coverageRatio = summary?.coverage_ratio ?? (totalSyllabus > 0 ? attemptedCount / totalSyllabus : 0);
   const next = path.data ? pickNext(path.data.path) : null;
   const nextRouting = next ? routing.data?.[next.topic] : undefined;
+  const nextMode: RecommendationMode | null = next
+    ? next.attempts === 0
+      ? "initial_assessment"
+      : nextRouting === "intervene"
+      ? "ai_session"
+      : "static"
+    : null;
+  const nextPresentation = nextMode ? getRecommendationPresentation(nextMode) : null;
   const interveneTopics = Object.entries(routing.data ?? {})
     .filter(([, label]) => label === "intervene")
     .map(([topic]) => topic);
@@ -188,11 +197,7 @@ function StudentHome({ activeClass, picker }: { activeClass: ClassRow; picker: (
                   </div>
                 </div>
 
-                <p className="font-sans text-xs text-muted mt-2 leading-relaxed">
-                  {next.attempts === 0
-                    ? "Initial diagnostic quiz needed to calibrate mastery on this topic."
-                    : `Estimated: ${percent(next.mastery_score)} across ${plural(next.attempts, "attempt")}.`}
-                </p>
+                {nextMode && <div className="mt-3"><RecommendationModeBanner mode={nextMode} /></div>}
 
                 {next.attempts > 0 && (
                   <ProgressBar value={next.mastery_score} label={`${next.topic} estimated mastery`} className="mt-3 max-w-md" />
@@ -205,14 +210,15 @@ function StudentHome({ activeClass, picker }: { activeClass: ClassRow; picker: (
                     icon={<ListChecks className="h-3.5 w-3.5" aria-hidden />}
                     onClick={() => setPrepModalTopic(next.topic)}
                   >
-                    Take a Test →
+                    {nextPresentation?.primaryCta || "Take a Test"} →
                   </Button>
-                  <ButtonLink href="/progress" variant="outline" size="sm" icon={<BookOpen className="h-3.5 w-3.5" aria-hidden />}>
-                    Learn the Concept ↗
-                  </ButtonLink>
-                  {nextRouting === "intervene" && (
-                    <ButtonLink href={guidedSessionHref(next.topic)} variant="outline" size="sm" icon={<Compass className="h-3.5 w-3.5" aria-hidden />}>
-                      Tutor Session ↗
+                  {nextMode === "ai_session" ? (
+                    <ButtonLink href={guidedSessionHref(next.topic)} variant="outline" size="sm">
+                      {nextPresentation?.secondaryCta}
+                    </ButtonLink>
+                  ) : (
+                    <ButtonLink href="/progress" variant="outline" size="sm" icon={<BookOpen className="h-3.5 w-3.5" aria-hidden />}>
+                      {nextPresentation?.secondaryCta || "Learn Concept"}
                     </ButtonLink>
                   )}
                 </div>

@@ -4,7 +4,7 @@ import re
 from typing import Any
 import uuid
 
-from sqlalchemy import func, or_
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.core import config
@@ -14,9 +14,7 @@ from backend.core.tracking_constants import (
     classify_topic,
 )
 from backend.models.db import (
-    Chunk,
     Class,
-    Document,
     LearningResource,
     MasteryTrend,
     PrerequisiteMap,
@@ -28,68 +26,112 @@ from backend.models.db import (
     User,
     UserRole,
 )
-from backend.services import behavior_service, routing_service, topic_graph_service
+from backend.services import behavior_service, routing_service
+from backend.services.topic_grounding_service import (
+    TopicGrounding,
+    extract_page_number,
+    get_topic_grounding,
+)
 
 GUIDED_LEARNING_TAGS = {"needs-repetition"}
 STALLED_MIN_ATTEMPTS = 2
 STALLED_MASTERY_CEILING = WEAK_THRESHOLD
 
 
-def _curriculum_sections(
-    db: Session, class_id: str, subject_id: str, topic: str, embedding_model: Any, top_k: int = 5
-) -> list[dict[str, Any]]:
-    names, vectors = topic_graph_service.topic_anchors(db, subject_id, embedding_model)
-    if topic not in names:
-        return []
-    anchor_vector = vectors[names.index(topic)]
+def _normalize_topic_name(topic: str | None) -> str:
+    return re.sub(r"[\s-]+", " ", (topic or "").casefold()).strip()
 
-    distance_expr = Chunk.embedding.cosine_distance(anchor_vector)
-    rows = (
-        db.query(Chunk, distance_expr.label("distance"))
-        .join(Document, Chunk.document_id == Document.id)
-        .filter(
-            Document.class_id == class_id,
-            Document.deleted == False,  # noqa: E712
-            Chunk.subject_id == subject_id,
-            Chunk.topic == topic,
-        )
-        .order_by(distance_expr)
-        .limit(top_k)
-        .all()
+
+def _resolve_topic_row(
+    db: Session,
+    subject_id: str | None,
+    topic: str,
+    topic_id: str | None = None,
+) -> PrerequisiteMap | None:
+    if not subject_id:
+        return None
+    if topic_id:
+        try:
+            row = db.get(PrerequisiteMap, uuid.UUID(str(topic_id)))
+        except (ValueError, TypeError, AttributeError):
+            row = None
+        if row and str(row.subject_id) == str(subject_id):
+            return row
+    normalized_topic = _normalize_topic_name(topic)
+    return next(
+        (
+            row
+            for row in db.query(PrerequisiteMap)
+            .filter(PrerequisiteMap.subject_id == subject_id)
+            .all()
+            if _normalize_topic_name(row.topic) == normalized_topic
+        ),
+        None,
     )
-    return [{"chunk_id": str(chunk.id), "text": chunk.text, "similarity": 1 - distance} for chunk, distance in rows]
+
+
+def _mastery_v2_data(mastery: TopicMastery | None) -> dict[str, Any] | None:
+    if not mastery or not mastery.mastery_v2:
+        return None
+    raw = mastery.mastery_v2
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, json.JSONDecodeError) as exc:
+        print(f"[RECOMMENDATION WARNING] Invalid mastery_v2 for topic {mastery.topic}: {exc}")
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    from backend.services.mastery_v2 import apply_staleness
+
+    return apply_staleness(parsed)
+
+
+def _curriculum_sections(
+    grounding: TopicGrounding,
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "chunk_id": str(chunk.id),
+            "text": chunk.text,
+            "similarity": score,
+            "document_name": (
+                chunk.document.title or chunk.document.filename
+                if chunk.document
+                else None
+            ),
+            "page_number": extract_page_number(chunk),
+            "section_heading": chunk.section_heading,
+        }
+        for chunk, score in grounding.chunks
+    ]
 
 
 def _library_resources(
     db: Session, class_id: str, topic: str, subject_name: str | None = None, topic_id: str | None = None
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
-    Selects faculty-approved and peer-shared resources from the library for this topic and class.
-    Ranking order:
-      1. Educator-uploaded resources first (source: 'faculty')
-      2. Approved student-shared resources (source: 'student_suggested')
-      3. Helpful count descending
-      4. Recency descending
-      5. Automatically discovered YouTube candidates when no approved videos exist (source: 'auto')
+    Selects faculty-approved and peer-shared resources strictly scoped to this class.
+    Matching Tiers:
+      Tier 1: Exact topic match (or explicit topic_id match in content). match_type = "exact"
+      Tier 2: Graph relations via PrerequisiteMap (requires, related_concepts, ancestors). match_type = "related"
+      Tier 3: Keyword match of topic against resource title/content. match_type = "related"
+    Returns best tier first with educator-uploaded resources prioritized.
+    Only approved resources from the class are returned (no external search).
     """
     clean_topic = topic.strip()
-    topic_filters = [
-        func.lower(func.trim(LearningResource.topic)) == func.lower(clean_topic)
-    ]
-    if topic_id:
-        topic_filters.append(LearningResource.content.ilike(f'%"topic_id": "{topic_id}"%'))
+    topic_lower = clean_topic.lower()
 
     try:
         class_uuid = uuid.UUID(str(class_id))
     except (ValueError, TypeError, AttributeError):
         class_uuid = class_id
 
-    rows = (
+    # Retrieve all approved resources for this class
+    approved_rows = (
         db.query(LearningResource, User.role)
         .join(User, LearningResource.uploaded_by_id == User.id)
         .filter(
             LearningResource.class_id == class_uuid,
-            or_(*topic_filters),
             LearningResource.status == ReviewStatus.approved,
         )
         .order_by(
@@ -100,27 +142,174 @@ def _library_resources(
         .all()
     )
 
+    if not approved_rows:
+        return [], []
+
+    # Build graph relations for Tier 2
+    from backend.models.db import Class, PrerequisiteMap
+    class_row = db.get(Class, class_uuid)
+    subject_id = class_row.subject_id if class_row else None
+
+    ancestor_topics: list[str] = []
+    related_topic_names: set[str] = set()
+    related_topic_ids: set[str] = set()
+
+    if subject_id:
+        all_pm = (
+            db.query(PrerequisiteMap)
+            .filter(PrerequisiteMap.subject_id == subject_id)
+            .all()
+        )
+        pm_by_topic = {p.topic.strip().lower(): p for p in all_pm}
+        pm_by_id = {str(p.id): p for p in all_pm}
+
+        # Resolve starting node
+        start_node = None
+        if topic_id and str(topic_id) in pm_by_id:
+            start_node = pm_by_id[str(topic_id)]
+        elif topic_lower in pm_by_topic:
+            start_node = pm_by_topic[topic_lower]
+
+        if start_node:
+            queue = [start_node.topic.strip().lower()]
+            visited = set()
+            while queue:
+                curr = queue.pop(0)
+                if curr in visited:
+                    continue
+                visited.add(curr)
+                p = pm_by_topic.get(curr)
+                if p:
+                    related_topic_ids.add(str(p.id))
+                    for relation in (p.requires or []):
+                        relation_clean = relation.strip()
+                        relation_node = pm_by_id.get(relation_clean) or pm_by_topic.get(relation_clean.lower())
+                        relation_name = relation_node.topic.strip() if relation_node else relation_clean
+                        relation_key = relation_name.lower()
+                        if relation_node:
+                            related_topic_ids.add(str(relation_node.id))
+                        if relation_key not in visited:
+                            ancestor_topics.append(relation_name)
+                            related_topic_names.add(relation_key)
+                            queue.append(relation_key)
+                    for relation in (p.related_concepts or []):
+                        relation_clean = relation.strip()
+                        relation_node = pm_by_id.get(relation_clean) or pm_by_topic.get(relation_clean.lower())
+                        relation_name = relation_node.topic.strip() if relation_node else relation_clean
+                        relation_key = relation_name.lower()
+                        if relation_node:
+                            related_topic_ids.add(str(relation_node.id))
+                        if relation_key not in visited:
+                            ancestor_topics.append(relation_name)
+                            related_topic_names.add(relation_key)
+
+    tier_1_rows: list[tuple[LearningResource, Any, str]] = []
+    tier_2_rows: list[tuple[LearningResource, Any, str]] = []
+    tier_3_rows: list[tuple[LearningResource, Any, str]] = []
+
+    _STOP = {"and", "the", "for", "with", "from", "into", "that", "this"}
+
+    for r, role in approved_rows:
+        r_topic = (r.topic or "").strip().lower()
+        r_content = r.content or ""
+        r_title = (r.title or "").strip().lower()
+        metadata: dict[str, Any] = {}
+        if r_content:
+            try:
+                parsed_content = json.loads(r_content)
+                if isinstance(parsed_content, dict):
+                    metadata = parsed_content
+            except (TypeError, json.JSONDecodeError):
+                pass
+        resource_topic_id = str(metadata.get("topic_id") or "")
+
+        # Check Tier 1: exact topic match
+        is_exact = False
+        if r_topic == topic_lower:
+            is_exact = True
+        elif topic_id and resource_topic_id == str(topic_id):
+            is_exact = True
+
+        if is_exact:
+            tier_1_rows.append((r, role, "exact"))
+            continue
+
+        # Check Tier 2: graph relations
+        is_related = False
+        if r_topic in related_topic_names:
+            is_related = True
+        elif resource_topic_id in related_topic_ids:
+            is_related = True
+        else:
+            for anc in ancestor_topics:
+                if anc.lower() == r_topic:
+                    is_related = True
+                    break
+
+        if is_related:
+            tier_2_rows.append((r, role, "related"))
+            continue
+
+        # Check Tier 3: keyword match of topic against resource title/content
+        description = str(metadata.get("description") or "")
+        searchable_content = r_content.lower() if not metadata else ""
+        searchable_text = f"{r_title} {description.lower()} {searchable_content}"
+        if topic_lower in searchable_text:
+            tier_3_rows.append((r, role, "related"))
+        else:
+            words = [
+                word for word in re.findall(r"\w+", topic_lower)
+                if len(word) > 3 and word not in _STOP
+            ]
+            if words and any(re.search(rf"\b{re.escape(word)}\b", searchable_text) for word in words):
+                tier_3_rows.append((r, role, "related"))
+
+    # Return best tier first
+    ranked_rows: list[tuple[LearningResource, Any, str]] = []
+    if tier_1_rows:
+        ranked_rows.extend(tier_1_rows)
+        ranked_rows.extend(tier_2_rows)
+        ranked_rows.extend(tier_3_rows)
+    elif tier_2_rows:
+        def tier2_key(tup):
+            res = tup[0]
+            t_low = (res.topic or "").lower()
+            for idx, anc in enumerate(ancestor_topics):
+                if anc.lower() == t_low:
+                    return idx
+            return 999
+        sorted_tier_2 = sorted(tier_2_rows, key=tier2_key)
+        ranked_rows.extend(sorted_tier_2)
+        ranked_rows.extend(tier_3_rows)
+    elif tier_3_rows:
+        ranked_rows.extend(tier_3_rows)
+
     videos: list[dict[str, Any]] = []
     notes: list[dict[str, Any]] = []
 
-    for r, role in rows:
+    for r, role, match_type in ranked_rows:
         if r.resource_type == ResourceType.youtube and r.url:
             from backend.services import youtube_service
 
             meta: dict[str, Any] = {}
             if r.content:
                 try:
-                    meta = json.loads(r.content)
-                except Exception:
+                    parsed_meta = json.loads(r.content)
+                    meta = parsed_meta if isinstance(parsed_meta, dict) else {}
+                except (TypeError, json.JSONDecodeError):
                     meta = {}
 
             # Parse video ID safely from metadata or canonical URL. Never fabricate a fake video ID.
             vid = meta.get("video_id")
             if not vid or not isinstance(vid, str) or len(vid) != 11:
                 vid = youtube_service.extract_video_id(r.url)
+            if not vid:
+                continue
 
             is_educator = role in (UserRole.educator, UserRole.admin)
             source_tag = meta.get("source") or ("faculty" if is_educator else "student_suggested")
+            if source_tag == "auto":
+                continue
             channel_name = meta.get("channel") or ("Faculty Approved" if is_educator else "Student Shared")
             thumb = meta.get("thumbnail") or (f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg" if vid else None)
 
@@ -134,6 +323,15 @@ def _library_resources(
                 "embeddable": meta.get("embeddable", True),
                 "url": r.url,
                 "helpful_count": r.helpful_count,
+                "topic": r.topic,
+                "match_type": match_type,
+                "match_reason": (
+                    f"Matches this topic: {topic}"
+                    if match_type == "exact"
+                    else f"Same syllabus area: {r.topic}"
+                    if r_topic in related_topic_names and r.topic
+                    else f"Approved class resource mentions {topic}"
+                ),
             })
         elif r.resource_type == ResourceType.notes and r.content:
             raw_content = r.content
@@ -147,118 +345,85 @@ def _library_resources(
                 "truncated": truncated,
                 "author_role": role.value if hasattr(role, "value") else str(role),
                 "helpful_count": r.helpful_count,
+                "match_type": match_type,
+                "match_reason": (
+                    f"Matches this topic: {topic}"
+                    if match_type == "exact"
+                    else f"Approved class notes related to {topic}"
+                ),
             })
 
-    # When no curated or approved student videos exist, discover automatic candidates
-    if not videos:
-        from backend.services import youtube_service
-        auto_videos = youtube_service.discover_topic_videos(topic, subject_name)
-        videos.extend(auto_videos)
-
-    return videos, notes
+    unique_videos: list[dict[str, Any]] = []
+    seen_video_ids: set[str] = set()
+    for video in videos:
+        video_id = video["video_id"]
+        if video_id in seen_video_ids:
+            continue
+        seen_video_ids.add(video_id)
+        unique_videos.append(video)
+        if len(unique_videos) == 3:
+            break
+    return unique_videos, notes
 
 
 def _topic_course_documents(
-    db: Session, class_id: str, topic: str, topic_id: str | None = None
+    grounding: TopicGrounding, topic: str
 ) -> list[dict[str, Any]]:
-    """Retrieves faculty course documents strictly scoped to this class that have reliable topic association."""
-    clean_topic = topic.strip()
-    docs_found: dict[uuid.UUID, dict[str, Any]] = {}
-
-    try:
-        class_uuid = uuid.UUID(str(class_id))
-    except (ValueError, TypeError, AttributeError):
-        return []
-
-    # Source 1: Check canonical PrerequisiteMap for source_document_id
-    topic_row = None
-    if topic_id:
-        try:
-            topic_row = db.get(PrerequisiteMap, uuid.UUID(str(topic_id)))
-        except (ValueError, TypeError, AttributeError):
-            topic_row = None
-
-    if not topic_row:
-        class_row = db.get(Class, class_uuid)
-        if class_row and class_row.subject_id:
-            topic_row = (
-                db.query(PrerequisiteMap)
-                .filter(
-                    PrerequisiteMap.subject_id == class_row.subject_id,
-                    func.lower(func.trim(PrerequisiteMap.topic)) == func.lower(clean_topic),
-                )
-                .first()
-            )
-
-    if topic_row and topic_row.source_document_id:
-        doc = (
-            db.query(Document)
-            .filter(
-                Document.id == topic_row.source_document_id,
-                Document.class_id == class_uuid,
-                Document.deleted == False,  # noqa: E712
-            )
-            .first()
-        )
-        if doc:
-            docs_found[doc.id] = {
-                "document_id": str(doc.id),
-                "title": doc.title or f"{clean_topic} Course Notes",
+    """Build ready-document resources only from the shared ranked grounding result."""
+    documents: dict[str, dict[str, Any]] = {}
+    for chunk, _score in grounding.chunks:
+        doc = chunk.document
+        if not doc:
+            continue
+        doc_id = str(doc.id)
+        entry = documents.setdefault(
+            doc_id,
+            {
+                "document_id": doc_id,
+                "title": doc.title or doc.filename or f"{topic} Course Document",
                 "filename": doc.filename,
                 "mime_type": doc.mime_type or "application/pdf",
-                "page_number": topic_row.source_page_number,
+                "page_number": None,
                 "excerpt": None,
-            }
-
-    # Source 2: Chunks explicitly tagged with this topic in this class
-    chunk_rows = (
-        db.query(Chunk, Document)
-        .join(Document, Chunk.document_id == Document.id)
-        .filter(
-            Document.class_id == class_uuid,
-            Document.deleted == False,  # noqa: E712
-            func.lower(func.trim(Chunk.topic)) == func.lower(clean_topic),
+            },
         )
-        .order_by(Chunk.chunk_index)
-        .limit(5)
-        .all()
-    )
+        if entry["page_number"] is None:
+            entry["page_number"] = extract_page_number(chunk)
+        if not entry["excerpt"] and chunk.text:
+            entry["excerpt"] = chunk.text[:300]
 
-    for chunk, doc in chunk_rows:
-        if doc.id not in docs_found:
-            docs_found[doc.id] = {
-                "document_id": str(doc.id),
-                "title": doc.title or f"{clean_topic} Course Document",
-                "filename": doc.filename,
-                "mime_type": doc.mime_type or "application/pdf",
-                "page_number": chunk.page_number,
-                "excerpt": chunk.text[:300] if chunk.text else None,
+    resources = []
+    for entry in documents.values():
+        mime = entry["mime_type"]
+        format_label = (
+            "PDF" if "pdf" in mime.casefold()
+            else "Image" if "image" in mime.casefold()
+            else "Document"
+        )
+        page_info = f" · Page {entry['page_number']}" if entry["page_number"] else ""
+        doc_id = entry["document_id"]
+        resources.append(
+            {
+                "id": f"doc-{doc_id}",
+                "title": entry["title"],
+                "resource_type": "notes",
+                "document_id": doc_id,
+                "file_url": f"/api/v1/documents/{doc_id}/file",
+                "content": entry["excerpt"]
+                or f"Faculty course document: {entry['filename']} for topic {topic}.",
+                "content_snippet": entry["excerpt"],
+                "source": "faculty",
+                "channel": f"Faculty Document ({format_label}{page_info})",
+                "duration": format_label,
+                "action": "read",
+                "action_label": "Read Document",
+                "topic": topic,
+                "page_number": entry["page_number"],
+                "match_type": "related",
+                "match_reason": f"Matched approved curriculum content for {topic}",
             }
-        elif not docs_found[doc.id].get("excerpt") and chunk.text:
-            docs_found[doc.id]["excerpt"] = chunk.text[:300]
-
-    result = []
-    for d in docs_found.values():
-        doc_id = d["document_id"]
-        mime = d.get("mime_type") or "Document"
-        format_label = "PDF" if "pdf" in mime.lower() else "Image" if "image" in mime.lower() else "Document"
-        page_info = f" · Page {d['page_number']}" if d.get("page_number") else ""
-        result.append({
-            "id": f"doc-{doc_id}",
-            "title": d["title"],
-            "resource_type": "notes",
-            "document_id": doc_id,
-            "file_url": f"/api/v1/documents/{doc_id}/file",
-            "content": d.get("excerpt") or f"Faculty course document: {d.get('filename', 'document')} for topic {clean_topic}.",
-            "content_snippet": d.get("excerpt"),
-            "source": "faculty",
-            "channel": f"Faculty Document ({format_label}{page_info})",
-            "duration": format_label,
-            "action": "read",
-            "action_label": "Read Document",
-            "topic": clean_topic,
-        })
-    return result
+        )
+    return resources
 
 
 def _check_prerequisite_gap(
@@ -294,16 +459,10 @@ def _check_prerequisite_gap(
     for p in prereqs:
         m = prereq_masteries.get(p)
         if m is not None:
-            if m.mastery_v2:
-                try:
-                    data = json.loads(m.mastery_v2)
-                    from backend.services.mastery_v2 import apply_staleness
-                    data = apply_staleness(data)
-                    if data.get("mastery_band") == "low" and data.get("evidence_state") == "sufficient":
-                        return f"Your mastery on prerequisite '{p}' is low. We recommend strengthening '{p}' before advancing to '{topic}'."
-                except Exception:
-                    pass
-            elif m.mastery_score < 0.6 and m.attempt_count >= 1:
+            data = _mastery_v2_data(m)
+            if data and data.get("mastery_band") == "low" and data.get("evidence_state") == "sufficient":
+                return f"Your mastery on prerequisite '{p}' is low. We recommend strengthening '{p}' before advancing to '{topic}'."
+            elif data is None and m.mastery_score < 0.6 and m.attempt_count >= 1:
                 return f"Your mastery on prerequisite '{p}' is currently {int(m.mastery_score * 100)}%. Strengthening '{p}' first will help."
 
     return None
@@ -415,6 +574,7 @@ def get_recommendation(
     subject_id: str | None,
     topic: str,
     embedding_model: Any,
+    topic_id: str | None = None,
 ) -> dict[str, Any]:
     routing = routing_service.get_topic_routing(db, student_id, class_id, topic)
     learning_tag = behavior_service.get_learning_tag(db, student_id, subject_id, topic) if subject_id else None
@@ -425,22 +585,32 @@ def get_recommendation(
     )
 
     settings = config.get_settings()
-    v2_data: dict[str, Any] | None = None
-    if settings.mastery_v2_enabled and mastery and mastery.mastery_v2:
-        try:
-            v2_data = json.loads(mastery.mastery_v2)
-            from backend.services.mastery_v2 import apply_staleness
-            v2_data = apply_staleness(v2_data)
-        except Exception:
-            v2_data = None
+    v2_data = _mastery_v2_data(mastery) if settings.mastery_v2_enabled else None
 
-    # Retrieve peer resources from internal library and curriculum sections
-    sections: list[dict[str, Any]] = []
-    if subject_id and embedding_model:
-        sections = _curriculum_sections(db, class_id, subject_id, topic, embedding_model)
     subject_row = db.get(Subject, subject_id) if subject_id else None
     subject_name = subject_row.name if subject_row else None
-    videos, notes = _library_resources(db, class_id, topic, subject_name)
+    topic_row = _resolve_topic_row(db, subject_id, topic, topic_id)
+    canonical_topic = topic_row.topic if topic_row else topic.strip()
+    resolved_topic_id = str(topic_row.id) if topic_row else None
+    grounding = (
+        get_topic_grounding(
+            db,
+            class_id,
+            subject_name,
+            subject_id,
+            canonical_topic,
+            topic_row,
+            embedding_model,
+        )
+        if subject_id
+        else TopicGrounding([])
+    )
+    sections = _curriculum_sections(grounding)
+    documents = _topic_course_documents(grounding, canonical_topic)
+
+    videos, notes = _library_resources(
+        db, class_id, canonical_topic, subject_name, topic_id=resolved_topic_id
+    )
 
     mode = "static"
     reason: str | None = None
@@ -458,6 +628,10 @@ def get_recommendation(
         mode = "ai_session"
         reason = prereq_reason
         socratic_seed = topic
+
+    elif settings.mastery_v2_enabled and v2_data is None:
+        mode = "initial_assessment"
+        reason = f"We do not have current assessment evidence for {topic}. Take an initial assessment to establish your baseline."
 
     # Step 3: Mastery v2 Evidence-State Decision Ladder
     elif v2_data is not None:
@@ -509,6 +683,9 @@ def get_recommendation(
             mode = "ai_session"
             reason = "Your scores on this topic haven't moved after a few attempts, so let's work through it together."
             socratic_seed = topic
+        elif mastery is None or (mastery.attempt_count or 0) == 0:
+            mode = "initial_assessment"
+            reason = f"You haven't attempted {topic} yet. Start with the shared resources below or take an initial quiz."
         else:
             mode = "static"
             reason = None
@@ -567,6 +744,9 @@ def get_recommendation(
         "mode": mode,
         "reason": reason,
         "sections": sections,
+        "documents": documents,
+        "has_material": grounding.has_material,
+        "chunk_count": grounding.chunk_count,
         "videos": videos,
         "notes": notes,
         "socratic_seed_message": socratic_seed,
@@ -631,6 +811,7 @@ def get_progress_recommendations(
     db: Session,
     student_id: str,
     class_id: str,
+    embedding_model: Any = None,
 ) -> dict[str, Any]:
     """
     Computes personalized learning recommendations for the student Progress page
@@ -679,12 +860,7 @@ def get_progress_recommendations(
 
     for t_name in all_topic_names:
         m = mastery_by_topic.get(t_name)
-        v2_info = {}
-        if m and m.mastery_v2:
-            try:
-                v2_info = json.loads(m.mastery_v2) if isinstance(m.mastery_v2, str) else m.mastery_v2
-            except Exception:
-                v2_info = {}
+        v2_info = _mastery_v2_data(m) or {}
 
         score = m.mastery_score if m else 0.0
         attempts = m.attempt_count if m else 0
@@ -750,9 +926,25 @@ def get_progress_recommendations(
 
     def _build_topic_resources(topic_entry: dict[str, Any]) -> dict[str, Any]:
         topic_name = topic_entry["topic"]
-        topic_id = topic_entry.get("topic_id")
+        topic_row = _resolve_topic_row(
+            db, subject_id, topic_name, topic_entry.get("topic_id")
+        )
+        topic_id = str(topic_row.id) if topic_row else None
         videos, notes = _library_resources(db, class_id, topic_name, subject_name, topic_id=topic_id)
-        course_docs = _topic_course_documents(db, class_id, topic_name, topic_id=topic_id)
+        grounding = (
+            get_topic_grounding(
+                db,
+                class_id,
+                subject_name,
+                subject_id,
+                topic_row.topic if topic_row else topic_name,
+                topic_row,
+                embedding_model,
+            )
+            if subject_id
+            else TopicGrounding([])
+        )
+        course_docs = _topic_course_documents(grounding, topic_name)
 
         resources_list = []
 
@@ -772,6 +964,8 @@ def get_progress_recommendations(
                 "action": "watch",
                 "action_label": "Watch Video",
                 "topic": topic_name,
+                "match_type": v.get("match_type", "exact"),
+                "match_reason": v.get("match_reason"),
             })
 
         # 2. Faculty notes & course documents
@@ -793,6 +987,8 @@ def get_progress_recommendations(
                 "action": "read",
                 "action_label": "Read Notes",
                 "topic": topic_name,
+                "match_type": n.get("match_type", "exact"),
+                "match_reason": f"Approved class notes for {topic_name}",
             })
 
         # 3. Approved student-suggested videos
@@ -811,26 +1007,9 @@ def get_progress_recommendations(
                 "action": "watch",
                 "action_label": "Watch Video",
                 "topic": topic_name,
+                "match_type": v.get("match_type", "exact"),
+                "match_reason": v.get("match_reason"),
             })
-
-        # 4. Validated auto-discovered videos (if no faculty/student video)
-        if not faculty_videos and not student_videos:
-            auto_videos = [v for v in videos if v.get("source") == "auto"]
-            for v in auto_videos[:2]:
-                resources_list.append({
-                    "id": v.get("video_id") or v.get("url") or str(uuid.uuid4()),
-                    "video_id": v.get("video_id"),
-                    "title": v.get("title", f"{topic_name} Video"),
-                    "resource_type": "youtube",
-                    "url": v.get("url"),
-                    "source": "auto",
-                    "channel": v.get("channel", "YouTube Educational"),
-                    "duration": v.get("duration", "Video"),
-                    "thumbnail": v.get("thumbnail"),
-                    "action": "watch",
-                    "action_label": "Watch Video",
-                    "topic": topic_name,
-                })
 
         # 5. Practice activity / Topic quiz for follow-up (always provide at least practice action)
         practise_quiz_id = quiz_by_topic.get(topic_name) or general_quiz_id
@@ -846,6 +1025,7 @@ def get_progress_recommendations(
             "action": "practise",
             "action_label": "Take Quiz",
             "topic": topic_name,
+            "match_reason": f"Practice activity for {topic_name}",
         })
 
         return {
@@ -879,4 +1059,3 @@ def get_progress_recommendations(
         "all_topics_strong": all_topics_strong,
         "total_tracked_topics": len(all_topic_names),
     }
-

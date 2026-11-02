@@ -27,6 +27,10 @@ from backend.models.db import (
     User,
 )
 from backend.services import context_service, misconception_service, rag_service, routing_service
+from backend.services.topic_grounding_service import (
+    get_topic_grounding,
+    score_chunk_substantive_relevance as _score_chunk_substantive_relevance,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +87,7 @@ TOPIC_QUIZ_PROMPT_TEMPLATE = (
     "   - 'medium': Conceptual comprehension, comparing two components, or explaining why a process occurs.\n"
     "   - 'hard': Multi-step deduction, scenario-based problem solving, or analyzing consequences of an intervention.\n"
     "5. Bloom's Taxonomy Level: Tag each question with 'bloom_level': 'remember' | 'understand' | 'apply' | 'analyze'.\n"
-    "6. Provenance Attribution: For each question, specify the source chunk number that directly supports the answer ('chunk_index': int, 1-based).\n"
+    "6. Provenance Attribution: Every question MUST specify the exact source chunk id ('source_chunk_id': 'chunk UUID from header') that directly supports the answer. Never invent or omit the id. You may also include the source number ('chunk_index': int, 1-based).\n"
     "7. Explanations: Provide a concise explanation grounded strictly in the source text explaining why the correct answer is right and why distractors are wrong.\n"
     "8. Duplication Avoidance: Ensure every question tests a distinct facet or subtopic. Do not ask repetitive variations of the same question.\n"
     "9. Return ONLY a valid JSON array, no preamble, no markdown formatting.\n\n"
@@ -96,6 +100,7 @@ TOPIC_QUIZ_PROMPT_TEMPLATE = (
     "  \"difficulty\": \"easy\" | \"medium\" | \"hard\",\n"
     "  \"bloom_level\": \"remember\" | \"understand\" | \"apply\" | \"analyze\",\n"
     "  \"explanation\": \"Brief explanation grounded in the text\",\n"
+    "  \"source_chunk_id\": \"chunk UUID from the matching source header\",\n"
     "  \"chunk_index\": 1\n"
     "}}"
 )
@@ -214,6 +219,17 @@ def _find_best_supporting_chunk(
     return best_chunk
 
 
+def score_chunk_substantive_relevance(
+    chunk: Chunk,
+    canonical_topic: str,
+    subtopics: list[str],
+    objectives: list[str],
+) -> float:
+    return _score_chunk_substantive_relevance(
+        chunk, canonical_topic, subtopics, objectives
+    )
+
+
 def retrieve_topic_grounded_chunks(
     db: Session,
     class_id: uuid.UUID,
@@ -224,97 +240,16 @@ def retrieve_topic_grounded_chunks(
     embedding_model: Any,
     top_k: int = 6,
 ) -> list[tuple[Chunk, float]]:
-    """Retrieves curriculum chunks strictly scoped to the class with multi-stage topic prioritization:
-    1. Direct canonical topic/document match (Chunk.topic matching canonical topic or topic's source_document).
-    2. Vector cosine distance on enriched topic anchor (topic name + description + subtopics + objectives).
-    3. Structured lexical match across ready chunks in the class.
-    Filters out chunks with cosine distance that indicates irrelevance (< 0.20 similarity).
-    """
-    retrieved_map: dict[uuid.UUID, tuple[Chunk, float]] = {}
-
-    subtopics = [s.name for s in topic_row.subtopics] if topic_row and hasattr(topic_row, "subtopics") and topic_row.subtopics else []
-    objectives = [getattr(o, "statement", getattr(o, "objective", "")) for o in topic_row.learning_objectives] if topic_row and hasattr(topic_row, "learning_objectives") and topic_row.learning_objectives else []
-    unit = topic_row.unit if topic_row else None
-    source_doc_id = topic_row.source_document_id if topic_row else None
-
-    # Priority 1: Chunks explicitly tagged with the topic in this class or from the topic's source document
-    base_q = (
-        db.query(Chunk)
-        .join(Document, Chunk.document_id == Document.id)
-        .filter(Document.class_id == class_id, Document.deleted == False)  # noqa: E712
-    )
-
-    if source_doc_id:
-        doc_chunks = (
-            base_q.filter(Chunk.document_id == source_doc_id)
-            .order_by(Chunk.chunk_index)
-            .limit(top_k)
-            .all()
-        )
-        for c in doc_chunks:
-            retrieved_map[c.id] = (c, 0.95)
-
-    if len(retrieved_map) < top_k:
-        topic_chunks = base_q.filter(Chunk.topic.ilike(f"%{canonical_topic}%")).limit(top_k).all()
-        for c in topic_chunks:
-            if c.id not in retrieved_map:
-                retrieved_map[c.id] = (c, 0.90)
-
-    # Priority 2: Vector retrieval with enriched semantic query
-    if len(retrieved_map) < top_k and embedding_model:
-        from backend.pipeline.embedder import embed_single
-
-        anchor_components = [canonical_topic]
-        if topic_row and topic_row.description:
-            anchor_components.append(topic_row.description)
-        if subtopics:
-            anchor_components.append("Subtopics: " + ", ".join(subtopics))
-        if objectives:
-            anchor_components.append("Objectives: " + ", ".join(objectives))
-
-        enriched_query = ". ".join(anchor_components)
-        try:
-            query_vector = embed_single(enriched_query, model=embedding_model)
-            vector_results = rag_service.retrieve_chunks(
-                db,
-                subject,
-                query_vector,
-                top_k=top_k,
-                subject_id=subject_id,
-                class_id=str(class_id),
-            )
-            for c, sim in vector_results:
-                if sim >= 0.20 and c.id not in retrieved_map:
-                    retrieved_map[c.id] = (c, float(sim))
-        except Exception as exc:
-            print(f"[TOPIC CHUNKS] Vector retrieval failed ({exc}), falling back to lexical search.")
-
-    # Priority 3: Structured lexical fallback
-    if len(retrieved_map) < top_k:
-        lex_candidates = (
-            base_q.filter(
-                (Chunk.section_heading.ilike(f"%{canonical_topic}%"))
-                | (Chunk.text.ilike(f"%{canonical_topic}%"))
-                | (Chunk.full_text.ilike(f"%{canonical_topic}%"))
-            )
-            .limit(top_k)
-            .all()
-        )
-        for c in lex_candidates:
-            if c.id not in retrieved_map:
-                retrieved_map[c.id] = (c, 0.75)
-
-    # Priority 4: Unit-scoped fallback if topic is in a specific unit
-    if len(retrieved_map) < top_k and unit is not None:
-        unit_candidates = base_q.filter(Chunk.unit == unit).limit(top_k).all()
-        for c in unit_candidates:
-            if c.id not in retrieved_map:
-                retrieved_map[c.id] = (c, 0.60)
-
-    # Sort descending by relevance score
-    sorted_chunks = sorted(retrieved_map.values(), key=lambda pair: pair[1], reverse=True)[:top_k]
-    return sorted_chunks
-
+    return get_topic_grounding(
+        db,
+        class_id,
+        subject,
+        subject_id,
+        canonical_topic,
+        topic_row,
+        embedding_model,
+        top_k=top_k,
+    ).chunks
 
 def _extract_json_array(text: str) -> list[dict[str, Any]]:
     try:
@@ -1556,22 +1491,27 @@ async def generate_topic_quiz(
     if not subject and not subject_id:
         raise ValueError(f"Class '{class_id}' does not have a curriculum subject configured.")
 
-    # Validate and resolve canonical topic
+    # Resolve supplied topic identifiers only within the class curriculum.
     topic_row: PrerequisiteMap | None = None
     if topic_id:
-        topic_row = db.get(PrerequisiteMap, uuid.UUID(str(topic_id)))
-        if not topic_row:
-            raise ValueError(f"Topic ID '{topic_id}' not found.")
-        if class_row.subject_id and topic_row.subject_id and topic_row.subject_id != class_row.subject_id:
-            raise ValueError(f"Topic '{topic_row.topic}' does not belong to this class's subject curriculum.")
-    elif topic and topic.strip() and class_row.subject_id:
-        topic_row = (
-            db.query(PrerequisiteMap)
-            .filter(
-                PrerequisiteMap.subject_id == class_row.subject_id,
-                PrerequisiteMap.topic.ilike(topic.strip()),
-            )
-            .first()
+        try:
+            candidate = db.get(PrerequisiteMap, uuid.UUID(str(topic_id)))
+        except (ValueError, TypeError, AttributeError):
+            candidate = None
+        if candidate and candidate.subject_id == class_row.subject_id:
+            topic_row = candidate
+    if topic_row is None and topic and topic.strip() and class_row.subject_id:
+        normalized_topic = re.sub(r"[\s-]+", " ", topic.casefold()).strip()
+        topic_row = next(
+            (
+                row
+                for row in db.query(PrerequisiteMap)
+                .filter(PrerequisiteMap.subject_id == class_row.subject_id)
+                .all()
+                if re.sub(r"[\s-]+", " ", row.topic.casefold()).strip()
+                == normalized_topic
+            ),
+            None,
         )
 
     canonical_topic = topic_row.topic if topic_row else topic.strip()
@@ -1595,30 +1535,69 @@ async def generate_topic_quiz(
 
     if not chunks_with_sim:
         raise ValueError(
-            f"No curriculum materials found for topic '{canonical_topic}'. "
-            "Please ask your educator to upload syllabus or study materials for this topic."
+            f"No approved curriculum material found for this topic yet. "
+            f"Please ask your educator to upload syllabus or study materials for '{canonical_topic}'."
         )
     total_chars = sum(len(c.text or "") for c, _ in chunks_with_sim)
     if total_chars < 50:
         raise ValueError(
-            f"No curriculum materials found for topic '{canonical_topic}' with sufficient content. "
-            "Please ask your educator to upload complete study materials for this topic."
+            f"No approved curriculum material found for this topic yet. "
+            f"Please ask your educator to upload syllabus or study materials for '{canonical_topic}'."
         )
 
-    # Format chunks with numbered sources for prompt
+    # Keep whole, unique chunks only; source ids must point to content actually shown to the model.
     source_blocks = []
-    for idx, (chunk, _sim) in enumerate(chunks_with_sim, start=1):
-        heading = f" (Section: {chunk.section_heading})" if chunk.section_heading else ""
-        page = f" (Page {chunk.page_number})" if chunk.page_number else ""
-        source_blocks.append(f"[Source {idx}]{heading}{page}\n{chunk.text}")
+    accumulated_chars = 0
+    MAX_CONTEXT_CHARS = 16000
+    seen_chunk_ids: set[str] = set()
+    seen_chunk_text: set[str] = set()
+    valid_chunk_map: dict[str, Chunk] = {}
+
+    for chunk, _ in chunks_with_sim:
+        c_id_str = str(chunk.id)
+        normalized_text = " ".join((chunk.text or "").lower().split())
+        if c_id_str in seen_chunk_ids or not normalized_text or normalized_text in seen_chunk_text:
+            continue
+
+        heading = f" | {chunk.section_heading}" if chunk.section_heading else ""
+        page_val = chunk.page_number
+        if page_val is None and chunk.text:
+            p_match = re.search(r"\[Page\s+(\d+)\]", chunk.text, re.IGNORECASE)
+            if p_match:
+                page_val = int(p_match.group(1))
+        page = f" | p.{page_val}" if page_val else ""
+        doc_name = "Approved Curriculum Document"
+        if getattr(chunk, "document", None) and (chunk.document.title or chunk.document.filename):
+            doc_name = chunk.document.title or chunk.document.filename
+        elif chunk.document_id:
+            d_row = db.get(Document, chunk.document_id)
+            if d_row:
+                doc_name = d_row.title or d_row.filename
+
+        source_number = len(source_blocks) + 1
+        block_header = f"[{doc_name}{page}{heading} | source_chunk_id: {chunk.id} | Source #{source_number}]"
+        block = f"{block_header}\n{chunk.text}"
+        if accumulated_chars + len(block) > MAX_CONTEXT_CHARS:
+            continue
+        source_blocks.append(block)
+        accumulated_chars += len(block)
+        seen_chunk_ids.add(c_id_str)
+        seen_chunk_text.add(normalized_text)
+        valid_chunk_map[c_id_str] = chunk
+
     content = "\n\n".join(source_blocks)
+    if not content:
+        raise ValueError(
+            f"No approved curriculum material found for this topic yet. "
+            f"Please ask your educator to upload syllabus or study materials for '{canonical_topic}'."
+        )
 
     # Request surplus candidates to allow filtering near-duplicates or ungrounded questions
     request_candidates_count = max(num_questions + 3, int(num_questions * 1.5))
     prompt = TOPIC_QUIZ_PROMPT_TEMPLATE.format(
         topic=canonical_topic,
         n=request_candidates_count,
-        content=content[:5000],
+        content=content,
     )
 
     provider, model_idx = rag_service.get_llm_provider()
@@ -1642,14 +1621,66 @@ async def generate_topic_quiz(
 
     from backend.llm.model_pool import model_pool
 
-    tokens_used = rag_service.estimate_tokens(prompt) + rag_service.estimate_tokens(raw_output or "")
-    model_pool.record_usage(model_idx, tokens_used)
-    print(f"[TOPIC QUIZ GEN] LLM returned {len(parsed)} candidate items (~{tokens_used} tokens)")
-
     # Validate each candidate item through the validation and grounding pipeline
     accepted_pairs: list[tuple[dict[str, Any], Chunk, str]] = []
     rejection_log: list[dict[str, str]] = []
     accepted_payloads: list[dict[str, Any]] = []
+
+    def valid_source_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+        usable: list[dict[str, Any]] = []
+        invalid_count = 0
+        for candidate in items:
+            if not isinstance(candidate, dict):
+                invalid_count += 1
+                continue
+            source_id = str(candidate.get("source_chunk_id") or "").strip()
+            if source_id not in valid_chunk_map:
+                invalid_count += 1
+                continue
+            usable.append(candidate)
+        return usable, invalid_count
+
+    total_candidates = len(parsed)
+    parsed, invalid_source_count = valid_source_items(parsed)
+    if invalid_source_count:
+        rejection_log.append({
+            "question": "",
+            "reason": f"Dropped {invalid_source_count} candidate(s) with missing or invalid source chunk ids",
+        })
+
+    prompt_inputs = [prompt]
+    output_texts = [raw_output or ""]
+    if len(parsed) < num_questions:
+        replacement_count = max(num_questions - len(parsed) + 3, 3)
+        replacement_prompt = (
+            prompt
+            + f"\n\nGenerate {replacement_count} replacement candidates. Each must include an exact source_chunk_id "
+            "from the supplied source headers. Do not repeat these already usable questions:\n"
+            + "\n".join(
+                f"- {str(candidate.get('question', candidate.get('question_text', '')))}"
+                for candidate in parsed
+            )
+        )
+        replacement_output = await provider.generate(replacement_prompt, max_tokens=2500)
+        prompt_inputs.append(replacement_prompt)
+        output_texts.append(replacement_output)
+        try:
+            replacement_items = _extract_json_array(replacement_output)
+        except (ValueError, json.JSONDecodeError) as exc:
+            logger.warning("Replacement topic-question candidates were not valid JSON: %s", exc)
+            replacement_items = []
+        if isinstance(replacement_items, list):
+            valid_replacements, rejected_replacements = valid_source_items(replacement_items)
+            total_candidates += len(replacement_items)
+            parsed.extend(valid_replacements)
+            if rejected_replacements:
+                rejection_log.append({
+                    "question": "",
+                    "reason": f"Dropped {rejected_replacements} replacement candidate(s) with missing or invalid source chunk ids",
+                })
+    tokens_used = sum(rag_service.estimate_tokens(value) for value in prompt_inputs + output_texts)
+    model_pool.record_usage(model_idx, tokens_used)
+    print(f"[TOPIC QUIZ GEN] LLM returned {total_candidates} candidate items (~{tokens_used} tokens)")
 
     for item in parsed:
         if not isinstance(item, dict):
@@ -1679,17 +1710,13 @@ async def generate_topic_quiz(
 
         # Attribute supporting chunk with grounding fallback
         assigned_chunk: Chunk | None = None
-        c_idx = item.get("chunk_index")
-        if isinstance(c_idx, int) and 1 <= c_idx <= len(chunks_with_sim):
-            candidate_chunk = chunks_with_sim[c_idx - 1][0]
-            is_ok, _ = validate_chunk_grounding(validated, candidate_chunk, canonical_topic)
-            if is_ok:
-                assigned_chunk = candidate_chunk
+        source_chunk_id = str(item.get("source_chunk_id") or "").strip()
+        if source_chunk_id in valid_chunk_map:
+            assigned_chunk = valid_chunk_map[source_chunk_id]
 
-        if not assigned_chunk:
-            assigned_chunk = _find_best_supporting_chunk(
-                validated["question_text"], validated.get("explanation") or "", chunks_with_sim
-            )
+        if not assigned_chunk or str(assigned_chunk.id) not in valid_chunk_map:
+            rejection_log.append({"question": validated["question_text"][:60], "reason": "Invalid or unverified source chunk id"})
+            continue
 
         # Validate chunk grounding (hallucination guard)
         is_grounded, ground_reason = validate_chunk_grounding(validated, assigned_chunk, canonical_topic)
@@ -1721,11 +1748,12 @@ async def generate_topic_quiz(
         if len(accepted_pairs) >= num_questions:
             break
 
-    if not accepted_pairs:
+    if len(accepted_pairs) < num_questions:
         failure_summary = "; ".join(r["reason"] for r in rejection_log[:3])
         raise ValueError(
-            f"No valid diagnostic questions could be generated from curriculum materials for '{canonical_topic}'. "
-            f"Candidates evaluated: {len(parsed)}. Failure details: {failure_summary}"
+            f"Only {len(accepted_pairs)} of {num_questions} valid diagnostic questions could be generated "
+            f"from approved curriculum materials for '{canonical_topic}'. "
+            f"Candidates evaluated: {total_candidates}. Failure details: {failure_summary}"
         )
 
     # Persist Practice Quiz
@@ -1738,7 +1766,7 @@ async def generate_topic_quiz(
         "model_idx": model_idx,
         "prompt_version": "v3.0-grounded-diversity",
         "retrieved_chunks_count": len(chunks_with_sim),
-        "candidates_evaluated": len(parsed),
+        "candidates_evaluated": total_candidates,
         "accepted_count": len(accepted_pairs),
         "rejected_count": len(rejection_log),
         "rejection_sample": rejection_log[:5],
@@ -1762,6 +1790,32 @@ async def generate_topic_quiz(
     db.flush()
 
     for idx, (q_data, chunk, bloom) in enumerate(accepted_pairs, start=1):
+        page_val = chunk.page_number if chunk else None
+        if page_val is None and chunk and chunk.text:
+            p_match = re.search(r"\[Page\s+(\d+)\]", chunk.text, re.IGNORECASE)
+            if p_match:
+                page_val = int(p_match.group(1))
+
+        doc_title = None
+        if chunk and getattr(chunk, "document", None):
+            doc_title = chunk.document.title or chunk.document.filename
+        elif chunk and chunk.document_id:
+            d_row = db.get(Document, chunk.document_id)
+            if d_row:
+                doc_title = d_row.title or d_row.filename
+
+        cleaned_text = " ".join(chunk.text.split()) if chunk and chunk.text else ""
+        snippet_text = (cleaned_text[:240].strip() + ("..." if len(cleaned_text) > 240 else "")) if cleaned_text else None
+
+        q_meta = {
+            "source_document_title": doc_title,
+            "source_page_number": page_val,
+            "section_heading": chunk.section_heading if chunk else None,
+            "chunk_id": str(chunk.id) if chunk else None,
+            "snippet": snippet_text,
+            "bloom_level": bloom,
+        }
+
         q_row = QuizQuestion(
             quiz_id=quiz.id,
             question_text=q_data["question_text"],
@@ -1778,7 +1832,8 @@ async def generate_topic_quiz(
             topic_id=canonical_topic_id,
             source_chunk_id=chunk.id if chunk else None,
             source_document_id=chunk.document_id if chunk else None,
-            source_page_number=chunk.page_number if chunk else None,
+            source_page_number=page_val,
+            generation_meta=json.dumps(q_meta),
             version=1,
         )
         db.add(q_row)

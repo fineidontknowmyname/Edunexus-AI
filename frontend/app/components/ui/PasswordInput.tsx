@@ -28,7 +28,7 @@ export function PasswordInput({ label, hint, error, id, className, ...rest }: Pa
           type={visible ? "text" : "password"}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined}
-          className={cn(controlClasses, "h-10 pl-3 pr-10", error ? "border-red" : "border-line", className)}
+          className={cn(controlClasses, "h-10 pl-3 pr-10", error ? "border-red" : "border-control-line", className)}
           {...rest}
         />
         <button

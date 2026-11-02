@@ -175,7 +175,7 @@ function ClassInsights({ activeClass }: { activeClass: ClassRow }) {
                     </span>
                     <div className="col-span-2 flex items-center gap-3 sm:col-span-1">
                       <ProgressBar value={h.average_mastery} label={`${h.topic} class mastery`} className="h-2.5" />
-                      <span className="w-16 shrink-0 font-mono text-xs text-muted uppercase tracking-[0.04em]">{plural(h.student_count, "student")}</span>
+                      <span className="min-w-[5rem] shrink-0 whitespace-nowrap text-right font-mono text-xs text-muted uppercase tracking-[0.04em]">{plural(h.student_count, "student")}</span>
                     </div>
                   </li>
                 ))}
@@ -464,7 +464,7 @@ function ScheduleAssessmentCard({
                     onClick={() => toggle(t)}
                     className={cn(
                       "rounded-full border px-3 py-1 font-mono text-[11px] uppercase tracking-[0.06em] transition-colors",
-                      on ? "border-accent-red bg-accent-red text-white" : "border-line bg-surface text-ink hover:border-ink"
+                      on ? "border-accent-red bg-accent-red text-on-accent" : "border-control-line bg-surface text-ink hover:border-ink"
                     )}
                   >
                     {t}

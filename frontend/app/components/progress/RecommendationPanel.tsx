@@ -2,22 +2,20 @@
 
 import { useState } from "react";
 import {
-  Compass,
   FileText,
-  HelpCircle,
-  Lightbulb,
   ListChecks,
   Plus,
-  Trophy,
 } from "lucide-react";
 import { useApi } from "../../lib/hooks/useApi";
 import type { RecommendationResponse, RecommendationVideo } from "../../lib/types";
+import { getRecommendationPresentation } from "../../lib/recommendationPresentation";
 import { Button, ButtonLink } from "../ui/Button";
-import { ErrorState, SkeletonText } from "../ui/Feedback";
+import { Alert, ErrorState, SkeletonText } from "../ui/Feedback";
 import { VideoResourceCard } from "../resources/VideoResourceCard";
 import { VideoPlayerModal } from "../resources/VideoPlayerModal";
 import { StudentSuggestVideoModal } from "../resources/StudentSuggestVideoModal";
 import { TopicQuizPrepModal } from "../quiz/TopicQuizPrepModal";
+import { RecommendationModeBanner } from "./RecommendationModeBanner";
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
@@ -27,10 +25,18 @@ export function guidedSessionHref(topic: string): string {
   return `/chat?topic=${encodeURIComponent(topic)}&mode=socratic`;
 }
 
-export function RecommendationPanel({ classId, topic }: { classId: string; topic: string }) {
-  const rec = useApi<RecommendationResponse>(
-    `/recommendations?topic=${encodeURIComponent(topic)}&class_id=${classId}`
-  );
+export function RecommendationPanel({
+  classId,
+  topic,
+  topicId,
+}: {
+  classId: string;
+  topic: string;
+  topicId?: string | null;
+}) {
+  const query = new URLSearchParams({ topic, class_id: classId });
+  if (topicId) query.set("topic_id", topicId);
+  const rec = useApi<RecommendationResponse>(`/recommendations?${query.toString()}`);
   const [activeVideo, setActiveVideo] = useState<RecommendationVideo | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [prepModalOpen, setPrepModalOpen] = useState(false);
@@ -56,9 +62,12 @@ export function RecommendationPanel({ classId, topic }: { classId: string; topic
   }
 
   const data = rec.data;
+  const presentation = getRecommendationPresentation(data.mode, data.reason);
   const hasNotes = (data.notes || []).length > 0;
   const hasVideos = (data.videos || []).length > 0;
   const hasSections = (data.sections || []).length > 0;
+  const documents = data.documents || [];
+  const hasDocuments = documents.length > 0;
 
   return (
     <div className="mt-4 rounded-[2px] border border-line bg-surface p-4">
@@ -81,145 +90,63 @@ export function RecommendationPanel({ classId, topic }: { classId: string; topic
         </div>
       )}
 
-      {/* Top Banner based on Mode */}
-      {data.mode === "ai_session" && (
-        <div className="mb-4 flex flex-col gap-3 rounded-[2px] border border-line bg-surface2 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-3">
-            <span
-              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-bg"
-              aria-hidden
-            >
-              <Compass className="h-4 w-4" />
-            </span>
-            <div>
-              <h4 className="font-serif text-[16px] text-ink">Work through it together</h4>
-              <p className="mt-0.5 text-xs text-muted">
-                {data.reason ||
-                  "This topic needs a guided walkthrough. A 1:1 Socratic session will take you through it step by step."}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={<ListChecks className="h-3.5 w-3.5" />}
-              onClick={() => setPrepModalOpen(true)}
-            >
-              Take a Test
-            </Button>
-            <ButtonLink href={guidedSessionHref(topic)} variant="primary" size="sm">
-              Start guided session
-            </ButtonLink>
-          </div>
-        </div>
+      {data.has_material ? (
+        <Alert tone="success">
+          Grounded in {data.chunk_count} approved curriculum {data.chunk_count === 1 ? "section" : "sections"}.
+        </Alert>
+      ) : (
+        <Alert tone="warning">No approved curriculum material was found for this topic.</Alert>
       )}
 
-      {(data.mode === "diagnostic" || data.mode === "verification") && (
-        <div className="mb-4 flex flex-col gap-3 rounded-[2px] border border-line bg-surface2 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-3">
-            <span
-              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-bg"
-              aria-hidden
-            >
-              <HelpCircle className="h-4 w-4" />
-            </span>
-            <div>
-              <h4 className="font-serif text-[16px] text-ink">
-                {data.mode === "diagnostic" ? "Diagnostic check recommended" : "Verification check"}
-              </h4>
-              <p className="mt-0.5 text-xs text-muted">
-                {data.reason || "Take a short quiz to calibrate where your understanding stands."}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<ListChecks className="h-3.5 w-3.5" />}
-              onClick={() => setPrepModalOpen(true)}
-            >
-              Take a Test
-            </Button>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <RecommendationModeBanner mode={data.mode} reason={data.reason} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button
+            variant="primary"
+            size="sm"
+            icon={<ListChecks className="h-3.5 w-3.5" />}
+            onClick={() => setPrepModalOpen(true)}
+          >
+            {presentation.primaryCta}
+          </Button>
+          {data.mode === "ai_session" || data.mode === "diagnostic" || data.mode === "verification" ? (
             <ButtonLink href={guidedSessionHref(topic)} variant="outline" size="sm">
-              Ask Tutor
+              {presentation.secondaryCta}
             </ButtonLink>
-          </div>
+          ) : data.mode === "advance" ? (
+            <a href="#recommended-resources" className="text-xs font-medium text-ink underline underline-offset-4">
+              {presentation.secondaryCta}
+            </a>
+          ) : (
+            <ButtonLink href="/progress" variant="outline" size="sm">
+              {presentation.secondaryCta}
+            </ButtonLink>
+          )}
         </div>
-      )}
-
-      {data.mode === "reinforce" && (
-        <div className="mb-4 flex flex-col gap-3 rounded-[2px] border border-line bg-surface2 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-3">
-            <span
-              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-amber text-ink"
-              aria-hidden
-            >
-              <Lightbulb className="h-4 w-4" />
-            </span>
-            <div>
-              <h4 className="text-sm font-semibold text-ink">
-                Targeted practice recommended
-              </h4>
-              <p className="mt-0.5 text-xs text-muted">
-                {data.reason || "You're close on this topic. A short practice quiz will help lock it in."}
-              </p>
-            </div>
-          </div>
-          <ButtonLink href={`/quiz?topic=${encodeURIComponent(topic)}`} size="sm" variant="secondary">
-            Take Practice Quiz
-          </ButtonLink>
-        </div>
-      )}
-
-      {data.mode === "advance" && (
-        <div className="mb-4 flex flex-col gap-3 rounded-[2px] border border-line bg-surface2 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-3">
-            <span
-              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-green text-white"
-              aria-hidden
-            >
-              <Trophy className="h-4 w-4" />
-            </span>
-            <div>
-              <h4 className="font-serif text-[16px] text-ink">High Estimated Understanding</h4>
-              <p className="mt-0.5 text-xs text-muted">
-                {data.reason || "Strong performance demonstrated on recent assessments. Explore advanced resources or take a challenge quiz."}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={<ListChecks className="h-3.5 w-3.5" />}
-              onClick={() => setPrepModalOpen(true)}
-            >
-              Take a Test
-            </Button>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Resource Sections Header */}
-      <div className="flex items-center justify-between pb-2">
+      <div id="recommended-resources" className="flex flex-wrap items-center justify-between gap-2 pb-2">
         <h4 className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
           Recommended Learning Resources
         </h4>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setSuggestOpen(true)}
-          icon={<Plus className="h-3 w-3" />}
-        >
-          Suggest video
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSuggestOpen(true)}
+            icon={<Plus className="h-3 w-3" />}
+          >
+            Suggest video
+          </Button>
+        </div>
       </div>
 
-      {!hasSections && !hasVideos && !hasNotes ? (
+      {!hasSections && !hasDocuments && !hasVideos && !hasNotes ? (
         <p className="py-2 font-mono text-xs text-muted">
-          No external resources logged for this topic yet. You can suggest a helpful YouTube video or ask the tutor.
+          No approved class resources logged for this topic yet. You can suggest a helpful YouTube video or ask the tutor.
         </p>
       ) : (
         <div className="flex flex-col gap-4">
@@ -248,6 +175,11 @@ export function RecommendationPanel({ classId, topic }: { classId: string; topic
                     key={s.chunk_id}
                     className="rounded-[2px] border border-line bg-surface2 px-3 py-2 text-xs text-ink"
                   >
+                    <p className="mb-1 font-mono text-[10px] text-muted">
+                      {s.document_name || "Course curriculum"}
+                      {s.page_number != null ? ` · p.${s.page_number}` : ""}
+                      {s.section_heading ? ` · ${s.section_heading}` : ""}
+                    </p>
                     {truncate(s.text, 240)}
                   </li>
                 ))}
@@ -255,6 +187,26 @@ export function RecommendationPanel({ classId, topic }: { classId: string; topic
             </div>
           )}
 
+          {hasDocuments && (
+            <div>
+              <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.06em] text-muted">Approved course documents</p>
+              <ul className="flex flex-col gap-2">
+                {documents.map((document) => (
+                  <li key={document.document_id} className="flex items-center justify-between gap-3 rounded-[2px] border border-line bg-surface2 px-3 py-2 text-xs">
+                    <span className="text-ink">
+                      {document.title}
+                      {document.page_number != null ? ` · p.${document.page_number}` : ""}
+                    </span>
+                    {document.file_url && (
+                      <ButtonLink href={document.file_url} variant="outline" size="sm">
+                        Open
+                      </ButtonLink>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {/* Peer & Educator Notes */}
           {hasNotes && (
             <div>
@@ -294,6 +246,7 @@ export function RecommendationPanel({ classId, topic }: { classId: string; topic
         onClose={() => setPrepModalOpen(false)}
         context={{
           topic,
+          topic_id: topicId,
           class_id: classId,
         }}
       />

@@ -7,7 +7,6 @@ import {
   ExternalLink,
   BookOpen,
   CheckCircle2,
-  AlertCircle,
   ArrowRight,
   ListChecks,
   ChevronDown,
@@ -20,8 +19,13 @@ import { Alert, EmptyState, Skeleton } from "../ui/Feedback";
 import { Modal } from "../ui/Modal";
 import { VideoPlayerModal } from "../resources/VideoPlayerModal";
 import { TopicQuizPrepModal } from "../quiz/TopicQuizPrepModal";
+import { RecommendationModeBanner } from "./RecommendationModeBanner";
 import { apiFetch, errorMessage, rawFetch } from "../../lib/api";
 import { percent, plural } from "../../lib/format";
+import {
+  getProgressRecommendationMode,
+  getRecommendationPresentation,
+} from "../../lib/recommendationPresentation";
 import type {
   ProgressRecommendationsResponse,
   ProgressRecommendationItem,
@@ -98,7 +102,7 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
           url: item.url || `https://www.youtube.com/watch?v=${vid}`,
           duration: item.duration || undefined,
           thumbnail: item.thumbnail || undefined,
-          source: item.source === "faculty" ? "faculty" : item.source === "student_suggested" ? "student_suggested" : "auto",
+          source: item.source === "faculty" ? "faculty" : item.source === "student_suggested" ? "student_suggested" : null,
         });
       } else if (item.url) {
         window.open(item.url, "_blank", "noopener,noreferrer");
@@ -155,7 +159,7 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
           <div className="mt-4">
             <EmptyState
               compact
-              icon={<CheckCircle2 className="h-6 w-6 text-emerald-600" />}
+              icon={<CheckCircle2 className="h-6 w-6 text-success" />}
               title="Topics Tracking Strongly"
               description="All assessed curriculum topics are currently estimated at 70%+ mastery. Continue reviewing or challenge yourself with practice quizzes."
               action={
@@ -189,6 +193,12 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                     const isLow = group.mastery_band === "low" || group.mastery_score < 0.6;
                     const tone: BadgeTone = isLow ? "red" : "amber";
                     const isExpanded = expandedTopic === topicName;
+                    const mode = getProgressRecommendationMode(
+                      group.attempts,
+                      group.evidence_state,
+                      group.mastery_band,
+                    );
+                    const presentation = getRecommendationPresentation(mode);
 
                     return (
                       <div
@@ -204,11 +214,9 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                                 Est. {scorePct}
                               </Badge>
                             </div>
-                            <p className="mt-1.5 text-xs sm:text-sm text-muted">
-                              {isLow
-                                ? "Persistent difficulty detected. Reinforce core concepts or evaluate your knowledge."
-                                : "Developing understanding. Review curated resources or test key principles."}
-                            </p>
+                            <div className="mt-2">
+                              <RecommendationModeBanner mode={mode} />
+                            </div>
                           </div>
 
                           <div className="flex items-center gap-3 font-mono text-xs text-muted uppercase tracking-[0.04em]">
@@ -248,25 +256,51 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                                 })
                               }
                             >
-                              Take a Test
+                              {presentation.primaryCta}
                             </Button>
 
                             {/* Action 2: Learn the Concept */}
-                            <Button
-                              variant={isExpanded ? "primary" : "outline"}
-                              size="sm"
-                              icon={<BookOpen className="h-3.5 w-3.5" />}
-                              onClick={() => setExpandedTopic(isExpanded ? null : topicName)}
-                            >
-                              {isExpanded
-                                ? "Hide Concept Resources"
-                                : `Learn the Concept (${learningResources.length})`}
-                              {isExpanded ? (
-                                <ChevronUp className="ml-1 h-3.5 w-3.5" />
-                              ) : (
-                                <ChevronDown className="ml-1 h-3.5 w-3.5" />
-                              )}
-                            </Button>
+                            {mode === "ai_session" && (
+                              <>
+                                <ButtonLink
+                                  href={`/chat?topic=${encodeURIComponent(topicName)}&mode=socratic`}
+                                  variant="outline"
+                                  size="sm"
+                                >
+                                  {presentation.secondaryCta}
+                                </ButtonLink>
+                                <Button
+                                  variant={isExpanded ? "primary" : "outline"}
+                                  size="sm"
+                                  icon={<BookOpen className="h-3.5 w-3.5" />}
+                                  aria-expanded={isExpanded}
+                                  onClick={() => setExpandedTopic(isExpanded ? null : topicName)}
+                                >
+                                  Learn Concept
+                                  {isExpanded ? (
+                                    <ChevronUp className="ml-1 h-3.5 w-3.5" />
+                                  ) : (
+                                    <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                              </>
+                            )}
+                            {mode !== "ai_session" && (
+                              <Button
+                                variant={isExpanded ? "primary" : "outline"}
+                                size="sm"
+                                icon={<BookOpen className="h-3.5 w-3.5" />}
+                                aria-expanded={isExpanded}
+                                onClick={() => setExpandedTopic(isExpanded ? null : topicName)}
+                              >
+                                {presentation.secondaryCta}
+                                {isExpanded ? (
+                                  <ChevronUp className="ml-1 h-3.5 w-3.5" />
+                                ) : (
+                                  <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            )}
                           </div>
                         </div>
 
@@ -305,9 +339,16 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                                   >
                                     <div className="flex flex-col gap-2">
                                       <div className="flex items-center justify-between gap-2">
-                                        <Badge tone={getBadgeTone(item)} dot={item.source === "faculty"}>
-                                          {getBadgeLabel(item)}
-                                        </Badge>
+                                        <div className="flex items-center gap-1.5">
+                                          <Badge tone={getBadgeTone(item)} dot={item.source === "faculty"}>
+                                            {getBadgeLabel(item)}
+                                          </Badge>
+                                          {item.match_type && (
+                                            <Badge tone={item.match_type === "exact" ? "green" : "amber"}>
+                                              {item.match_type === "exact" ? "Exact" : "Related"}
+                                            </Badge>
+                                          )}
+                                        </div>
                                         {item.duration && (
                                           <span className="font-mono text-xs text-muted">{item.duration}</span>
                                         )}
@@ -316,6 +357,9 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                                       <h5 className="line-clamp-2 font-serif text-[15px] text-ink">
                                         {item.title}
                                       </h5>
+                                      {item.match_reason && (
+                                        <p className="text-xs text-muted">{item.match_reason}</p>
+                                      )}
 
                                       {item.channel && (
                                         <p className="font-mono text-xs text-muted">{item.channel}</p>
@@ -379,6 +423,12 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                     const scorePct = percent(group.mastery_score);
                     const tone: BadgeTone = "amber";
                     const isExpanded = expandedTopic === topicName;
+                    const mode = getProgressRecommendationMode(
+                      group.attempts,
+                      group.evidence_state,
+                      group.mastery_band,
+                    );
+                    const presentation = getRecommendationPresentation(mode);
 
                     return (
                       <div
@@ -386,7 +436,7 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                         className="rounded-xl border border-line bg-surface p-4 transition-all"
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-2">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-primary text-base">
                                 {topicName}
@@ -396,8 +446,9 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                               </Badge>
                             </div>
                             <span className="text-xs text-tertiary">
-                              {group.attempts} {plural(group.attempts, "attempt")} · Targeted practice recommended
+                              {group.attempts} {plural(group.attempts, "attempt")}
                             </span>
+                            <RecommendationModeBanner mode={mode} />
                           </div>
 
                           <div className="flex items-center gap-2">
@@ -407,7 +458,7 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                               icon={<CheckCircle2 className="h-4 w-4" />}
                               onClick={() => setPrepContext({ topic: topicName, topic_id: group.topic_id, class_id: data.class_id })}
                             >
-                              Practice Quiz
+                              {presentation.primaryCta}
                             </Button>
                             {learningResources.length > 0 && (
                               <Button
@@ -416,7 +467,7 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                                 icon={isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                 onClick={() => setExpandedTopic(isExpanded ? null : topicName)}
                               >
-                                {isExpanded ? "Hide Resources" : `Resources (${learningResources.length})`}
+                                {isExpanded ? "Hide Resources" : `${presentation.secondaryCta} (${learningResources.length})`}
                               </Button>
                             )}
                           </div>
@@ -430,6 +481,7 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                                 <div key={item.id || idx} className="rounded-lg border border-line bg-surface2 p-3 flex flex-col justify-between">
                                   <div>
                                     <span className="text-xs font-semibold text-secondary">{item.title}</span>
+                                    {item.match_reason && <p className="mt-1 text-xs text-muted">{item.match_reason}</p>}
                                     {item.channel && <p className="font-mono text-xs text-muted">{item.channel}</p>}
                                   </div>
                                   <div className="mt-3 flex justify-end">
@@ -457,19 +509,15 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
             {/* Insufficient Evidence Section */}
             {insufficientList.length > 0 && (
               <div className="flex flex-col gap-3 rounded-[2px] border border-dashed border-line bg-surface2 p-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-accent-red" />
-                  <h3 className="font-serif text-[16px] text-ink">
-                    Diagnostic Assessment Needed
-                  </h3>
-                </div>
-                <p className="text-xs text-muted">
-                  The following topics do not have enough quiz attempts yet to evaluate mastery accurately. Take a diagnostic quiz to calibrate your baseline score.
-                </p>
+                <RecommendationModeBanner
+                  mode="initial_assessment"
+                  reason="These topics do not have enough current assessment evidence. Take an initial assessment to establish your baseline."
+                />
 
                 <div className="mt-2 grid gap-2 sm:grid-cols-2 md:grid-cols-3">
                   {insufficientList.map((t) => {
                     const topicName = t.topic || t.topic_name || "Curriculum Topic";
+                    const presentation = getRecommendationPresentation("initial_assessment");
                     return (
                       <div
                         key={topicName}
@@ -495,7 +543,7 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
                             })
                           }
                         >
-                          Test <ArrowRight className="ml-1 h-3 w-3" />
+                          {presentation.primaryCta} <ArrowRight className="ml-1 h-3 w-3" />
                         </Button>
                       </div>
                     );
@@ -506,7 +554,7 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
 
             {data && data.weak_topics.length > 0 && (
               <CardTakeaway
-                text={`${data.weak_topics.length} ${plural(data.weak_topics.length, "topic")} currently estimated below 70% threshold. Choose "Take a Test" or "Learn the Concept" on any focus area above.`}
+                text={`${data.weak_topics.length} ${plural(data.weak_topics.length, "topic")} currently estimated below 70% threshold. Choose "Take a Test" or "Learn Concept" on any focus area above.`}
               />
             )}
           </div>
@@ -523,6 +571,7 @@ export function RecommendedLearningSection({ classId }: RecommendedLearningSecti
             setExpandedTopic(prepContext.topic);
           }
         }}
+        onWatchVideo={(v) => setActiveVideo(v)}
       />
 
       {/* Video Player Modal */}

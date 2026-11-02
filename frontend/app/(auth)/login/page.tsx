@@ -29,7 +29,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[2px] border border-line bg-surface p-8 sm:p-10 shadow-[0_18px_48px_rgba(20,18,15,.08)]">
+    <div className="w-full max-w-md rounded-[2px] border border-line bg-surface p-8 sm:p-10 shadow-shadow">
       <div className="mb-6">
         <span className="font-mono text-xs uppercase tracking-[0.08em] text-accent-red">
           [ 01 / SIGN IN ]

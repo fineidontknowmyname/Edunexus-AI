@@ -20,7 +20,7 @@ function parseList(value: string): string[] {
 }
 
 const fieldLabel = "mb-1 block text-xs font-medium text-tertiary md:sr-only";
-const control = cn(controlClasses, "border-strong px-2.5 py-1.5");
+const control = cn(controlClasses, "px-2.5 py-1.5");
 
 export function TopicGraphEditor({ topics, onChange }: Props) {
   const [newTopic, setNewTopic] = useState("");

@@ -156,7 +156,7 @@ export function rawFetch(path: string, options: RequestOptions): Promise<Respons
     method,
     credentials: "include",
     headers: buildHeaders(method, headers, !isFormData && body !== undefined),
-    body: isFormData ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
+    body: isFormData ? (body as FormData) : typeof body === "string" ? body : body !== undefined ? JSON.stringify(body) : undefined,
   });
 }
 

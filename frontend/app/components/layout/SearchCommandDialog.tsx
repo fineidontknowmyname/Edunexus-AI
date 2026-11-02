@@ -62,7 +62,7 @@ export function SearchCommandDialog({
       className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 sm:pt-24"
     >
       <div
-        className="fixed inset-0 bg-[#0008] backdrop-blur-[5px] transition-opacity"
+        className="fixed inset-0 bg-overlay backdrop-blur-[5px] transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />

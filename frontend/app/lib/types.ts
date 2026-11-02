@@ -173,6 +173,7 @@ export interface QuizQuestionReview {
   explanation?: string | null;
   source_page_number?: number | null;
   source_document_id?: string | null;
+  source_document_name?: string | null;
   provenance?: {
     generator?: string;
     prompt_version?: string;
@@ -208,6 +209,13 @@ export interface QuizQuestionStudent {
   question_order?: number;
   points?: number;
   partial_credit_allowed?: boolean;
+  source_document_name?: string | null;
+  source_document_id?: string | null;
+  source_page_number?: number | null;
+  document_name?: string | null;
+  page?: number | null;
+  section_heading?: string | null;
+  snippet?: string | null;
 }
 
 export interface PendingQuiz {
@@ -549,6 +557,9 @@ export interface RecommendationSection {
   chunk_id: string;
   text: string;
   similarity: number;
+  document_name?: string | null;
+  page_number?: number | null;
+  section_heading?: string | null;
 }
 
 export interface RecommendationVideo {
@@ -561,6 +572,8 @@ export interface RecommendationVideo {
   thumbnail?: string | null;
   source?: "faculty" | "student_suggested" | "auto" | null;
   embeddable?: boolean;
+  match_type?: "exact" | "related";
+  match_reason?: string | null;
 }
 
 
@@ -592,6 +605,7 @@ export interface ProgressRecommendationItem {
   video_id?: string | null;
   document_id?: string | null;
   file_url?: string | null;
+  page_number?: number | null;
   channel?: string | null;
   duration?: string | null;
   thumbnail?: string | null;
@@ -602,6 +616,8 @@ export interface ProgressRecommendationItem {
   action_url?: string | null;
   badge_label?: string;
   badge_color?: string;
+  match_type?: "exact" | "related";
+  match_reason?: string | null;
   topic?: string;
 }
 
@@ -654,6 +670,7 @@ export interface TopicQuizPrepContext {
   subject_name?: string | null;
   mastery_score?: number | null;
   attempts?: number;
+  recommended_video?: RecommendationVideo | null;
 }
 
 export interface TopicQuizGenerateRequest {
@@ -679,6 +696,7 @@ export interface RecommendationNote {
   truncated?: boolean;
   author_role: string;
   helpful_count?: number;
+  match_type?: "exact" | "related";
 }
 
 export type RoutingLabel = "reinforce" | "advance" | "intervene";
@@ -695,6 +713,17 @@ export interface RecommendationResponse {
   learning_tag: string | null;
   mode: "static" | "ai_session" | "diagnostic" | "verification" | "advance" | "initial_assessment" | "reinforce";
   sections: RecommendationSection[];
+  documents?: Array<{
+    id: string;
+    title: string;
+    document_id: string;
+    page_number?: number | null;
+    content?: string | null;
+    file_url?: string | null;
+    match_reason?: string | null;
+  }>;
+  has_material: boolean;
+  chunk_count: number;
   videos: RecommendationVideo[];
   notes?: RecommendationNote[];
   socratic_seed_message: string | null;
@@ -726,5 +755,3 @@ export interface LearningResourceRow {
   source?: "faculty" | "student_suggested" | "auto" | null;
   embeddable?: boolean;
 }
-
-

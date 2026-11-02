@@ -20,6 +20,10 @@ export function PageHeader({
   back?: { href: string; label: string };
   className?: string;
 }) {
+  const eyebrowText = typeof eyebrow === "string"
+    ? eyebrow.replace(/^\s*\[\s*(.*?)\s*\]\s*$/, "$1")
+    : eyebrow;
+
   return (
     <header className={cn("flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between pb-6 mb-6 border-b border-line", className)}>
       <div className="flex items-start gap-4 min-w-0">
@@ -41,9 +45,9 @@ export function PageHeader({
               {back.label}
             </Link>
           )}
-          {eyebrow && (
+          {eyebrowText && (
             <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.1em] text-red">
-              [ {eyebrow} ]
+              [ {eyebrowText} ]
             </div>
           )}
           <h1 className="font-serif text-3xl sm:text-4xl text-ink leading-none tracking-tight break-words">

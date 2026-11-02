@@ -5,7 +5,7 @@ import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTML
 import { cn } from "../../lib/cn";
 
 export const controlClasses =
-  "w-full rounded-[2px] border border-line bg-surface px-3 py-2.5 font-mono text-xs text-ink placeholder:text-muted transition-colors duration-200 focus:outline-none focus:border-red disabled:opacity-50 disabled:cursor-not-allowed";
+  "w-full rounded-[2px] border border-control-line bg-surface px-3 py-2.5 font-mono text-xs text-ink placeholder:text-muted transition-colors duration-200 focus:outline-none focus:border-red disabled:cursor-not-allowed disabled:border-control-line disabled:bg-surface2 disabled:text-muted";
 
 interface FieldProps {
   label?: ReactNode;
@@ -63,7 +63,7 @@ export function Input({ label, hint, error, srOnlyLabel, id, className, wrapperC
         id={inputId}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(inputId, error, hint)}
-        className={cn(controlClasses, "h-10", error ? "border-red" : "border-line", className)}
+        className={cn(controlClasses, "h-10", error ? "border-red" : "border-control-line", className)}
         {...rest}
       />
     </FieldShell>
@@ -84,7 +84,7 @@ export function Select({ label, hint, error, srOnlyLabel, id, className, wrapper
           id={selectId}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy(selectId, error, hint)}
-          className={cn(controlClasses, "h-10 appearance-none pl-3 pr-9 truncate", error ? "border-red" : "border-line", className)}
+          className={cn(controlClasses, "h-10 appearance-none pl-3 pr-9 truncate", error ? "border-red" : "border-control-line", className)}
           {...rest}
         >
           {children}
@@ -115,7 +115,7 @@ export function Textarea({ label, hint, error, srOnlyLabel, id, className, wrapp
         id={textareaId}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(textareaId, error, hint)}
-        className={cn(controlClasses, "min-h-[96px] py-2 resize-y", error ? "border-red" : "border-line", className)}
+        className={cn(controlClasses, "min-h-[96px] py-2 resize-y", error ? "border-red" : "border-control-line", className)}
         {...rest}
       />
     </FieldShell>

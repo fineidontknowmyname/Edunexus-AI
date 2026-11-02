@@ -60,8 +60,13 @@ def progress_recommendations(
     based on empirical assessment performance.
     """
     resolved_class_id = access.student_class_id(db, current_user, class_id)
+    from backend.main import app
+
     return recommendation_service.get_progress_recommendations(
-        db, str(current_user.id), resolved_class_id
+        db,
+        str(current_user.id),
+        resolved_class_id,
+        getattr(app.state, "embedding_model", None),
     )
 
 

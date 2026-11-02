@@ -87,7 +87,7 @@ export function SyllabusChecklist({ classId, documents }: { classId: string; doc
                   <span
                     className={cn(
                       "flex h-4 w-4 shrink-0 items-center justify-center rounded-[2px] border transition-colors",
-                      c.taught ? "border-accent-green bg-accent-green text-white" : "border-line bg-surface"
+                      c.taught ? "border-accent-green bg-accent-green text-on-accent" : "border-control-line bg-surface"
                     )}
                     aria-hidden
                   >

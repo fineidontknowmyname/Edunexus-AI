@@ -172,8 +172,8 @@ function QuizTakeInner() {
       />
 
       {Boolean(quiz.held_question_count && quiz.held_question_count > 0) && (
-        <div className="mb-4 rounded-[2px] border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-ink flex items-start gap-3">
-          <Lock className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+        <div className="mb-4 rounded-[2px] border border-warning/30 bg-warning/10 p-3.5 text-xs text-ink flex items-start gap-3">
+          <Lock className="h-4 w-4 text-warning shrink-0 mt-0.5" />
           <div className="flex-1">
             <span className="font-semibold text-ink">
               {quiz.held_question_count} question{quiz.held_question_count === 1 ? " is" : "s are"} held back:
@@ -191,7 +191,7 @@ function QuizTakeInner() {
       {total === 0 ? (
         Boolean(quiz.held_question_count && quiz.held_question_count > 0) ? (
           <EmptyState
-            icon={<Lock className="h-6 w-6 text-amber-500" />}
+            icon={<Lock className="h-6 w-6 text-warning" />}
             title="Questions held back by tutor"
             description="Questions on topics you are still working through with the tutor are held back. Review those topics in the tutor chat to unlock them."
             action={
@@ -224,7 +224,7 @@ function QuizTakeInner() {
             ))}
           </div>
 
-          <div className="sticky bottom-4 z-10 border border-line bg-surface/95 backdrop-blur-[10px] p-4 rounded-[3px] shadow-[0_18px_48px_rgba(20,18,15,.08)]">
+          <div className="sticky bottom-4 z-10 border border-line bg-surface/95 backdrop-blur-[10px] p-4 rounded-[3px] shadow-shadow">
             {error && (
               <Alert
                 tone={error.duplicate ? "warning" : "danger"}

@@ -228,7 +228,7 @@ export default function Home() {
       </section>
 
       {/* Reference Footer Strip */}
-      <footer className="footer shell">
+      <footer className="quiet-footer shell mt-8">
         <span>EDUNEXUS AI / HIGHER EDUCATION LEARNING SYSTEM</span>
         <span>DESIGNED FOR FOCUS · 2026—27</span>
         <span>CURRICULUM INTEGRITY FIRST</span>

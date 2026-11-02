@@ -80,7 +80,7 @@ export function SessionList({
                     disabled={disabled}
                     aria-current={active ? "true" : undefined}
                     className={cn(
-                      "w-full rounded-[2px] px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer",
+                      "w-full rounded-[2px] px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed cursor-pointer",
                       active ? "bg-surface2 text-red font-medium" : "hover:bg-surface2/60 text-ink"
                     )}
                   >

@@ -18,7 +18,7 @@ function parseList(v: string): string[] {
 }
 
 const fieldLabel = "mb-1 block text-xs font-medium text-tertiary md:sr-only";
-const control = cn(controlClasses, "border-strong px-2.5 py-1.5");
+const control = cn(controlClasses, "px-2.5 py-1.5");
 const GRID = "md:grid-cols-[minmax(0,10rem)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_2.25rem]";
 
 export function MisconceptionRulesEditor({ topics, rules, onChange }: Props) {

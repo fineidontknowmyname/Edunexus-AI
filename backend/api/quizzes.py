@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 from datetime import datetime, timedelta
 from typing import Annotated, Any
@@ -41,6 +42,45 @@ def _question_out(q: QuizQuestion, include_answer: bool) -> dict:
     except Exception:
         options = [q.options] if q.options else []
 
+    meta: dict[str, Any] = {}
+    if getattr(q, "generation_meta", None):
+        try:
+            meta = json.loads(q.generation_meta) if isinstance(q.generation_meta, str) else (q.generation_meta or {})
+        except Exception:
+            meta = {}
+
+    doc_name = None
+    if getattr(q, "source_document", None) and (getattr(q.source_document, "title", None) or getattr(q.source_document, "filename", None)):
+        doc_name = q.source_document.title or q.source_document.filename
+    elif getattr(q, "source_chunk", None) and getattr(q.source_chunk, "document", None):
+        doc_name = q.source_chunk.document.title or q.source_chunk.document.filename
+    elif meta.get("source_document_title"):
+        doc_name = meta.get("source_document_title")
+    elif meta.get("source_document_filename"):
+        doc_name = meta.get("source_document_filename")
+
+    page_num = getattr(q, "source_page_number", None)
+    if page_num is None and meta.get("source_page_number") is not None:
+        page_num = meta.get("source_page_number")
+
+    chunk = getattr(q, "source_chunk", None)
+    if page_num is None and chunk:
+        page_num = chunk.page_number
+        if page_num is None and chunk.text:
+            m = re.search(r"\[Page\s*(\d+)\]", chunk.text, re.IGNORECASE)
+            if m:
+                page_num = int(m.group(1))
+
+    section_heading = chunk.section_heading if chunk else meta.get("section_heading")
+    snippet = None
+    if chunk and chunk.text:
+        cleaned = " ".join(chunk.text.split())
+        snippet = cleaned[:240].strip() + ("..." if len(cleaned) > 240 else "")
+    elif meta.get("snippet"):
+        snippet = meta.get("snippet")
+
+    doc_id = str(q.source_document_id) if getattr(q, "source_document_id", None) else (str(meta["source_document_id"]) if meta.get("source_document_id") else None)
+
     out: dict[str, Any] = {
         "id": str(q.id),
         "question_text": q.question_text,
@@ -52,8 +92,13 @@ def _question_out(q: QuizQuestion, include_answer: bool) -> dict:
         "question_order": getattr(q, "question_order", 1) or 1,
         "points": getattr(q, "points", 1.0) or 1.0,
         "partial_credit_allowed": bool(getattr(q, "partial_credit_allowed", False)),
-        "source_document_id": str(q.source_document_id) if getattr(q, "source_document_id", None) else None,
-        "source_page_number": getattr(q, "source_page_number", None),
+        "source_document_id": doc_id,
+        "source_document_name": doc_name,
+        "source_page_number": page_num,
+        "document_name": doc_name,
+        "page": page_num,
+        "section_heading": section_heading,
+        "snippet": snippet,
     }
     if include_answer:
         if q.correct_answer and str(q.correct_answer).startswith("["):
@@ -64,13 +109,7 @@ def _question_out(q: QuizQuestion, include_answer: bool) -> dict:
         else:
             out["correct_answer"] = q.correct_answer
         out["explanation"] = q.explanation
-        provenance = None
-        if getattr(q, "generation_meta", None):
-            try:
-                provenance = json.loads(q.generation_meta)
-            except Exception:
-                provenance = None
-        out["provenance"] = provenance
+        out["provenance"] = meta if meta else None
     return out
 
 

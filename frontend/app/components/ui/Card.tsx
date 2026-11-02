@@ -21,7 +21,7 @@ export function Card({
       className={cn(
         "rounded-[3px] border border-line transition-all duration-300 min-w-0 relative",
         variant === "highlight"
-          ? "bg-panel-dark text-panel-dark-text shadow-shadow"
+          ? "border-highlight-border bg-highlight-bg text-highlight-text shadow-shadow"
           : "bg-surface hover:bg-surface2",
         padded && "p-6",
         className

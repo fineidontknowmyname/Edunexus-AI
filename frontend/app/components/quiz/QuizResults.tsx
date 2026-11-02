@@ -167,6 +167,25 @@ export function QuizResults({ result, quiz }: { result: QuizAttemptResult; quiz:
                       {r.explanation}
                     </div>
                   )}
+                  {(q?.source_document_name || q?.document_name || q?.source_page_number != null || q?.page != null || q?.section_heading || q?.snippet) && (
+                    <details className="mt-2 rounded-[2px] border border-line/60 bg-surface2/60 px-2.5 py-2 font-mono text-[10px] text-muted">
+                      <summary className="cursor-pointer list-none">
+                        <span className="uppercase text-ink font-semibold">Source:</span>{" "}
+                        {q?.document_name || q?.source_document_name || "Curriculum Document"}
+                        {(q?.page != null || q?.source_page_number != null) && (
+                          <> · p.{q?.page ?? q?.source_page_number}</>
+                        )}
+                        {q?.section_heading && (
+                          <> · {q.section_heading}</>
+                        )}
+                      </summary>
+                      {q?.snippet && (
+                        <p className="mt-2 border-t border-line/40 pt-2 text-[10px] text-muted italic">
+                          “{q.snippet}”
+                        </p>
+                      )}
+                    </details>
+                  )}
                   <div className="mt-2 flex justify-end">
                     <Button
                       size="sm"

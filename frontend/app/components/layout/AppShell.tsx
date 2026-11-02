@@ -119,7 +119,7 @@ export function AppShell({ role, children }: { role: UserRole | null; children: 
       </main>
 
       {/* Reference Footer Strip */}
-      <footer className="footer shell border-t border-line mt-auto">
+      <footer className="quiet-footer shell mt-auto">
         <span>EDUNEXUS AI / HIGHER EDUCATION LEARNING SYSTEM</span>
         <span>DESIGNED FOR FOCUS · 2026—27</span>
         <span className="text-right">ADAPTIVE CURRICULUM INTELLIGENCE</span>

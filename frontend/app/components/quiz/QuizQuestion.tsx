@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { QuizQuestionStudent } from "../../lib/types";
 import { cn } from "../../lib/cn";
 
@@ -18,10 +19,16 @@ export function QuizQuestion({
   onSelect: (option: string | string[]) => void;
   disabled: boolean;
 }) {
+  const [showSnippet, setShowSnippet] = useState(false);
   const headingId = `q-${question.id}`;
   const isMultiple = question.question_type === "multiple_choice";
   const points = question.points ?? 1.0;
   const selectedList = Array.isArray(selected) ? selected : selected ? [selected] : [];
+
+  const docName = question.document_name || question.source_document_name;
+  const pageNum = question.page ?? question.source_page_number;
+  const section = question.section_heading;
+  const snippet = question.snippet;
 
   function handleToggleOption(opt: string) {
     if (disabled) return;
@@ -58,12 +65,40 @@ export function QuizQuestion({
             {points} {points === 1 ? "POINT" : "POINTS"}
           </span>
         </div>
-        {question.topic && (
-          <span className="text-muted">
-            TOPIC: {question.topic}
-          </span>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {question.topic && (
+            <span className="text-muted">
+              TOPIC: {question.topic}
+            </span>
+          )}
+          {(docName || pageNum != null || section || snippet) && (
+            <div className="flex items-center gap-1.5">
+              <span>·</span>
+              <span className="text-ink font-semibold">
+                Source: {docName || "Curriculum Document"}
+                {pageNum != null ? ` · p.${pageNum}` : ""}
+                {section ? ` · ${section}` : ""}
+              </span>
+              {snippet && (
+                <button
+                  type="button"
+                  onClick={() => setShowSnippet((prev) => !prev)}
+                  className="ml-1 text-[9px] uppercase tracking-wider text-accent-red hover:underline focus:outline-none"
+                  aria-expanded={showSnippet}
+                >
+                  [{showSnippet ? "Hide ▴" : "Snippet ▾"}]
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
+
+      {showSnippet && snippet && (
+        <div className="mb-4 rounded-[2px] border border-line bg-surface2/60 p-2.5 font-mono text-[10px] text-muted italic">
+          “{snippet}”
+        </div>
+      )}
 
       <legend className="sr-only">Question {index + 1}</legend>
       <h3 id={headingId} className="font-serif text-2xl sm:text-[26px] text-ink leading-snug mb-5">
@@ -87,8 +122,8 @@ export function QuizQuestion({
                 "option flex items-center justify-between cursor-pointer select-none",
                 isSelected
                   ? "border-ink bg-surface2 text-ink font-medium"
-                  : "border-line text-muted hover:border-red hover:text-ink",
-                disabled && "cursor-not-allowed opacity-60"
+                  : "border-control-line text-muted hover:border-red hover:text-ink",
+                disabled && "cursor-not-allowed"
               )}
             >
               <div className="flex items-center gap-3">

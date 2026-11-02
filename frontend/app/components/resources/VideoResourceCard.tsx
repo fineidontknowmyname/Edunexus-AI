@@ -39,7 +39,7 @@ export function VideoResourceCard({
       ? "Faculty Curated"
       : video.source === "student_suggested"
       ? "Student Suggested"
-      : "Auto Discovered";
+      : "Class Resource";
 
   const thumbUrl =
     video.thumbnail || `https://i.ytimg.com/vi/${video.video_id}/hqdefault.jpg`;
@@ -91,11 +91,19 @@ export function VideoResourceCard({
             <Badge tone={provenanceTone} dot>
               {provenanceLabel}
             </Badge>
+            {video.match_type && (
+              <Badge tone={video.match_type === "exact" ? "green" : "amber"}>
+                {video.match_type === "exact" ? "Exact" : "Related"}
+              </Badge>
+            )}
             <span className="font-mono text-[11px] text-muted">· {video.channel}</span>
           </div>
           <h4 className="font-serif text-[15px] text-ink line-clamp-2 group-hover:text-accent-red transition-colors">
             {video.title}
           </h4>
+          {video.match_reason && (
+            <p className="mt-1 text-xs text-muted">{video.match_reason}</p>
+          )}
         </div>
 
         <div className="mt-2.5 flex items-center justify-between text-xs text-muted">
@@ -110,7 +118,7 @@ export function VideoResourceCard({
               disabled={hasVoted || voting}
               className={`inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 font-mono text-[11px] transition-colors ${
                 hasVoted
-                  ? "border-accent-red bg-accent-red text-white"
+                  ? "border-accent-red bg-accent-red text-on-accent"
                   : "bg-surface2 text-muted hover:border-ink"
               }`}
               title="Helpful resource"

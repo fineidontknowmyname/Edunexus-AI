@@ -21,6 +21,7 @@ def get_recommendation(
     _student: Annotated[None, RequireStudent],
     topic: str = Query(..., min_length=1, max_length=500),
     class_id: str | None = None,
+    topic_id: str | None = Query(None),
 ):
     resolved_class_id = access.student_class_id(db, current_user, class_id)
     class_context = context_service.assemble_class_context(db, resolved_class_id)
@@ -29,5 +30,5 @@ def get_recommendation(
 
     embedding_model = getattr(app.state, "embedding_model", None)
     return recommendation_service.get_recommendation(
-        db, str(current_user.id), resolved_class_id, class_context["subject_id"], topic, embedding_model
+        db, str(current_user.id), resolved_class_id, class_context["subject_id"], topic, embedding_model, topic_id=topic_id
     )

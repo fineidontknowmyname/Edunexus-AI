@@ -41,6 +41,11 @@ export function VideoPlayerModal({ video, onClose }: VideoPlayerModalProps) {
           <Badge tone={provenanceTone} dot>
             {provenanceLabel}
           </Badge>
+          {video.match_type === "related" && (
+            <Badge tone="amber">
+              Related
+            </Badge>
+          )}
           <a
             href={video.url}
             target="_blank"

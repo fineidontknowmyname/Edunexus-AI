@@ -567,7 +567,7 @@ function QuestionItem({
               {points} pt{points === 1 ? "" : "s"}
             </span>
             {question.partial_credit_allowed && (
-              <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-600 dark:text-emerald-400">
+              <span className="rounded bg-success/10 px-2 py-0.5 text-xs text-success">
                 Partial Credit
               </span>
             )}
@@ -576,7 +576,7 @@ function QuestionItem({
               <button
                 type="button"
                 onClick={handleToggleReports}
-                className="rounded bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
+                className="rounded bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning hover:bg-warning/20 transition-colors"
               >
                 {question.report_count} report{question.report_count === 1 ? "" : "s"}
               </button>
@@ -963,7 +963,7 @@ function AddQuestionModal({
                   setCorrectAnswer("True");
                 }
               }}
-              className="mt-1 w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-sm text-primary"
+              className="mt-1 w-full rounded-lg border border-control-line bg-surface px-3 py-2 text-sm text-primary"
             >
               <option value="single_choice">Single Choice</option>
               <option value="multiple_choice">Multiple Choice</option>
@@ -976,7 +976,7 @@ function AddQuestionModal({
             <select
               value={difficulty}
               onChange={(e) => setDifficulty(e.target.value as Difficulty)}
-              className="mt-1 w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-sm text-primary"
+              className="mt-1 w-full rounded-lg border border-control-line bg-surface px-3 py-2 text-sm text-primary"
             >
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>
@@ -992,7 +992,7 @@ function AddQuestionModal({
               rows={4}
               value={optionsText}
               onChange={(e) => setOptionsText(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-subtle bg-surface p-2 text-sm text-primary"
+              className="mt-1 w-full rounded-lg border border-control-line bg-surface p-2 text-sm text-primary"
               required
             />
           </label>
@@ -1145,7 +1145,7 @@ function EditQuestionModal({
                   setCorrectAnswer("True");
                 }
               }}
-              className="mt-1 w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-sm text-primary"
+              className="mt-1 w-full rounded-lg border border-control-line bg-surface px-3 py-2 text-sm text-primary"
             >
               <option value="single_choice">Single Choice</option>
               <option value="multiple_choice">Multiple Choice</option>
@@ -1158,7 +1158,7 @@ function EditQuestionModal({
             <select
               value={difficulty}
               onChange={(e) => setDifficulty(e.target.value as Difficulty)}
-              className="mt-1 w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-sm text-primary"
+              className="mt-1 w-full rounded-lg border border-control-line bg-surface px-3 py-2 text-sm text-primary"
             >
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>
@@ -1174,7 +1174,7 @@ function EditQuestionModal({
               rows={4}
               value={optionsText}
               onChange={(e) => setOptionsText(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-subtle bg-surface p-2 text-sm text-primary"
+              className="mt-1 w-full rounded-lg border border-control-line bg-surface p-2 text-sm text-primary"
               required
             />
           </label>
@@ -1312,7 +1312,7 @@ function CoverageAnalysisModal({
             <div className="flex items-center gap-2">
               <span className={cn(
                 "rounded-full px-3 py-1 text-sm font-bold",
-                score >= 80 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : score >= 50 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                score >= 80 ? "bg-success/10 text-success" : score >= 50 ? "bg-warning/10 text-warning" : "bg-danger/10 text-danger"
               )}>
                 {score}%
               </span>
@@ -1496,7 +1496,7 @@ function GenerateCard({
                 }}
                 className={cn(
                   "rounded-full border px-3 py-1 font-mono text-[11px] uppercase tracking-[0.04em] transition-colors",
-                  d.unit === unit && d.chapter === chapter ? "border-accent-red bg-accent-red text-white" : "border-line bg-surface text-ink hover:border-ink"
+                  d.unit === unit && d.chapter === chapter ? "border-accent-red bg-accent-red text-on-accent" : "border-control-line bg-surface text-ink hover:border-ink"
                 )}
               >
                 U{d.unit} · Ch {d.chapter}

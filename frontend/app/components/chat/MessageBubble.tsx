@@ -82,7 +82,7 @@ export function MessageBubble({
                   type="button"
                   onClick={() => onRetry(message.key)}
                   disabled={retryDisabled}
-                  className="inline-flex h-7 shrink-0 items-center gap-1.5 self-start rounded-full border border-line bg-surface px-3 font-mono text-[9px] uppercase tracking-wider text-ink hover:border-red hover:text-red disabled:opacity-50 sm:self-auto cursor-pointer"
+                  className="inline-flex h-7 shrink-0 items-center gap-1.5 self-start rounded-full border border-control-line bg-surface px-3 font-mono text-[9px] uppercase tracking-wider text-ink hover:border-red hover:text-red sm:self-auto cursor-pointer"
                 >
                   <RotateCw className="h-3 w-3" aria-hidden />
                   Retry
@@ -92,7 +92,7 @@ export function MessageBubble({
                 <button
                   type="button"
                   onClick={() => onFlag(message.id!)}
-                  className="inline-flex h-7 shrink-0 items-center gap-1 self-start rounded-full border border-line bg-surface px-2.5 font-mono text-[9px] uppercase tracking-wider text-muted hover:border-red hover:text-red transition-colors cursor-pointer"
+                  className="inline-flex h-7 shrink-0 items-center gap-1 self-start rounded-full border border-control-line bg-surface px-2.5 font-mono text-[9px] uppercase tracking-wider text-muted hover:border-red hover:text-red transition-colors cursor-pointer"
                   title="Flag response"
                 >
                   <Flag className="h-3 w-3" aria-hidden />

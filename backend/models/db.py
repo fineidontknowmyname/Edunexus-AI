@@ -530,6 +530,7 @@ class QuizQuestion(Base):
     quiz = relationship("Quiz", back_populates="questions")
     canonical_topic = relationship("PrerequisiteMap", back_populates="questions")
     source_document = relationship("Document", foreign_keys=[source_document_id])
+    source_chunk = relationship("Chunk", foreign_keys=[source_chunk_id])
     curriculum_mappings = relationship("QuestionCurriculumMapping", back_populates="question", cascade="all, delete-orphan")
     reports = relationship("QuestionReport", back_populates="question", cascade="all, delete-orphan")
 

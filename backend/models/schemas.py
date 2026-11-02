@@ -210,6 +210,9 @@ class RecommendationRead(BaseModel):
     mode: str
     reason: str | None = None
     sections: list[dict[str, Any]] = []
+    documents: list[dict[str, Any]] = []
+    has_material: bool = False
+    chunk_count: int = 0
     videos: list[dict[str, Any]] = []
     notes: list[dict[str, Any]] = []
     socratic_seed_message: str | None = None
@@ -502,7 +505,12 @@ class QuizQuestionRead(_OrmBase):
     status: ReviewStatus
     version: int = 1
     source_document_id: UUID | None = None
+    source_document_name: str | None = None
     source_page_number: int | None = None
+    document_name: str | None = None
+    page: int | None = None
+    section_heading: str | None = None
+    snippet: str | None = None
     partial_credit_allowed: bool = False
     generation_meta: str | None = None
     provenance: dict[str, Any] | None = None
@@ -660,6 +668,9 @@ class ProgressRecommendationItem(BaseModel):
     video_id: str | None = None
     document_id: str | None = None
     file_url: str | None = None
+    page_number: int | None = None
+    match_type: str | None = None
+    match_reason: str | None = None
 
 
 class WeakTopicRecommendationGroup(BaseModel):

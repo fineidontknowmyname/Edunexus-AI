@@ -73,7 +73,7 @@ export function ReportQuestionDialog({
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-sm text-primary"
+            className="mt-1 w-full rounded-lg border border-control-line bg-surface px-3 py-2 text-sm text-primary"
             required
           >
             {REPORT_CATEGORIES.map((cat) => (
@@ -92,7 +92,7 @@ export function ReportQuestionDialog({
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder="Explain why the question or answer is problematic..."
-            className="mt-1 w-full rounded-lg border border-subtle bg-surface p-2 text-sm text-primary"
+            className="mt-1 w-full rounded-lg border border-control-line bg-surface p-2 text-sm text-primary"
           />
           <span className="mt-0.5 block text-right font-mono text-[10px] text-muted">
             {comment.length}/1000

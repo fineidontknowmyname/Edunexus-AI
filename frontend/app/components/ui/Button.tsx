@@ -8,19 +8,19 @@ export type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    "bg-ink text-bg border-0 rounded-full hover:bg-red hover:-translate-y-0.5 transition-[transform,background] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-none",
+    "bg-ink text-bg border-0 rounded-full hover:bg-red hover:text-on-accent hover:-translate-y-0.5 transition-[transform,background] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-none",
   accent:
-    "bg-ink text-bg border-0 rounded-full hover:bg-red hover:-translate-y-0.5 transition-[transform,background] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+    "bg-ink text-bg border-0 rounded-full hover:bg-red hover:text-on-accent hover:-translate-y-0.5 transition-[transform,background] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
   secondary:
-    "bg-transparent text-ink border border-line rounded-full hover:border-red hover:text-red transition-all duration-250",
+    "bg-transparent text-ink border border-control-line rounded-full hover:border-red hover:text-red transition-all duration-250",
   outline:
-    "bg-transparent text-ink border border-line rounded-full hover:border-red hover:text-red transition-all duration-250",
+    "bg-transparent text-ink border border-control-line rounded-full hover:border-red hover:text-red transition-all duration-250",
   ghost:
     "bg-transparent text-muted rounded-full hover:text-red transition-colors duration-200",
   danger:
-    "bg-transparent text-red border border-red/60 rounded-full hover:bg-red hover:text-white transition-all duration-250",
+    "bg-transparent text-red border border-red rounded-full hover:bg-red hover:text-on-accent transition-all duration-250",
   filter:
-    "bg-transparent text-ink border border-line rounded-full text-[9px] hover:bg-ink hover:text-bg hover:border-ink transition-all duration-250",
+    "bg-transparent text-ink border border-control-line rounded-full text-[9px] hover:bg-ink hover:text-bg hover:border-ink transition-all duration-250",
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
@@ -40,7 +40,7 @@ export function buttonClasses({
   className?: string;
 } = {}) {
   return cn(
-    "inline-flex items-center justify-center font-mono uppercase tracking-[0.1em] whitespace-nowrap select-none disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red cursor-pointer",
+    "inline-flex items-center justify-center font-mono uppercase tracking-[0.1em] whitespace-nowrap select-none disabled:opacity-100 disabled:bg-surface2 disabled:text-muted disabled:border-control-line disabled:cursor-not-allowed disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red cursor-pointer",
     VARIANT_CLASSES[variant],
     SIZE_CLASSES[size],
     className

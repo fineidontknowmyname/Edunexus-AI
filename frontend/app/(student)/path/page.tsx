@@ -98,7 +98,7 @@ function LearningPath({ activeClass, picker }: { activeClass: ClassRow; picker: 
                       <span
                         className={cn(
                           "hidden h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono text-xs font-semibold sm:flex",
-                          index === 0 ? "bg-accent-red text-white" : "border border-line bg-surface2 text-muted"
+                          index === 0 ? "bg-accent-red text-on-accent" : "border border-control-line bg-surface2 text-muted"
                         )}
                         aria-hidden
                       >
@@ -124,14 +124,14 @@ function LearningPath({ activeClass, picker }: { activeClass: ClassRow; picker: 
                           onClick={() => toggle(entry.topic)}
                           aria-expanded={isOpen}
                           aria-controls={panelId}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 font-mono text-[11px] uppercase tracking-[0.06em] text-ink hover:border-ink transition-colors"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-control-line bg-surface px-3.5 font-mono text-[11px] uppercase tracking-[0.06em] text-ink hover:border-ink transition-colors"
                         >
                           {isOpen ? "Hide help" : "Get help"}
                           <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} aria-hidden />
                         </button>
                         <Link
                           href={cta.href}
-                          className="inline-flex h-8 items-center rounded-full border border-line bg-surface2 px-3.5 font-mono text-[11px] uppercase tracking-[0.06em] text-ink hover:bg-ink hover:text-bg transition-colors"
+                          className="inline-flex h-8 items-center rounded-full border border-control-line bg-surface2 px-3.5 font-mono text-[11px] uppercase tracking-[0.06em] text-ink hover:bg-ink hover:text-bg transition-colors"
                         >
                           {cta.label}
                         </Link>

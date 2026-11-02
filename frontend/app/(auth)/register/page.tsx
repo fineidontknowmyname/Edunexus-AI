@@ -39,7 +39,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[2px] border border-line bg-surface p-8 sm:p-10 shadow-[0_18px_48px_rgba(20,18,15,.08)]">
+    <div className="w-full max-w-md rounded-[2px] border border-line bg-surface p-8 sm:p-10 shadow-shadow">
       <div className="mb-6">
         <span className="font-mono text-xs uppercase tracking-[0.08em] text-accent-red">
           [ 02 / REGISTRATION ]
@@ -65,7 +65,7 @@ export default function RegisterPage() {
                     "relative flex cursor-pointer flex-col gap-1.5 rounded-[2px] border p-3.5 transition-all duration-150",
                     selected
                       ? "border-ink bg-surface2 text-ink shadow-xs"
-                      : "border-line bg-surface hover:border-ink/60"
+                      : "border-control-line bg-surface hover:border-ink/60"
                   )}
                 >
                   <input
